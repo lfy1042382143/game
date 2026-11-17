@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>深渊试炼 · Abyss Trial</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Segoe UI", system-ui, sans-serif;
+    background: #08060c;
+    color: #e9e6f2;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- 背景 ---------- */
+  .bg-base, .bg-grid, .bg-vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .bg-base {
+    background:
+      radial-gradient(700px 640px at 30% 47%, rgba(245, 196, 81, .16), transparent 64%),
+      radial-gradient(700px 640px at 70% 47%, rgba(196, 54, 86, .20), transparent 64%),
+      radial-gradient(1100px 700px at 50% 120%, rgba(92, 62, 168, .24), transparent 72%),
+      linear-gradient(#0c0913, #08060c 55%);
+  }
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, .028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, .028) 1px, transparent 1px);
+    background-size: 52px 52px;
+    -webkit-mask-image: radial-gradient(circle at 50% 42%, #000 10%, transparent 72%);
+    mask-image: radial-gradient(circle at 50% 42%, #000 10%, transparent 72%);
+  }
+  .bg-vignette {
+    background: radial-gradient(circle at 50% 45%, transparent 45%, rgba(4, 2, 8, .78) 100%);
+  }
+
+  /* ---------- 布局骨架 ---------- */
+  #app {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: clamp(10px, 1.8vw, 26px);
+    gap: clamp(6px, 1.2vh, 16px);
+  }
+
+  /* ---------- 顶栏 ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+  }
+
+  .wave-block { display: flex; align-items: baseline; gap: 10px; }
+  .wave-label {
+    font-size: clamp(9px, .9vw, 11px);
+    letter-spacing: .34em;
+    color: #7d7893;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .wave-num {
+    font-size: clamp(24px, 3.2vw, 38px);
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(180deg, #fff, #b9a7e8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    transition: transform .3s;
+  }
+  .wave-num.bump { animation: bump .45s cubic-bezier(.2,.9,.3,1.4); }
+  @keyframes bump {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.28); }
+    100% { transform: scale(1); }
+  }
+
+  .top-right { display: flex; align-items: center; gap: 8px; }
+
+  .record {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    color: #7d7893;
+    letter-spacing: .12em;
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: rgba(245, 196, 81, .07);
+    border: 1px solid rgba(245, 196, 81, .16);
+    font-variant-numeric: tabular-nums;
+  }
+  .record b { color: #f5c451; font-weight: 800; font-size: 12px; }
+
+  .icon-btn {
+    width: 34px; height: 34px;
+    display: grid; place-items: center;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid rgba(255, 255, 255, .08);
+    color: #b9b4cc;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background .18s, transform .18s, color .18s;
+  }
+  .icon-btn:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+  .icon-btn:active { transform: scale(.92); }
+
+  /* ---------- 战斗舞台 ---------- */
+  .stage {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(8px, 5vw, 104px);
+    position: relative;
+    min-height: 0;
+  }
+
+  .fighter {
+    flex: 0 1 auto;
+    width: clamp(152px, 20.5vw, 240px);
+    min-height: clamp(196px, 29vh, 296px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(8px, 1.2vh, 14px);
+    padding: clamp(14px, 2.2vh, 24px) clamp(11px, 1.2vw, 18px) clamp(13px, 2vh, 20px);
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .072), rgba(255, 255, 255, .014));
+    border: 1px solid rgba(255, 255, 255, .09);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    position: relative;
+    will-change: transform;
+  }
+
+  /* 站在地面上的光影 */
+  .fighter::before {
+    content: '';
+    position: absolute;
+    bottom: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 118%;
+    height: 58px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(245, 196, 81, .28), rgba(245, 196, 81, .06) 45%, transparent 72%);
+    filter: blur(9px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .foe::before { background: radial-gradient(ellipse, rgba(255, 60, 100, .28), rgba(255, 60, 100, .06) 45%, transparent 72%); }
+  .foe.boss::before { background: radial-gradient(ellipse, rgba(245, 196, 81, .32), rgba(245, 196, 81, .07) 45%, transparent 72%); }
+
+  /* 舞台地面氛围 */
+  .stage::after {
+    content: '';
+    position: absolute;
+    left: -12%;
+    right: -12%;
+    bottom: -40px;
+    height: 300px;
+    background: radial-gradient(ellipse 52% 100% at 50% 100%, rgba(112, 82, 190, .16), transparent 72%);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .ally {
+    box-shadow: 0 0 0 1px rgba(245, 196, 81, .12), 0 24px 60px -26px rgba(245, 196, 81, .45);
+  }
+  .foe {
+    box-shadow: 0 0 0 1px rgba(255, 84, 116, .12), 0 24px 60px -26px rgba(220, 40, 80, .5);
+  }
+  .foe.boss {
+    border-color: rgba(245, 196, 81, .45);
+    box-shadow: 0 0 0 1px rgba(245, 196, 81, .4), 0 0 46px -6px rgba(245, 196, 81, .35), 0 24px 60px -26px rgba(220, 40, 80, .5);
+  }
+
+  .name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+  }
+  .name {
+    font-size: clamp(12px, 1.15vw, 15px);
+    font-weight: 700;
+    letter-spacing: .04em;
+    color: #ded9ee;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .foe .name { color: #f0c3cf; }
+  .crown { font-size: clamp(11px, 1.1vw, 14px); }
+
+  .avatar-wrap {
+    position: relative;
+    display: grid;
+    place-items: center;
+  }
+  .aura {
+    position: absolute;
+    width: 150%; height: 150%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(245, 196, 81, .26), transparent 68%);
+    filter: blur(6px);
+    animation: breathe 3.4s ease-in-out infinite;
+  }
+  .foe .aura { background: radial-gradient(circle, rgba(226, 46, 88, .3), transparent 68%); }
+  .foe.boss .aura { background: radial-gradient(circle, rgba(245, 196, 81, .34), transparent 68%); }
+  @keyframes breathe {
+    0%, 100% { transform: scale(.94); opacity: .75; }
+    50% { transform: scale(1.08); opacity: 1; }
+  }
+
+  .avatar {
+    width: clamp(82px, 9.4vw, 118px);
+    height: clamp(82px, 9.4vw, 118px);
+    display: grid;
+    place-items: center;
+    font-size: clamp(42px, 5.2vw, 64px);
+    line-height: 1;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 34%, rgba(255, 255, 255, .14), rgba(0, 0, 0, .36));
+    border: 1px solid rgba(255, 255, 255, .11);
+    position: relative;
+    z-index: 2;
+    transition: filter .2s;
+  }
+  .foe .avatar { filter: brightness(1.14) saturate(1.08); }
+  .foe.boss .avatar {
+    font-size: clamp(48px, 6vw, 74px);
+    border-color: rgba(245, 196, 81, .34);
+  }
+
+  /* 血条 */
+  .bar {
+    width: 100%;
+    height: clamp(14px, 1.7vh, 19px);
+    border-radius: 99px;
+    background: rgba(0, 0, 0, .52);
+    border: 1px solid rgba(255, 255, 255, .08);
+    position: relative;
+    overflow: hidden;
+  }
+  .bar-ghost, .fill {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    border-radius: 99px;
+  }
+  .bar-ghost {
+    background: rgba(255, 255, 255, .16);
+    transition: width .62s cubic-bezier(.3, .9, .3, 1) .16s;
+  }
+  .fill {
+    background: linear-gradient(90deg, #ff8a6b, #ff2d55 78%);
+    box-shadow: 0 0 12px rgba(255, 45, 85, .55);
+    transition: width .34s cubic-bezier(.2, .9, .3, 1);
+  }
+  .foe .fill {
+    background: linear-gradient(90deg, #b45cff, #6d28d9 82%);
+    box-shadow: 0 0 12px rgba(139, 92, 246, .55);
+  }
+  .foe.boss .fill {
+    background: linear-gradient(90deg, #ffdb70, #f5a623 82%);
+    box-shadow: 0 0 14px rgba(245, 196, 81, .6);
+  }
+  .bar.low .fill { animation: lowPulse 1s ease-in-out infinite; }
+  @keyframes lowPulse {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.55); }
+  }
+  .bar-txt {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: clamp(9px, .95vw, 11px);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .04em;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .95);
+    z-index: 3;
+  }
+
+  .stats {
+    display: flex;
+    gap: clamp(6px, .8vw, 12px);
+    width: 100%;
+    justify-content: center;
+  }
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: clamp(10px, 1vw, 12.5px);
+    font-variant-numeric: tabular-nums;
+    padding: 3px 7px;
+    border-radius: 7px;
+    background: rgba(0, 0, 0, .3);
+    border: 1px solid rgba(255, 255, 255, .05);
+  }
+  .stat i { font-style: normal; font-size: .92em; opacity: .9; }
+  .stat b { font-weight: 700; letter-spacing: .02em; }
+  .stat.atk b { color: #ffb08a; }
+  .stat.def b { color: #8ecbff; }
+  .stat.hp b { color: #ff8fa8; }
+
+  /* 中间 */
+  .center {
+    flex: 0 0 auto;
+    width: clamp(54px, 8vw, 108px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    position: relative;
+    align-self: stretch;
+  }
+  .vs {
+    position: relative;
+    font-size: clamp(18px, 2.2vw, 30px);
+    font-weight: 900;
+    letter-spacing: .1em;
+    color: rgba(255, 255, 255, .26);
+    text-shadow: 0 0 34px rgba(255, 255, 255, .22), 0 0 70px rgba(180, 150, 255, .3);
+  }
+  .vs::before {
+    content: '';
+    position: absolute;
+    inset: -46px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(168, 140, 255, .16), transparent 62%);
+    pointer-events: none;
+    z-index: -1;
+  }
+  .center-line {
+    width: 1px;
+    height: 22%;
+    background: linear-gradient(transparent, rgba(255, 255, 255, .16), transparent);
+  }
+  .turn-tip {
+    font-size: clamp(9px, .9vw, 11px);
+    color: #6b6685;
+    letter-spacing: .12em;
+    text-align: center;
+    min-height: 14px;
+    transition: opacity .3s;
+  }
+
+  .impact {
+    position: absolute;
+    left: 50%; top: 44%;
+    width: 0; height: 0;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 4;
+  }
+  .impact.fire {
+    animation: impactBurst .42s ease-out forwards;
+    background: radial-gradient(circle, rgba(255, 236, 190, .9), rgba(255, 120, 90, .35) 45%, transparent 70%);
+  }
+  .impact.fire.red {
+    background: radial-gradient(circle, rgba(255, 180, 200, .9), rgba(255, 60, 100, .35) 45%, transparent 70%);
+  }
+  @keyframes impactBurst {
+    0% { width: 0; height: 0; opacity: 1; }
+    55% { width: 220px; height: 220px; opacity: .9; }
+    100% { width: 300px; height: 300px; opacity: 0; }
+  }
+
+  /* ---------- 波次进度 ---------- */
+  .track {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(8px, 1vw, 14px);
+  }
+  .track-pips { display: flex; align-items: center; gap: 6px; }
+  .pip {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .13);
+    transition: background .35s, box-shadow .35s, transform .35s;
+  }
+  .pip.on {
+    background: #f5c451;
+    box-shadow: 0 0 9px rgba(245, 196, 81, .85);
+  }
+  .pip.boss-pip {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    transform: rotate(45deg);
+    background: rgba(245, 196, 81, .28);
+    margin-left: 2px;
+  }
+  .pip.boss-pip.on {
+    background: #f5c451;
+    box-shadow: 0 0 14px rgba(245, 196, 81, 1);
+  }
+  .track-label {
+    font-size: clamp(9px, .85vw, 10.5px);
+    color: #6f6a85;
+    letter-spacing: .14em;
+    font-variant-numeric: tabular-nums;
+    min-width: 68px;
+    transition: color .3s;
+  }
+  .track-label.warn { color: #f5c451; text-shadow: 0 0 12px rgba(245, 196, 81, .7); }
+
+  /* ---------- 底部操作 ---------- */
+  .actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: clamp(8px, 1.2vw, 14px);
+    justify-content: center;
+    padding-bottom: clamp(2px, 1vh, 10px);
+  }
+
+  .btn {
+    position: relative;
+    border: none;
+    border-radius: 14px;
+    padding: clamp(11px, 1.6vh, 16px) clamp(20px, 4vw, 52px);
+    font-family: inherit;
+    font-size: clamp(13px, 1.25vw, 16px);
+    font-weight: 800;
+    letter-spacing: .1em;
+    color: #1a0f04;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform .14s cubic-bezier(.2,.9,.3,1.6), box-shadow .2s, filter .2s;
+  }
+  .btn:hover:not(:disabled) { transform: translateY(-2px); }
+  .btn:active:not(:disabled) { transform: translateY(0) scale(.975); }
+  .btn:disabled { cursor: not-allowed; }
+
+  .btn-attack {
+    background: linear-gradient(160deg, #ffe08a, #f5b53c 55%, #e08a1e);
+    box-shadow: 0 8px 26px -8px rgba(245, 181, 60, .7), inset 0 1px 0 rgba(255, 255, 255, .5);
+  }
+  .btn-attack:hover:not(:disabled) { box-shadow: 0 12px 32px -8px rgba(245, 181, 60, .9), inset 0 1px 0 rgba(255, 255, 255, .6); }
+
+  .btn-heavy {
+    background: linear-gradient(160deg, #ff9d8a, #f2545b 55%, #c92240);
+    color: #2a0308;
+    box-shadow: 0 8px 26px -8px rgba(242, 84, 91, .65), inset 0 1px 0 rgba(255, 255, 255, .4);
+  }
+  .btn-heavy:disabled {
+    filter: grayscale(.8) brightness(.55);
+    box-shadow: none;
+  }
+  .btn-heavy .cd {
+    font-size: .82em;
+    opacity: .7;
+    margin-left: 6px;
+    letter-spacing: 0;
+  }
+
+  /* ---------- 飘字 ---------- */
+  .float-num {
+    position: absolute;
+    left: 50%;
+    top: 62%;
+    font-weight: 900;
+    font-size: clamp(19px, 2.9vw, 30px);
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 6;
+    animation: floatUp .92s cubic-bezier(.2, .7, .35, 1) forwards;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, .9), 0 0 22px currentColor;
+  }
+  .float-num.dmg { color: #ffe9a3; }
+  .float-num.hurt { color: #ff6b81; }
+  .float-num.heal { color: #6ee7a8; }
+  @keyframes floatUp {
+    0% { opacity: 0; transform: translate(-50%, 0) scale(.62); }
+    22% { opacity: 1; transform: translate(-50%, -36px) scale(1.16); }
+    62% { opacity: 1; transform: translate(-50%, -60px) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -96px) scale(.94); }
+  }
+
+  /* ---------- 动作动画 ---------- */
+  @keyframes lunge {
+    0% { transform: translateX(0); }
+    34% { transform: translateX(30px) scale(1.035); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes lungeFoe {
+    0% { transform: translateX(0); }
+    34% { transform: translateX(-30px) scale(1.035); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes hitShake {
+    0%, 100% { transform: translateX(0); }
+    18% { transform: translateX(-9px) rotate(-1.4deg); }
+    38% { transform: translateX(8px) rotate(1.2deg); }
+    58% { transform: translateX(-5px); }
+    78% { transform: translateX(3px); }
+  }
+  @keyframes dying {
+    0% { transform: scale(1) rotate(0); opacity: 1; filter: brightness(1); }
+    30% { filter: brightness(2.4) saturate(0); }
+    100% { transform: scale(.82) rotate(-6deg); opacity: 0; filter: brightness(.6); }
+  }
+
+  .ally.lunge { animation: lunge .34s cubic-bezier(.3,.8,.4,1); }
+  .foe.lunge { animation: lungeFoe .34s cubic-bezier(.3,.8,.4,1); }
+  .ally.hit, .foe.hit { animation: hitShake .36s cubic-bezier(.3,.8,.4,1); }
+  .foe.dying { animation: dying .62s cubic-bezier(.4,0,.6,1) forwards; }
+
+  .flash-dmg .avatar { filter: brightness(1.9) saturate(1.3); }
+
+  /* ---------- 遮罩层 ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(5, 3, 10, .66);
+    -webkit-backdrop-filter: blur(11px);
+    backdrop-filter: blur(11px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .32s, visibility .32s;
+  }
+  .overlay.show { opacity: 1; visibility: visible; }
+
+  .panel {
+    width: min(960px, 100%);
+    transform: translateY(16px) scale(.97);
+    transition: transform .42s cubic-bezier(.2,.9,.3,1.3);
+  }
+  .overlay.show .panel { transform: translateY(0) scale(1); }
+
+  .up-head { text-align: center; margin-bottom: clamp(14px, 2.4vh, 28px); }
+  .up-kicker {
+    font-size: clamp(9px, .9vw, 11px);
+    letter-spacing: .4em;
+    color: #f5c451;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .up-title {
+    font-size: clamp(20px, 2.6vw, 30px);
+    font-weight: 900;
+    letter-spacing: .06em;
+    margin: 0 0 6px;
+    background: linear-gradient(180deg, #fff, #c7b8ef);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .up-sub {
+    font-size: clamp(11px, 1.05vw, 13px);
+    color: #8b85a3;
+    letter-spacing: .08em;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(10px, 1.6vw, 20px);
+  }
+
+  .up-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: clamp(186px, 25vh, 244px);
+    gap: 7px;
+    padding: clamp(16px, 2.6vh, 28px) 12px clamp(14px, 2.2vh, 22px);
+    border-radius: 16px;
+    cursor: pointer;
+    border: 1.5px solid var(--c, #fff);
+    background: #0d0a16;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--c) 15%, #0d0a16), rgba(12, 9, 20, .94));
+    box-shadow: 0 14px 40px -18px var(--c), inset 0 0 34px -14px var(--c);
+    transition: transform .18s cubic-bezier(.2,.9,.3,1.5), box-shadow .22s, filter .22s;
+    animation: cardIn .46s cubic-bezier(.16,1,.3,1.05) backwards;
+    overflow: hidden;
+  }
+  .up-card:nth-child(1) { animation-delay: .06s; }
+  .up-card:nth-child(2) { animation-delay: .14s; }
+  .up-card:nth-child(3) { animation-delay: .22s; }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(26px) scale(.9); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .up-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--c) 26%, transparent), transparent 62%);
+    opacity: .85;
+    pointer-events: none;
+  }
+
+  .up-card:hover {
+    transform: translateY(-6px) scale(1.025);
+    box-shadow: 0 22px 54px -18px var(--c), inset 0 0 44px -12px var(--c);
+  }
+  .up-card:active { transform: translateY(-2px) scale(.99); }
+
+  .up-card.picked {
+    transform: translateY(-10px) scale(1.05);
+    box-shadow: 0 0 0 3px var(--c), 0 26px 66px -14px var(--c);
+    z-index: 3;
+  }
+  .up-card.dim { opacity: .18; filter: grayscale(.85); transform: scale(.94); }
+
+  .card-rar {
+    font-size: clamp(10px, .95vw, 12px);
+    font-weight: 800;
+    letter-spacing: .32em;
+    color: var(--c);
+    text-shadow: 0 0 14px var(--c);
+    position: relative;
+    z-index: 2;
+    text-indent: .32em;
+  }
+  .card-icon {
+    width: clamp(30px, 3.4vw, 42px);
+    height: clamp(30px, 3.4vw, 42px);
+    margin: 8px 0 2px;
+    color: var(--c);
+    position: relative;
+    z-index: 2;
+    filter: drop-shadow(0 0 15px var(--c));
+  }
+  .card-icon svg { width: 100%; height: 100%; display: block; }
+  .card-name {
+    font-size: clamp(12px, 1.15vw, 14px);
+    color: #cfc8e2;
+    letter-spacing: .16em;
+    position: relative;
+    z-index: 2;
+  }
+  .card-val {
+    font-size: clamp(24px, 3.1vw, 36px);
+    font-weight: 900;
+    letter-spacing: .01em;
+    color: var(--c);
+    text-shadow: 0 0 26px var(--c);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    position: relative;
+    z-index: 2;
+  }
+  .card-note {
+    font-size: clamp(9px, .85vw, 10.5px);
+    color: #7d7893;
+    letter-spacing: .05em;
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    line-height: 1.4;
+    min-height: 1.4em;
+  }
+
+  .up-card.gold { animation: cardIn .46s cubic-bezier(.16,1,.3,1.05) backwards, goldGlow 2.2s ease-in-out infinite 1s; }
+  @keyframes goldGlow {
+    0%, 100% { box-shadow: 0 14px 40px -18px #fbbf24, inset 0 0 34px -14px #fbbf24; }
+    50% { box-shadow: 0 22px 60px -12px #fbbf24, inset 0 0 52px -8px #fbbf24; }
+  }
+
+  /* 当前属性条 */
+  .cur-stats {
+    display: flex;
+    justify-content: center;
+    gap: clamp(12px, 2.4vw, 34px);
+    margin-top: clamp(14px, 2.4vh, 26px);
+    padding-top: clamp(12px, 2vh, 20px);
+    border-top: 1px solid rgba(255, 255, 255, .07);
+  }
+  .cur-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: clamp(11px, 1.05vw, 13px);
+    color: #8b85a3;
+    font-variant-numeric: tabular-nums;
+  }
+  .cur-item b { color: #ddd8ee; font-weight: 700; }
+  .cur-item i { font-style: normal; }
+
+  /* ---------- 结束界面 ---------- */
+  .over-panel {
+    text-align: center;
+    max-width: 420px;
+    padding: clamp(26px, 4vh, 42px) clamp(22px, 3vw, 38px);
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .062), rgba(255, 255, 255, .012));
+    border: 1px solid rgba(255, 255, 255, .085);
+    box-shadow: 0 34px 90px -34px rgba(0, 0, 0, .95), inset 0 1px 0 rgba(255, 255, 255, .05);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
+  .over-kicker {
+    font-size: 11px;
+    letter-spacing: .42em;
+    color: #8b3b52;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .over-title {
+    font-size: clamp(26px, 3.4vw, 38px);
+    font-weight: 900;
+    letter-spacing: .1em;
+    margin: 0 0 6px;
+    background: linear-gradient(180deg, #ffd9e2, #b83a5a);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .over-wave {
+    font-size: clamp(13px, 1.3vw, 15px);
+    color: #9b95b2;
+    letter-spacing: .1em;
+    margin-bottom: 8px;
+  }
+  .over-wave b {
+    font-size: 1.7em;
+    color: #f5c451;
+    font-variant-numeric: tabular-nums;
+    margin: 0 2px;
+  }
+  .over-killer {
+    font-size: clamp(11px, 1vw, 12.5px);
+    color: #b05a72;
+    letter-spacing: .06em;
+    margin-bottom: clamp(16px, 2.6vh, 24px);
+  }
+  .over-kills {
+    font-size: 11px;
+    color: #6f6a85;
+    letter-spacing: .1em;
+    margin: clamp(12px, 2vh, 18px) 0 10px;
+  }
+  .over-stats {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: clamp(16px, 2.6vh, 26px);
+    flex-wrap: wrap;
+  }
+  .over-chip {
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .045);
+    border: 1px solid rgba(255, 255, 255, .07);
+    font-size: 12px;
+    color: #9b95b2;
+    font-variant-numeric: tabular-nums;
+  }
+  .over-chip b { color: #ddd8ee; margin-left: 5px; }
+  .over-best {
+    font-size: 12px;
+    color: #6f6a85;
+    letter-spacing: .1em;
+    margin-bottom: clamp(20px, 3.2vh, 32px);
+  }
+  .over-best b { color: #f5c451; }
+
+  .btn-again {
+    background: linear-gradient(160deg, #ffe08a, #f5b53c 55%, #e08a1e);
+    box-shadow: 0 10px 30px -8px rgba(245, 181, 60, .7), inset 0 1px 0 rgba(255, 255, 255, .5);
+    width: 100%;
+  }
+
+  /* ---------- 横幅提示 ---------- */
+  .banner {
+    position: fixed;
+    left: 50%;
+    top: 22%;
+    transform: translate(-50%, -50%) scale(.9);
+    z-index: 40;
+    font-size: clamp(20px, 3vw, 34px);
+    font-weight: 900;
+    letter-spacing: .3em;
+    color: #ffd76e;
+    text-shadow: 0 0 40px rgba(245, 196, 81, .8), 0 4px 20px rgba(0, 0, 0, .9);
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .banner.play { animation: bannerIn 1.5s cubic-bezier(.2,.9,.3,1.2) forwards; }
+  @keyframes bannerIn {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(.72); letter-spacing: .6em; }
+    22% { opacity: 1; transform: translate(-50%, -50%) scale(1); letter-spacing: .3em; }
+    74% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -60%) scale(1.04); }
+  }
+
+  /* ---------- 响应式 ---------- */
+  @media (max-width: 560px) {
+    .fighter { width: clamp(104px, 27vw, 150px); min-height: 0; padding: 12px 8px; gap: 7px; }
+    .avatar { width: clamp(62px, 17vw, 78px); height: clamp(62px, 17vw, 78px); font-size: clamp(32px, 9vw, 40px); }
+    .name { font-size: 11.5px; }
+    .stats { gap: 4px; }
+    .stat { padding: 2px 4px; font-size: 9.5px; }
+    .center { gap: 6px; }
+    .vs { font-size: 13px; letter-spacing: .1em; }
+    .turn-tip { display: none; }
+    .cards { gap: 7px; }
+    .up-card { padding: 14px 6px; gap: 4px; min-height: 0; }
+    .card-note { display: none; }
+    .card-rar { letter-spacing: .14em; font-size: 8.5px; }
+    .btn { padding: 12px 16px; }
+    .actions { gap: 8px; }
+  }
+  @media (max-height: 560px) {
+    .fighter { padding: 10px; gap: 5px; }
+    .avatar { width: 58px; height: 58px; font-size: 30px; }
+    .up-head { margin-bottom: 12px; }
+    .cur-stats { margin-top: 12px; padding-top: 10px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-base"></div>
+<div class="bg-grid"></div>
+<div class="bg-vignette"></div>
+
+<div id="app">
+  <header class="topbar">
+    <div class="wave-block">
+      <span class="wave-label">Wave</span>
+      <span class="wave-num" id="waveNum">01</span>
+    </div>
+    <div class="top-right">
+      <span class="record" id="recordBox">最佳 <b id="recordNum">0</b></span>
+      <button class="icon-btn" id="soundBtn" title="音效开关">🔊</button>
+      <button class="icon-btn" id="restartBtn" title="重新开始">↻</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <section class="fighter ally" id="ally">
+      <div class="name-row"><span class="name">冒险者</span></div>
+      <div class="avatar-wrap">
+        <div class="aura"></div>
+        <div class="avatar" id="allyAvatar">⚔️</div>
+      </div>
+      <div class="bar" id="allyBar">
+        <div class="bar-ghost" id="allyGhost"></div>
+        <div class="fill" id="allyFill"></div>
+        <span class="bar-txt" id="allyBarTxt">100 / 100</span>
+      </div>
+      <div class="stats">
+        <span class="stat atk"><i>⚔</i><b id="allyAtk">12</b></span>
+        <span class="stat def"><i>🛡</i><b id="allyDef">3</b></span>
+      </div>
+    </section>
+
+    <div class="center">
+      <div class="center-line"></div>
+      <div class="vs">VS</div>
+      <div class="turn-tip" id="turnTip">你的回合</div>
+      <div class="center-line"></div>
+      <div class="impact" id="impact"></div>
+    </div>
+
+    <section class="fighter foe" id="foe">
+      <div class="name-row"><span class="crown" id="foeCrown" style="display:none">👑</span><span class="name" id="foeName">哥布林</span></div>
+      <div class="avatar-wrap">
+        <div class="aura"></div>
+        <div class="avatar" id="foeAvatar">👺</div>
+      </div>
+      <div class="bar" id="foeBar">
+        <div class="bar-ghost" id="foeGhost"></div>
+        <div class="fill" id="foeFill"></div>
+        <span class="bar-txt" id="foeBarTxt">30 / 30</span>
+      </div>
+      <div class="stats">
+        <span class="stat atk"><i>⚔</i><b id="foeAtk">8</b></span>
+        <span class="stat def"><i>🛡</i><b id="foeDef">1</b></span>
+      </div>
+    </section>
+  </main>
+
+  <div class="track" id="track">
+    <div class="track-pips" id="trackPips"></div>
+    <div class="track-label" id="trackLabel">距 BOSS 4 波</div>
+  </div>
+
+  <footer class="actions">
+    <button class="btn btn-attack" id="attackBtn">攻 击</button>
+    <button class="btn btn-heavy" id="heavyBtn">重 击<span class="cd" id="heavyCd"></span></button>
+  </footer>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<!-- 升级弹窗 -->
+<div class="overlay" id="upgradeOverlay">
+  <div class="panel">
+    <div class="up-head">
+      <div class="up-kicker">Wave Cleared</div>
+      <h1 class="up-title">选择一项进化</h1>
+      <div class="up-sub" id="upSub">第 1 波已征服 · 从三项中选择一项</div>
+    </div>
+    <div class="cards" id="cards"></div>
+    <div class="cur-stats">
+      <span class="cur-item"><i>❤</i> 生命 <b id="curHp">100</b></span>
+      <span class="cur-item"><i>⚔</i> 攻击 <b id="curAtk">12</b></span>
+      <span class="cur-item"><i>🛡</i> 防御 <b id="curDef">3</b></span>
+    </div>
+  </div>
+</div>
+
+<!-- 结束弹窗 -->
+<div class="overlay" id="overOverlay">
+  <div class="panel over-panel">
+    <div class="over-kicker">Trial Ended</div>
+    <h1 class="over-title">试炼终结</h1>
+    <div class="over-wave">你抵达了第 <b id="overWave">1</b> 波</div>
+    <div class="over-killer" id="overKiller">被「哥布林」击败</div>
+    <div class="over-stats">
+      <span class="over-chip">生命<b id="overHp">100</b></span>
+      <span class="over-chip">攻击<b id="overAtk">12</b></span>
+      <span class="over-chip">防御<b id="overDef">3</b></span>
+    </div>
+    <div class="over-kills" id="overKills">击败 0 个敌人</div>
+    <div class="over-best" id="overBest">最佳纪录：第 0 波</div>
+    <button class="btn btn-again" id="againBtn">再次挑战</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =========================================================
+     数值配置
+     ========================================================= */
+  const CFG = {
+    player: { hp: 100, atk: 12, def: 3 },
+    // 升级加成：数值按稀有度递增（白 < 绿 < 蓝 < 紫 < 金）
+    up: {
+      hp:  { white: 15,  green: 28,  blue: 45,  purple: 70,  gold: 110, label: '生命', icon: '❤', key: 'hp' },
+      atk: { white: 2.4, green: 4.2, blue: 6.5, purple: 10,  gold: 16,  label: '攻击', icon: '⚔', key: 'atk' },
+      def: { white: 0.8, green: 1.4, blue: 2.2, purple: 3.5, gold: 5.5, label: '防御', icon: '🛡', key: 'def' }
+    },
+    rarity: [
+      { key: 'white',  name: '普通', c: '#c9d1e0', weight: w => Math.max(10, 42 - 1.4 * w) },
+      { key: 'green',  name: '精良', c: '#4ade80', weight: () => 30 },
+      { key: 'blue',   name: '稀有', c: '#48b8f8', weight: w => 14 + 0.35 * w },
+      { key: 'purple', name: '史诗', c: '#a78bfa', weight: w => 7 + 0.35 * w },
+      { key: 'gold',   name: '传说', c: '#fbbf24', weight: w => Math.min(12, 1.5 + 0.22 * w) }
+    ],
+    // 怪物成长曲线
+    mon: { hp0: 26, hpK: 7.2, hpQ: 0.05, atk0: 8, atkK: 1.15, atkQ: 0.02, def0: 1, defK: 0.6, bossHp: 1.5, bossAtk: 1.12 },
+    heal: { min: 8, pct: 0.15, base: 13, perWave: 1.5 },
+    heavy: { mult: 1.75, penalty: 1.4, cd: 3 }
+  };
+
+  const MONSTER_POOL = [
+    { names: ['哥布林', '地精', '小恶魔'], emoji: '👺' },
+    { names: ['骷髅兵', '骸骨卫兵'], emoji: '💀' },
+    { names: ['巨蛛', '蛛魔'], emoji: '🕷️' },
+    { names: ['狼人', '魔狼'], emoji: '🐺' },
+    { names: ['怨灵', '幽魂'], emoji: '👻' },
+    { names: ['石像鬼', '魔像'], emoji: '🗿' },
+    { names: ['毒蝎', '沙虫'], emoji: '🦂' },
+    { names: ['蜥蜴人', '蛇裔'], emoji: '🦎' },
+    { names: ['腐尸', '食尸鬼'], emoji: '🧟' },
+    { names: ['血蝠', '夜翼'], emoji: '🦇' }
+  ];
+  const BOSS_POOL = [
+    { name: '骸骨君王', emoji: '🐲' },
+    { name: '深渊领主', emoji: '👹' },
+    { name: '血月女巫', emoji: '🧙' },
+    { name: '熔岩巨兽', emoji: '🌋' },
+    { name: '虚空吞噬者', emoji: '🕸️' },
+    { name: '腐朽泰坦', emoji: '🧌' }
+  ];
+  const PREFIX = ['狂暴的', '腐朽的', '幽暗的', '嗜血的', '远古的', '被诅咒的', '游荡的'];
+
+  /* =========================================================
+     工具
+     ========================================================= */
+  const $ = id => document.getElementById(id);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  function fmt(n) {
+    if (!isFinite(n)) return '∞';
+    return Number.isInteger(n) ? String(n) : n.toFixed(1);
+  }
+
+  function calcDamage(atk, def) {
+    const raw = Math.max(atk - def, atk * 0.12);
+    return Math.max(1, Math.round(raw * (0.93 + Math.random() * 0.14)));
+  }
+
+  /* =========================================================
+     音效（WebAudio 合成，无外部资源）
+     ========================================================= */
+  let audioCtx = null;
+  let muted = false;
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try { audioCtx = new AC(); } catch (e) { return null; }
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function tone(opt) {
+    if (muted) return;
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const { freq = 220, type = 'sine', dur = 0.12, vol = 0.14, slide = null, delay = 0 } = opt;
+    const t0 = ctx.currentTime + delay;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(30, slide), t0 + dur);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.linearRampToValueAtTime(vol, t0 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.03);
+  }
+
+  function sfxHit(heavy) {
+    tone({ freq: heavy ? 320 : 460, type: 'triangle', dur: 0.12, vol: 0.13, slide: 140 });
+    tone({ freq: 110, type: 'sawtooth', dur: 0.16, vol: 0.08, slide: 55, delay: 0.01 });
+  }
+  function sfxHurt() {
+    tone({ freq: 150, type: 'sawtooth', dur: 0.2, vol: 0.09, slide: 60 });
+    tone({ freq: 70, type: 'sine', dur: 0.24, vol: 0.12, slide: 40 });
+  }
+  function sfxWin() {
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+      tone({ freq: f, type: 'sine', dur: 0.3, vol: 0.11, delay: i * 0.075 });
+    });
+  }
+  function sfxUpgrade() {
+    tone({ freq: 880, type: 'sine', dur: 0.22, vol: 0.1 });
+    tone({ freq: 1318.5, type: 'sine', dur: 0.34, vol: 0.08, delay: 0.07 });
+  }
+  function sfxLose() {
+    [392, 329.63, 261.63, 196].forEach((f, i) => {
+      tone({ freq: f, type: 'triangle', dur: 0.42, vol: 0.11, delay: i * 0.14 });
+    });
+  }
+  function sfxBoss() {
+    tone({ freq: 90, type: 'sawtooth', dur: 0.55, vol: 0.13, slide: 55 });
+    tone({ freq: 180, type: 'square', dur: 0.4, vol: 0.06, delay: 0.05 });
+  }
+
+  /* =========================================================
+     状态
+     ========================================================= */
+  const state = {
+    wave: 1,
+    player: { hp: 100, maxHp: 100, atk: 12, def: 3 },
+    monster: null,
+    phase: 'battle',   // battle | busy | upgrade | over
+    heavyCd: 0,
+    best: Number(localStorage.getItem('abyss_best') || 0)
+  };
+
+  /* =========================================================
+     DOM 引用
+     ========================================================= */
+  const el = {
+    waveNum: $('waveNum'),
+    recordNum: $('recordNum'),
+    ally: $('ally'), foe: $('foe'),
+    allyAvatar: $('allyAvatar'), foeAvatar: $('foeAvatar'),
+    allyFill: $('allyFill'), allyGhost: $('allyGhost'), allyBarTxt: $('allyBarTxt'), allyBar: $('allyBar'),
+    foeFill: $('foeFill'), foeGhost: $('foeGhost'), foeBarTxt: $('foeBarTxt'), foeBar: $('foeBar'),
+    allyAtk: $('allyAtk'), allyDef: $('allyDef'),
+    foeAtk: $('foeAtk'), foeDef: $('foeDef'),
+    foeName: $('foeName'), foeCrown: $('foeCrown'),
+    turnTip: $('turnTip'),
+    impact: $('impact'),
+    attackBtn: $('attackBtn'), heavyBtn: $('heavyBtn'), heavyCd: $('heavyCd'),
+    upOverlay: $('upgradeOverlay'), cards: $('cards'), upSub: $('upSub'),
+    curHp: $('curHp'), curAtk: $('curAtk'), curDef: $('curDef'),
+    overOverlay: $('overOverlay'), overWave: $('overWave'),
+    overHp: $('overHp'), overAtk: $('overAtk'), overDef: $('overDef'),
+    overKiller: $('overKiller'), overKills: $('overKills'),
+    overBest: $('overBest'),
+    banner: $('banner'),
+    trackPips: $('trackPips'), trackLabel: $('trackLabel'),
+    soundBtn: $('soundBtn'), restartBtn: $('restartBtn'), againBtn: $('againBtn')
+  };
+
+  /* =========================================================
+     渲染
+     ========================================================= */
+  function buildTrack() {
+    el.trackPips.innerHTML = '';
+    for (let i = 0; i < 4; i++) {
+      const d = document.createElement('span');
+      d.className = 'pip';
+      el.trackPips.appendChild(d);
+    }
+    const b = document.createElement('span');
+    b.className = 'pip boss-pip';
+    el.trackPips.appendChild(b);
+  }
+
+  function renderTrack() {
+    const w = state.wave;
+    const inCycle = (w - 1) % 5;
+    const pips = el.trackPips.children;
+
+    for (let i = 0; i < 4; i++) {
+      pips[i].classList.toggle('on', i < inCycle);
+    }
+    pips[4].classList.toggle('on', w % 5 === 0);
+
+    const left = w % 5 === 0 ? 0 : 5 - (w % 5);
+    if (left === 0) {
+      el.trackLabel.textContent = 'BOSS 战';
+      el.trackLabel.classList.add('warn');
+    } else {
+      el.trackLabel.textContent = '距 BOSS ' + left + ' 波';
+      el.trackLabel.classList.remove('warn');
+    }
+  }
+
+  function renderWave() {
+    el.waveNum.textContent = String(state.wave).padStart(2, '0');
+    el.waveNum.classList.remove('bump');
+    void el.waveNum.offsetWidth;
+    el.waveNum.classList.add('bump');
+    renderTrack();
+  }
+
+  function renderBars() {
+    const p = state.player, m = state.monster;
+    const pPct = Math.max(0, p.hp / p.maxHp) * 100;
+    const mPct = m ? Math.max(0, m.hp / m.maxHp) * 100 : 0;
+
+    el.allyFill.style.width = pPct + '%';
+    el.allyGhost.style.width = pPct + '%';
+    el.allyBarTxt.textContent = fmt(Math.ceil(p.hp)) + ' / ' + fmt(p.maxHp);
+    el.allyBar.classList.toggle('low', pPct < 30);
+
+    if (m) {
+      el.foeFill.style.width = mPct + '%';
+      el.foeGhost.style.width = mPct + '%';
+      el.foeBarTxt.textContent = fmt(Math.ceil(m.hp)) + ' / ' + fmt(m.maxHp);
+      el.foeBar.classList.toggle('low', mPct < 30);
+    }
+  }
+
+  function renderStats() {
+    const p = state.player, m = state.monster;
+    el.allyAtk.textContent = fmt(Math.round(p.atk * 10) / 10);
+    el.allyDef.textContent = fmt(Math.round(p.def * 10) / 10);
+    if (m) {
+      el.foeAtk.textContent = fmt(m.atk);
+      el.foeDef.textContent = fmt(m.def);
+    }
+  }
+
+  function renderButtons() {
+    const fighting = state.phase === 'battle';
+    el.attackBtn.disabled = !fighting;
+    el.heavyBtn.disabled = !fighting || state.heavyCd > 0;
+    el.heavyCd.textContent = state.heavyCd > 0 ? '冷却 ' + state.heavyCd : '';
+  }
+
+  function render() {
+    renderBars();
+    renderStats();
+    renderButtons();
+  }
+
+  function setTip(text) {
+    el.turnTip.textContent = text;
+  }
+
+  /* =========================================================
+     特效
+     ========================================================= */
+  function floatNum(host, text, cls) {
+    const d = document.createElement('div');
+    d.className = 'float-num ' + (cls || '');
+    d.textContent = text;
+    host.appendChild(d);
+    d.addEventListener('animationend', () => d.remove());
+  }
+
+  function impact(isRed) {
+    el.impact.classList.remove('fire', 'red');
+    void el.impact.offsetWidth;
+    el.impact.classList.add('fire');
+    if (isRed) el.impact.classList.add('red');
+  }
+
+  function showBanner(text) {
+    el.banner.textContent = text;
+    el.banner.classList.remove('play');
+    void el.banner.offsetWidth;
+    el.banner.classList.add('play');
+  }
+
+  /* =========================================================
+     怪物生成
+     ========================================================= */
+  function makeMonster(wave) {
+    const n = wave - 1;
+    const C = CFG.mon;
+    let maxHp = C.hp0 + C.hpK * n + C.hpQ * n * n;
+    let atk = C.atk0 + C.atkK * n + C.atkQ * n * n;
+    let def = C.def0 + C.defK * n;
+
+    const isBoss = wave % 5 === 0;
+    if (isBoss) {
+      maxHp *= C.bossHp;
+      atk *= C.bossAtk;
+    }
+
+    let name, emoji;
+    if (isBoss) {
+      const b = BOSS_POOL[(Math.floor(wave / 5) - 1) % BOSS_POOL.length];
+      name = b.name;
+      emoji = b.emoji;
+    } else {
+      const t = pick(MONSTER_POOL);
+      name = pick(PREFIX) + pick(t.names);
+      emoji = t.emoji;
+    }
+
+    return {
+      name, emoji, boss: isBoss,
+      maxHp: Math.round(maxHp),
+      hp: Math.round(maxHp),
+      atk: Math.round(atk),
+      def: Math.round(def)
+    };
+  }
+
+  function renderMonster() {
+    const m = state.monster;
+    el.foeName.textContent = m.name;
+    el.foeAvatar.textContent = m.emoji;
+    el.foeCrown.style.display = m.boss ? '' : 'none';
+    el.foe.classList.toggle('boss', !!m.boss);
+  }
+
+  /* =========================================================
+     升级选项
+     ========================================================= */
+  function rollRarity(wave) {
+    const list = CFG.rarity;
+    const weights = list.map(r => r.weight(wave));
+    const total = weights.reduce((a, b) => a + b, 0);
+    let r = Math.random() * total;
+    for (let i = 0; i < list.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return list[i];
+    }
+    return list[0];
+  }
+
+  function makeUpgradeOptions(wave) {
+    // 三种属性各出现一次，稀有度独立随机 —— 玩家在「属性」与「稀有度」之间权衡
+    return ['hp', 'atk', 'def'].map(attr => ({ attr, rarity: rollRarity(wave) }));
+  }
+
+  const ICONS = {
+    hp: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>',
+    atk: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.9 14.55 8.2v6.75h-5.1V8.2L12 1.9z"/><path d="M6.9 15.55h10.2v2.15H6.9z"/><path d="M10.6 17.7h2.8v4.4h-2.8z"/></svg>',
+    def: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.7 3.5 5v6.3c0 5.15 3.55 9.75 8.5 11.3 4.95-1.55 8.5-6.15 8.5-11.3V5L12 1.7z"/></svg>'
+  };
+
+  const NOTE = {
+    hp: '提升生命上限，并立即恢复等量生命',
+    atk: '每次攻击造成更高伤害',
+    def: '减免每次受到的伤害'
+  };
+
+  function showUpgrade() {
+    state.phase = 'upgrade';
+    el.upSub.textContent = '第 ' + state.wave + ' 波已征服 · 从三项中选择一项';
+    el.curHp.textContent = fmt(state.player.maxHp);
+    el.curAtk.textContent = fmt(Math.round(state.player.atk * 10) / 10);
+    el.curDef.textContent = fmt(Math.round(state.player.def * 10) / 10);
+
+    const opts = makeUpgradeOptions(state.wave);
+    el.cards.innerHTML = '';
+
+    opts.forEach((opt) => {
+      const meta = CFG.up[opt.attr];
+      const rar = opt.rarity;
+      const val = meta[rar.key];
+
+      const card = document.createElement('div');
+      card.className = 'up-card' + (rar.key === 'gold' ? ' gold' : '');
+      card.style.setProperty('--c', rar.c);
+
+      card.innerHTML =
+        '<div class="card-rar">' + rar.name + '</div>' +
+        '<div class="card-icon">' + ICONS[opt.attr] + '</div>' +
+        '<div class="card-name">' + meta.label + '</div>' +
+        '<div class="card-val">+' + fmt(val) + '</div>' +
+        '<div class="card-note">' + NOTE[opt.attr] + '</div>';
+
+      card.addEventListener('click', () => chooseUpgrade(opt, card));
+      el.cards.appendChild(card);
+    });
+
+    el.upOverlay.classList.add('show');
+    sfxUpgrade();
+  }
+
+  async function chooseUpgrade(opt, cardEl) {
+    if (state.phase !== 'upgrade') return;
+    state.phase = 'busy';
+
+    Array.from(el.cards.children).forEach(c => {
+      if (c === cardEl) c.classList.add('picked');
+      else c.classList.add('dim');
+    });
+
+    const table = { hp: CFG.up.hp, atk: CFG.up.atk, def: CFG.up.def }[opt.attr];
+    const val = table[opt.rarity.key];
+
+    if (opt.attr === 'hp') {
+      state.player.maxHp += val;
+      state.player.hp += val;
+    } else if (opt.attr === 'atk') {
+      state.player.atk += val;
+    } else {
+      state.player.def += val;
+    }
+
+    tone({ freq: 660, type: 'sine', dur: 0.18, vol: 0.1 });
+    await sleep(560);
+
+    el.upOverlay.classList.remove('show');
+    await sleep(280);
+
+    state.wave++;
+    startWave();
+  }
+
+  /* =========================================================
+     流程
+     ========================================================= */
+  function startWave() {
+    state.monster = makeMonster(state.wave);
+    state.heavyCd = 0;
+    state.phase = 'battle';
+
+    renderWave();
+    renderMonster();
+    render();
+    setTip('你的回合');
+
+    if (state.monster.boss) {
+      showBanner('BOSS 来袭');
+      sfxBoss();
+    }
+  }
+
+  async function playerAttack(heavy) {
+    if (state.phase !== 'battle') return;
+    if (heavy && state.heavyCd > 0) return;
+
+    state.phase = 'busy';
+    renderButtons();
+
+    const p = state.player;
+    const m = state.monster;
+
+    /* --- 玩家出手 --- */
+    el.ally.classList.add('lunge');
+    setTip(heavy ? '重击！' : '攻击');
+    sfxHit(heavy);
+    await sleep(heavy ? 260 : 180);
+    el.ally.classList.remove('lunge');
+
+    const dmg = calcDamage(p.atk * (heavy ? CFG.heavy.mult : 1), m.def);
+    m.hp = Math.max(0, m.hp - dmg);
+
+    el.foe.classList.add('hit', 'flash-dmg');
+    floatNum(el.foe.querySelector('.avatar-wrap'), '-' + dmg, 'dmg');
+    impact(false);
+    render();
+
+    await sleep(300);
+    el.foe.classList.remove('hit', 'flash-dmg');
+
+    if (heavy) state.heavyCd = CFG.heavy.cd;
+
+    if (m.hp <= 0) {
+      await onVictory();
+      return;
+    }
+
+    /* --- 怪物反击 --- */
+    setTip('敌方回合');
+    await sleep(120);
+    el.foe.classList.add('lunge');
+    await sleep(180);
+    el.foe.classList.remove('lunge');
+
+    let incoming = calcDamage(m.atk, p.def);
+    if (heavy) incoming = Math.max(1, Math.round(incoming * CFG.heavy.penalty));
+    p.hp = Math.max(0, p.hp - incoming);
+
+    el.ally.classList.add('hit', 'flash-dmg');
+    floatNum(el.ally.querySelector('.avatar-wrap'), '-' + incoming, 'hurt');
+    impact(true);
+    sfxHurt();
+    render();
+
+    await sleep(320);
+    el.ally.classList.remove('hit', 'flash-dmg');
+
+    if (p.hp <= 0) {
+      gameOver();
+      return;
+    }
+
+    if (!heavy) state.heavyCd = Math.max(0, state.heavyCd - 1);
+
+    state.phase = 'battle';
+    setTip('你的回合');
+    render();
+  }
+
+  async function onVictory() {
+    state.phase = 'busy';
+    renderButtons();
+
+    el.foe.classList.add('dying');
+    sfxWin();
+    setTip('胜利');
+
+    const maxHp = state.player.maxHp;
+    const healAmt = Math.round(Math.max(CFG.heal.min, Math.min(maxHp * CFG.heal.pct, CFG.heal.base + CFG.heal.perWave * (state.wave - 1))));
+
+    await sleep(640);
+    el.foe.classList.remove('dying');
+
+    const before = state.player.hp;
+    state.player.hp = Math.min(maxHp, state.player.hp + healAmt);
+    const gained = Math.round(state.player.hp - before);
+    if (gained > 0) floatNum(el.ally.querySelector('.avatar-wrap'), '+' + gained, 'heal');
+    render();
+
+    await sleep(520);
+    showUpgrade();
+  }
+
+  function gameOver() {
+    state.phase = 'over';
+    renderButtons();
+    setTip('你倒下了');
+    sfxLose();
+
+    if (state.wave > state.best) {
+      state.best = state.wave;
+      try { localStorage.setItem('abyss_best', String(state.best)); } catch (e) {}
+    }
+
+    el.recordNum.textContent = state.best;
+
+    setTimeout(() => {
+      el.overWave.textContent = state.wave;
+      el.overKiller.textContent = '被「' + (state.monster ? state.monster.name : '深渊') + '」击败';
+      el.overHp.textContent = fmt(Math.round(state.player.maxHp));
+      el.overAtk.textContent = fmt(Math.round(state.player.atk * 10) / 10);
+      el.overDef.textContent = fmt(Math.round(state.player.def * 10) / 10);
+      el.overKills.textContent = '击败 ' + Math.max(0, state.wave - 1) + ' 个敌人';
+      el.overBest.innerHTML = '最佳纪录：第 <b>' + state.best + '</b> 波';
+      el.overOverlay.classList.add('show');
+    }, 420);
+  }
+
+  function resetGame() {
+    el.upOverlay.classList.remove('show');
+    el.overOverlay.classList.remove('show');
+    el.ally.classList.remove('hit', 'flash-dmg', 'lunge');
+    el.foe.classList.remove('hit', 'flash-dmg', 'lunge', 'dying');
+
+    state.wave = 1;
+    state.player = { hp: CFG.player.hp, maxHp: CFG.player.hp, atk: CFG.player.atk, def: CFG.player.def };
+    state.heavyCd = 0;
+    state.monster = null;
+    state.phase = 'battle';
+
+    el.allyAvatar.textContent = '⚔️';
+    el.recordNum.textContent = state.best;
+
+    startWave();
+  }
+
+  /* =========================================================
+     事件绑定
+     ========================================================= */
+  el.attackBtn.addEventListener('click', () => playerAttack(false));
+  el.heavyBtn.addEventListener('click', () => playerAttack(true));
+  el.againBtn.addEventListener('click', resetGame);
+  el.restartBtn.addEventListener('click', () => {
+    if (state.phase === 'busy') return;
+    resetGame();
+  });
+
+  el.soundBtn.addEventListener('click', () => {
+    muted = !muted;
+    el.soundBtn.textContent = muted ? '🔇' : '🔊';
+    if (!muted) tone({ freq: 660, type: 'sine', dur: 0.1, vol: 0.08 });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    if (e.code === 'Space' || e.key === 'Enter') {
+      e.preventDefault();
+      playerAttack(false);
+    } else if (e.key === 'd' || e.key === 'D') {
+      e.preventDefault();
+      playerAttack(true);
+    } else if (e.key === 'r' || e.key === 'R') {
+      if (state.phase !== 'busy') resetGame();
+    }
+  });
+
+  /* =========================================================
+     启动
+     ========================================================= */
+  if (state.best > 0) el.recordNum.textContent = state.best;
+  buildTrack();
+  startWave();
+})();
+</script>
+</body>
+</html>
