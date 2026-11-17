@@ -130,21 +130,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: clamp(8px, 5vw, 104px);
+    gap: clamp(16px, 9vw, 210px);
     position: relative;
     min-height: 0;
   }
 
   .fighter {
     flex: 0 1 auto;
-    width: clamp(152px, 20.5vw, 240px);
-    min-height: clamp(196px, 29vh, 296px);
+    width: clamp(170px, 23vw, 286px);
+    min-height: clamp(240px, 43vh, 392px);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: clamp(8px, 1.2vh, 14px);
-    padding: clamp(14px, 2.2vh, 24px) clamp(11px, 1.2vw, 18px) clamp(13px, 2vh, 20px);
+    gap: clamp(6px, 1.1vh, 12px);
+    padding: clamp(14px, 2.4vh, 26px) clamp(11px, 1.2vw, 18px) clamp(14px, 2.2vh, 22px);
     border-radius: 22px;
     background: linear-gradient(180deg, rgba(255, 255, 255, .072), rgba(255, 255, 255, .014));
     border: 1px solid rgba(255, 255, 255, .09);
@@ -154,7 +154,6 @@
     will-change: transform;
   }
 
-  /* 站在地面上的光影 */
   .fighter::before {
     content: '';
     position: absolute;
@@ -172,7 +171,6 @@
   .foe::before { background: radial-gradient(ellipse, rgba(255, 60, 100, .28), rgba(255, 60, 100, .06) 45%, transparent 72%); }
   .foe.boss::before { background: radial-gradient(ellipse, rgba(245, 196, 81, .32), rgba(245, 196, 81, .07) 45%, transparent 72%); }
 
-  /* 舞台地面氛围 */
   .stage::after {
     content: '';
     position: absolute;
@@ -199,13 +197,13 @@
   .name-row {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     max-width: 100%;
   }
   .name {
-    font-size: clamp(12px, 1.15vw, 15px);
+    font-size: clamp(12px, 1.1vw, 14px);
     font-weight: 700;
-    letter-spacing: .04em;
+    letter-spacing: .03em;
     color: #ded9ee;
     white-space: nowrap;
     overflow: hidden;
@@ -235,11 +233,11 @@
   }
 
   .avatar {
-    width: clamp(82px, 9.4vw, 118px);
-    height: clamp(82px, 9.4vw, 118px);
+    width: clamp(78px, 9.6vw, 122px);
+    height: clamp(78px, 9.6vw, 122px);
     display: grid;
     place-items: center;
-    font-size: clamp(42px, 5.2vw, 64px);
+    font-size: clamp(40px, 5.4vw, 66px);
     line-height: 1;
     border-radius: 50%;
     background: radial-gradient(circle at 50% 34%, rgba(255, 255, 255, .14), rgba(0, 0, 0, .36));
@@ -250,14 +248,14 @@
   }
   .foe .avatar { filter: brightness(1.14) saturate(1.08); }
   .foe.boss .avatar {
-    font-size: clamp(48px, 6vw, 74px);
+    font-size: clamp(46px, 6vw, 74px);
     border-color: rgba(245, 196, 81, .34);
   }
 
   /* 血条 */
   .bar {
     width: 100%;
-    height: clamp(14px, 1.7vh, 19px);
+    height: clamp(13px, 1.6vh, 18px);
     border-radius: 99px;
     background: rgba(0, 0, 0, .52);
     border: 1px solid rgba(255, 255, 255, .08);
@@ -296,13 +294,35 @@
     inset: 0;
     display: grid;
     place-items: center;
-    font-size: clamp(9px, .95vw, 11px);
+    font-size: clamp(9px, .9vw, 10.5px);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
-    letter-spacing: .04em;
+    letter-spacing: .03em;
     color: #fff;
     text-shadow: 0 1px 3px rgba(0, 0, 0, .95);
     z-index: 3;
+  }
+
+  /* 护盾条 */
+  .shield-bar {
+    width: 100%;
+    height: 7px;
+    border-radius: 99px;
+    background: rgba(10, 26, 40, .72);
+    border: 1px solid rgba(110, 190, 255, .26);
+    overflow: hidden;
+    margin-top: -2px;
+    opacity: 0;
+    transition: opacity .25s;
+  }
+  .shield-bar.on { opacity: 1; }
+  .shield-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #9fe0ff, #3b9dff);
+    box-shadow: 0 0 10px rgba(80, 180, 255, .8);
+    transition: width .3s cubic-bezier(.2,.9,.3,1);
   }
 
   .stats {
@@ -315,9 +335,9 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: clamp(10px, 1vw, 12.5px);
+    font-size: clamp(10px, .95vw, 12px);
     font-variant-numeric: tabular-nums;
-    padding: 3px 7px;
+    padding: 2px 7px;
     border-radius: 7px;
     background: rgba(0, 0, 0, .3);
     border: 1px solid rgba(255, 255, 255, .05);
@@ -326,23 +346,103 @@
   .stat b { font-weight: 700; letter-spacing: .02em; }
   .stat.atk b { color: #ffb08a; }
   .stat.def b { color: #8ecbff; }
-  .stat.hp b { color: #ff8fa8; }
+  .stat.up { animation: statPop .5s cubic-bezier(.2,.9,.3,1.6); }
+  @keyframes statPop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.22); background: rgba(120, 255, 190, .18); }
+    100% { transform: scale(1); }
+  }
+
+  /* 装备栏 */
+  .eq-row {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+    justify-content: center;
+  }
+  .eq-slot {
+    flex: 0 1 30px;
+    min-width: 0;
+    aspect-ratio: 1 / 1;
+    display: grid;
+    place-items: center;
+    border-radius: 7px;
+    background: rgba(0, 0, 0, .32);
+    border: 1px solid rgba(255, 255, 255, .06);
+    font-size: clamp(11px, 1.1vw, 14px);
+    line-height: 1;
+    position: relative;
+    opacity: .45;
+    transition: opacity .25s, border-color .25s, box-shadow .25s;
+  }
+  .eq-slot.filled {
+    opacity: 1;
+    border-color: var(--c);
+    background: rgba(0, 0, 0, .45);
+    box-shadow: 0 0 9px -2px var(--c), inset 0 0 8px -5px var(--c);
+  }
+  .eq-lv {
+    position: absolute;
+    right: 1px;
+    bottom: 0px;
+    font-size: 7px;
+    font-weight: 800;
+    line-height: 1;
+    color: #0a0810;
+    background: var(--c, #888);
+    border-radius: 3px;
+    padding: 1px 2px;
+  }
+  .eq-slot.filled.just { animation: slotPop .55s cubic-bezier(.2,.9,.3,1.7); }
+  @keyframes slotPop {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.28); }
+    100% { transform: scale(1); }
+  }
+
+  /* 状态 */
+  .status-row {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    min-height: 0;
+  }
+  .status-row:empty { display: none; }
+  .st-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: clamp(8.5px, .8vw, 10px);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 1px 5px;
+    border-radius: 5px;
+    letter-spacing: .02em;
+    animation: chipIn .3s cubic-bezier(.2,.9,.3,1.5);
+  }
+  @keyframes chipIn {
+    from { transform: scale(.6); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .st-bleed { color: #ff8fa3; background: rgba(255, 60, 90, .16); border: 1px solid rgba(255, 60, 90, .38); }
 
   /* 中间 */
   .center {
     flex: 0 0 auto;
-    width: clamp(54px, 8vw, 108px);
+    width: clamp(54px, 7vw, 96px);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    gap: 8px;
     position: relative;
     align-self: stretch;
   }
   .vs {
     position: relative;
-    font-size: clamp(18px, 2.2vw, 30px);
+    font-size: clamp(17px, 2vw, 28px);
     font-weight: 900;
     letter-spacing: .1em;
     color: rgba(255, 255, 255, .26);
@@ -359,17 +459,19 @@
   }
   .center-line {
     width: 1px;
-    height: 22%;
+    height: 18%;
     background: linear-gradient(transparent, rgba(255, 255, 255, .16), transparent);
   }
   .turn-tip {
-    font-size: clamp(9px, .9vw, 11px);
+    font-size: clamp(9px, .85vw, 10.5px);
     color: #6b6685;
-    letter-spacing: .12em;
+    letter-spacing: .1em;
     text-align: center;
     min-height: 14px;
     transition: opacity .3s;
+    line-height: 1.5;
   }
+  .turn-tip.warn { color: #ff8a6b; }
 
   .impact {
     position: absolute;
@@ -460,7 +562,7 @@
   }
   .btn:hover:not(:disabled) { transform: translateY(-2px); }
   .btn:active:not(:disabled) { transform: translateY(0) scale(.975); }
-  .btn:disabled { cursor: not-allowed; }
+  .btn:disabled { cursor: not-allowed; filter: grayscale(.55) brightness(.7); }
 
   .btn-attack {
     background: linear-gradient(160deg, #ffe08a, #f5b53c 55%, #e08a1e);
@@ -468,29 +570,28 @@
   }
   .btn-attack:hover:not(:disabled) { box-shadow: 0 12px 32px -8px rgba(245, 181, 60, .9), inset 0 1px 0 rgba(255, 255, 255, .6); }
 
-  .btn-heavy {
-    background: linear-gradient(160deg, #ff9d8a, #f2545b 55%, #c92240);
-    color: #2a0308;
-    box-shadow: 0 8px 26px -8px rgba(242, 84, 91, .65), inset 0 1px 0 rgba(255, 255, 255, .4);
+  .btn-defend {
+    background: linear-gradient(160deg, #bfe6ff, #5fb8f0 55%, #2f7fc4);
+    color: #061622;
+    box-shadow: 0 8px 26px -8px rgba(95, 184, 240, .6), inset 0 1px 0 rgba(255, 255, 255, .45);
   }
-  .btn-heavy:disabled {
-    filter: grayscale(.8) brightness(.55);
-    box-shadow: none;
-  }
-  .btn-heavy .cd {
-    font-size: .82em;
-    opacity: .7;
-    margin-left: 6px;
+  .btn-defend:hover:not(:disabled) { box-shadow: 0 12px 32px -8px rgba(95, 184, 240, .85), inset 0 1px 0 rgba(255, 255, 255, .55); }
+  .btn-defend .sub {
+    display: block;
+    font-size: .72em;
     letter-spacing: 0;
+    opacity: .72;
+    font-weight: 700;
+    margin-top: 1px;
   }
 
   /* ---------- 飘字 ---------- */
   .float-num {
     position: absolute;
     left: 50%;
-    top: 62%;
+    top: 52%;
     font-weight: 900;
-    font-size: clamp(19px, 2.9vw, 30px);
+    font-size: clamp(17px, 2.5vw, 26px);
     pointer-events: none;
     white-space: nowrap;
     z-index: 6;
@@ -498,8 +599,12 @@
     text-shadow: 0 2px 10px rgba(0, 0, 0, .9), 0 0 22px currentColor;
   }
   .float-num.dmg { color: #ffe9a3; }
+  .float-num.crit { color: #ffb347; font-size: clamp(21px, 3vw, 32px); }
   .float-num.hurt { color: #ff6b81; }
   .float-num.heal { color: #6ee7a8; }
+  .float-num.shield { color: #7fd8ff; }
+  .float-num.dot { color: #ff8fa3; }
+  .float-num.block { color: #9fe0ff; font-size: clamp(13px, 1.8vw, 19px); }
   @keyframes floatUp {
     0% { opacity: 0; transform: translate(-50%, 0) scale(.62); }
     22% { opacity: 1; transform: translate(-50%, -36px) scale(1.16); }
@@ -530,10 +635,16 @@
     30% { filter: brightness(2.4) saturate(0); }
     100% { transform: scale(.82) rotate(-6deg); opacity: 0; filter: brightness(.6); }
   }
+  @keyframes brace {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(120, 210, 255, .55); }
+    40% { transform: scale(1.02); box-shadow: 0 0 0 12px rgba(120, 210, 255, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(120, 210, 255, 0); }
+  }
 
   .ally.lunge { animation: lunge .34s cubic-bezier(.3,.8,.4,1); }
   .foe.lunge { animation: lungeFoe .34s cubic-bezier(.3,.8,.4,1); }
   .ally.hit, .foe.hit { animation: hitShake .36s cubic-bezier(.3,.8,.4,1); }
+  .ally.guard, .foe.guard { animation: brace .5s cubic-bezier(.3,.8,.4,1); }
   .foe.dying { animation: dying .62s cubic-bezier(.4,0,.6,1) forwards; }
 
   .flash-dmg .avatar { filter: brightness(1.9) saturate(1.3); }
@@ -553,17 +664,19 @@
     opacity: 0;
     visibility: hidden;
     transition: opacity .32s, visibility .32s;
+    overflow-y: auto;
   }
   .overlay.show { opacity: 1; visibility: visible; }
 
   .panel {
-    width: min(960px, 100%);
+    width: min(980px, 100%);
     transform: translateY(16px) scale(.97);
     transition: transform .42s cubic-bezier(.2,.9,.3,1.3);
+    margin: auto;
   }
   .overlay.show .panel { transform: translateY(0) scale(1); }
 
-  .up-head { text-align: center; margin-bottom: clamp(14px, 2.4vh, 28px); }
+  .up-head { text-align: center; margin-bottom: clamp(12px, 2vh, 24px); }
   .up-kicker {
     font-size: clamp(9px, .9vw, 11px);
     letter-spacing: .4em;
@@ -573,7 +686,7 @@
     margin-bottom: 8px;
   }
   .up-title {
-    font-size: clamp(20px, 2.6vw, 30px);
+    font-size: clamp(20px, 2.4vw, 28px);
     font-weight: 900;
     letter-spacing: .06em;
     margin: 0 0 6px;
@@ -583,15 +696,16 @@
     color: transparent;
   }
   .up-sub {
-    font-size: clamp(11px, 1.05vw, 13px);
+    font-size: clamp(11px, 1vw, 12.5px);
     color: #8b85a3;
-    letter-spacing: .08em;
+    letter-spacing: .06em;
   }
 
   .cards {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: clamp(10px, 1.6vw, 20px);
+    align-items: stretch;
   }
 
   .up-card {
@@ -599,10 +713,10 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    min-height: clamp(186px, 25vh, 244px);
+    justify-content: flex-start;
+    min-height: clamp(196px, 27vh, 258px);
     gap: 7px;
-    padding: clamp(16px, 2.6vh, 28px) 12px clamp(14px, 2.2vh, 22px);
+    padding: clamp(14px, 2.2vh, 24px) 12px clamp(13px, 2vh, 20px);
     border-radius: 16px;
     cursor: pointer;
     border: 1.5px solid var(--c, #fff);
@@ -646,34 +760,40 @@
   .up-card.dim { opacity: .18; filter: grayscale(.85); transform: scale(.94); }
 
   .card-rar {
-    font-size: clamp(10px, .95vw, 12px);
+    font-size: clamp(9px, .85vw, 10.5px);
     font-weight: 800;
-    letter-spacing: .32em;
+    letter-spacing: .28em;
     color: var(--c);
     text-shadow: 0 0 14px var(--c);
     position: relative;
     z-index: 2;
-    text-indent: .32em;
+    text-indent: .28em;
   }
   .card-icon {
-    width: clamp(30px, 3.4vw, 42px);
-    height: clamp(30px, 3.4vw, 42px);
-    margin: 8px 0 2px;
+    width: clamp(28px, 3vw, 38px);
+    height: clamp(28px, 3vw, 38px);
+    margin: 6px 0 0;
     color: var(--c);
     position: relative;
     z-index: 2;
     filter: drop-shadow(0 0 15px var(--c));
+    display: grid;
+    place-items: center;
+    font-size: clamp(24px, 2.6vw, 32px);
+    line-height: 1;
   }
   .card-icon svg { width: 100%; height: 100%; display: block; }
   .card-name {
-    font-size: clamp(12px, 1.15vw, 14px);
-    color: #cfc8e2;
-    letter-spacing: .16em;
+    font-size: clamp(12px, 1.1vw, 13.5px);
+    color: #e2ddf0;
+    letter-spacing: .1em;
     position: relative;
     z-index: 2;
+    font-weight: 700;
+    text-align: center;
   }
   .card-val {
-    font-size: clamp(24px, 3.1vw, 36px);
+    font-size: clamp(22px, 2.7vw, 32px);
     font-weight: 900;
     letter-spacing: .01em;
     color: var(--c);
@@ -684,15 +804,39 @@
     z-index: 2;
   }
   .card-note {
-    font-size: clamp(9px, .85vw, 10.5px);
-    color: #7d7893;
-    letter-spacing: .05em;
+    font-size: clamp(9px, .82vw, 10.5px);
+    color: #86809d;
+    letter-spacing: .03em;
     position: relative;
     z-index: 2;
     text-align: center;
-    line-height: 1.4;
-    min-height: 1.4em;
+    line-height: 1.5;
+    min-height: 1.5em;
   }
+  .card-tag {
+    margin-top: auto;
+    font-size: clamp(9px, .8vw, 10px);
+    font-weight: 700;
+    color: #a79fc4;
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 5px;
+    padding: 2px 7px;
+    letter-spacing: .04em;
+    position: relative;
+    z-index: 2;
+  }
+  .card-eff {
+    font-size: clamp(9.5px, .85vw, 11px);
+    color: #cfc8e2;
+    line-height: 1.55;
+    text-align: center;
+    position: relative;
+    z-index: 2;
+    letter-spacing: .02em;
+    padding: 0 2px;
+  }
+  .card-eff em { font-style: normal; color: var(--c); font-weight: 700; }
 
   .up-card.gold { animation: cardIn .46s cubic-bezier(.16,1,.3,1.05) backwards, goldGlow 2.2s ease-in-out infinite 1s; }
   @keyframes goldGlow {
@@ -705,26 +849,68 @@
     display: flex;
     justify-content: center;
     gap: clamp(12px, 2.4vw, 34px);
-    margin-top: clamp(14px, 2.4vh, 26px);
-    padding-top: clamp(12px, 2vh, 20px);
+    margin-top: clamp(12px, 2vh, 22px);
+    padding-top: clamp(10px, 1.7vh, 16px);
     border-top: 1px solid rgba(255, 255, 255, .07);
+    flex-wrap: wrap;
   }
   .cur-item {
     display: flex;
     align-items: center;
-    gap: 7px;
-    font-size: clamp(11px, 1.05vw, 13px);
+    gap: 6px;
+    font-size: clamp(11px, 1vw, 12.5px);
     color: #8b85a3;
     font-variant-numeric: tabular-nums;
   }
   .cur-item b { color: #ddd8ee; font-weight: 700; }
   .cur-item i { font-style: normal; }
 
+  /* 装备一览 */
+  .eq-panel {
+    margin-top: clamp(10px, 1.6vh, 16px);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(6px, .8vw, 10px);
+  }
+  .eq-cell {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 7px 8px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid rgba(255, 255, 255, .08);
+    min-height: 54px;
+  }
+  .eq-cell.empty { opacity: .62; border-style: dashed; }
+  .eq-cell-ic {
+    font-size: 15px;
+    line-height: 1.2;
+    flex: 0 0 auto;
+  }
+  .eq-cell-body { min-width: 0; }
+  .eq-cell-name {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #ded9ee;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .eq-cell-name span { font-size: 9px; font-weight: 800; margin-left: 3px; }
+  .eq-cell-eff {
+    font-size: 9.5px;
+    color: #9d97b5;
+    line-height: 1.4;
+    margin-top: 2px;
+    word-break: break-word;
+  }
+
   /* ---------- 结束界面 ---------- */
   .over-panel {
     text-align: center;
-    max-width: 420px;
-    padding: clamp(26px, 4vh, 42px) clamp(22px, 3vw, 38px);
+    max-width: 430px;
+    padding: clamp(24px, 3.6vh, 38px) clamp(20px, 3vw, 34px);
     border-radius: 24px;
     background: linear-gradient(180deg, rgba(255, 255, 255, .062), rgba(255, 255, 255, .012));
     border: 1px solid rgba(255, 255, 255, .085);
@@ -740,7 +926,7 @@
     margin-bottom: 10px;
   }
   .over-title {
-    font-size: clamp(26px, 3.4vw, 38px);
+    font-size: clamp(26px, 3.2vw, 36px);
     font-weight: 900;
     letter-spacing: .1em;
     margin: 0 0 6px;
@@ -750,7 +936,7 @@
     color: transparent;
   }
   .over-wave {
-    font-size: clamp(13px, 1.3vw, 15px);
+    font-size: clamp(13px, 1.2vw, 14.5px);
     color: #9b95b2;
     letter-spacing: .1em;
     margin-bottom: 8px;
@@ -765,27 +951,27 @@
     font-size: clamp(11px, 1vw, 12.5px);
     color: #b05a72;
     letter-spacing: .06em;
-    margin-bottom: clamp(16px, 2.6vh, 24px);
+    margin-bottom: clamp(14px, 2.2vh, 20px);
   }
   .over-kills {
     font-size: 11px;
     color: #6f6a85;
     letter-spacing: .1em;
-    margin: clamp(12px, 2vh, 18px) 0 10px;
+    margin: clamp(10px, 1.6vh, 14px) 0 8px;
   }
   .over-stats {
     display: flex;
     justify-content: center;
-    gap: 10px;
-    margin-bottom: clamp(16px, 2.6vh, 26px);
+    gap: 9px;
+    margin-bottom: clamp(12px, 2vh, 18px);
     flex-wrap: wrap;
   }
   .over-chip {
-    padding: 8px 14px;
+    padding: 7px 12px;
     border-radius: 10px;
     background: rgba(255, 255, 255, .045);
     border: 1px solid rgba(255, 255, 255, .07);
-    font-size: 12px;
+    font-size: 11.5px;
     color: #9b95b2;
     font-variant-numeric: tabular-nums;
   }
@@ -794,7 +980,7 @@
     font-size: 12px;
     color: #6f6a85;
     letter-spacing: .1em;
-    margin-bottom: clamp(20px, 3.2vh, 32px);
+    margin-bottom: clamp(18px, 2.8vh, 28px);
   }
   .over-best b { color: #f5c451; }
 
@@ -829,27 +1015,37 @@
   }
 
   /* ---------- 响应式 ---------- */
+  @media (max-width: 720px) {
+    .eq-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
   @media (max-width: 560px) {
-    .fighter { width: clamp(104px, 27vw, 150px); min-height: 0; padding: 12px 8px; gap: 7px; }
-    .avatar { width: clamp(62px, 17vw, 78px); height: clamp(62px, 17vw, 78px); font-size: clamp(32px, 9vw, 40px); }
-    .name { font-size: 11.5px; }
+    .fighter { width: clamp(120px, 29vw, 162px); min-height: 32vh; padding: 12px 8px; gap: 7px; }
+    .avatar { width: clamp(62px, 17vw, 84px); height: clamp(62px, 17vw, 84px); font-size: clamp(30px, 8.5vw, 42px); }
+    .name { font-size: 11px; }
     .stats { gap: 4px; }
-    .stat { padding: 2px 4px; font-size: 9.5px; }
-    .center { gap: 6px; }
-    .vs { font-size: 13px; letter-spacing: .1em; }
+    .stat { padding: 1px 5px; font-size: 9.5px; }
+    .eq-slot { flex-basis: 24px; font-size: 11px; border-radius: 6px; }
+    .eq-lv { font-size: 6px; }
+    .center { gap: 6px; width: 44px; }
+    .vs { font-size: 13px; letter-spacing: .06em; }
     .turn-tip { display: none; }
     .cards { gap: 7px; }
-    .up-card { padding: 14px 6px; gap: 4px; min-height: 0; }
+    .up-card { padding: 12px 6px; gap: 5px; min-height: 0; }
+    .card-rar { letter-spacing: .12em; font-size: 8.5px; }
     .card-note { display: none; }
-    .card-rar { letter-spacing: .14em; font-size: 8.5px; }
+    .card-val { font-size: 20px; }
     .btn { padding: 12px 16px; }
     .actions { gap: 8px; }
+    .eq-cell { min-height: 0; padding: 6px; }
+    .eq-cell-eff { font-size: 8.5px; }
   }
-  @media (max-height: 560px) {
-    .fighter { padding: 10px; gap: 5px; }
-    .avatar { width: 58px; height: 58px; font-size: 30px; }
-    .up-head { margin-bottom: 12px; }
-    .cur-stats { margin-top: 12px; padding-top: 10px; }
+  @media (max-height: 620px) {
+    .fighter { padding: 9px 8px; gap: 4px; min-height: 0; }
+    .avatar { width: 54px; height: 54px; font-size: 28px; }
+    .up-head { margin-bottom: 10px; }
+    .cur-stats { margin-top: 10px; padding-top: 8px; }
+    .up-card { min-height: 0; padding: 10px 8px; }
+    .card-icon { margin: 2px 0 0; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -878,7 +1074,7 @@
 
   <main class="stage">
     <section class="fighter ally" id="ally">
-      <div class="name-row"><span class="name">冒险者</span></div>
+      <div class="name-row"><span class="name" id="allyName">冒险者</span></div>
       <div class="avatar-wrap">
         <div class="aura"></div>
         <div class="avatar" id="allyAvatar">⚔️</div>
@@ -886,12 +1082,15 @@
       <div class="bar" id="allyBar">
         <div class="bar-ghost" id="allyGhost"></div>
         <div class="fill" id="allyFill"></div>
-        <span class="bar-txt" id="allyBarTxt">100 / 100</span>
+        <span class="bar-txt" id="allyBarTxt">120 / 120</span>
       </div>
+      <div class="shield-bar" id="allyShieldBar"><div class="shield-fill" id="allyShieldFill"></div></div>
       <div class="stats">
-        <span class="stat atk"><i>⚔</i><b id="allyAtk">12</b></span>
-        <span class="stat def"><i>🛡</i><b id="allyDef">3</b></span>
+        <span class="stat atk" id="allyAtkBox"><i>⚔</i><b id="allyAtk">14</b></span>
+        <span class="stat def" id="allyDefBox"><i>🛡</i><b id="allyDef">4</b></span>
       </div>
+      <div class="eq-row" id="allyEq"></div>
+      <div class="status-row" id="allyStatus"></div>
     </section>
 
     <div class="center">
@@ -911,12 +1110,15 @@
       <div class="bar" id="foeBar">
         <div class="bar-ghost" id="foeGhost"></div>
         <div class="fill" id="foeFill"></div>
-        <span class="bar-txt" id="foeBarTxt">30 / 30</span>
+        <span class="bar-txt" id="foeBarTxt">24 / 24</span>
       </div>
+      <div class="shield-bar" id="foeShieldBar"><div class="shield-fill" id="foeShieldFill"></div></div>
       <div class="stats">
         <span class="stat atk"><i>⚔</i><b id="foeAtk">8</b></span>
         <span class="stat def"><i>🛡</i><b id="foeDef">1</b></span>
       </div>
+      <div class="eq-row" id="foeEq"></div>
+      <div class="status-row" id="foeStatus"></div>
     </section>
   </main>
 
@@ -927,7 +1129,7 @@
 
   <footer class="actions">
     <button class="btn btn-attack" id="attackBtn">攻 击</button>
-    <button class="btn btn-heavy" id="heavyBtn">重 击<span class="cd" id="heavyCd"></span></button>
+    <button class="btn btn-defend" id="defendBtn">防 御<span class="sub" id="defendSub">护盾 +36</span></button>
   </footer>
 </div>
 
@@ -938,15 +1140,16 @@
   <div class="panel">
     <div class="up-head">
       <div class="up-kicker">Wave Cleared</div>
-      <h1 class="up-title">选择一项进化</h1>
+      <h1 class="up-title">选择一项强化</h1>
       <div class="up-sub" id="upSub">第 1 波已征服 · 从三项中选择一项</div>
     </div>
     <div class="cards" id="cards"></div>
     <div class="cur-stats">
-      <span class="cur-item"><i>❤</i> 生命 <b id="curHp">100</b></span>
-      <span class="cur-item"><i>⚔</i> 攻击 <b id="curAtk">12</b></span>
-      <span class="cur-item"><i>🛡</i> 防御 <b id="curDef">3</b></span>
+      <span class="cur-item"><i>❤</i> 生命 <b id="curHp">120</b></span>
+      <span class="cur-item"><i>⚔</i> 攻击 <b id="curAtk">14</b></span>
+      <span class="cur-item"><i>🛡</i> 防御 <b id="curDef">4</b></span>
     </div>
+    <div class="eq-panel" id="eqPanel"></div>
   </div>
 </div>
 
@@ -958,9 +1161,10 @@
     <div class="over-wave">你抵达了第 <b id="overWave">1</b> 波</div>
     <div class="over-killer" id="overKiller">被「哥布林」击败</div>
     <div class="over-stats">
-      <span class="over-chip">生命<b id="overHp">100</b></span>
-      <span class="over-chip">攻击<b id="overAtk">12</b></span>
-      <span class="over-chip">防御<b id="overDef">3</b></span>
+      <span class="over-chip">生命<b id="overHp">120</b></span>
+      <span class="over-chip">攻击<b id="overAtk">14</b></span>
+      <span class="over-chip">防御<b id="overDef">4</b></span>
+      <span class="over-chip">装备<b id="overEq">0</b></span>
     </div>
     <div class="over-kills" id="overKills">击败 0 个敌人</div>
     <div class="over-best" id="overBest">最佳纪录：第 0 波</div>
@@ -973,27 +1177,140 @@
   'use strict';
 
   /* =========================================================
-     数值配置
+     数值配置（全部整数）
      ========================================================= */
   const CFG = {
-    player: { hp: 100, atk: 12, def: 3 },
-    // 升级加成：数值按稀有度递增（白 < 绿 < 蓝 < 紫 < 金）
-    up: {
-      hp:  { white: 15,  green: 28,  blue: 45,  purple: 70,  gold: 110, label: '生命', icon: '❤', key: 'hp' },
-      atk: { white: 2.4, green: 4.2, blue: 6.5, purple: 10,  gold: 16,  label: '攻击', icon: '⚔', key: 'atk' },
-      def: { white: 0.8, green: 1.4, blue: 2.2, purple: 3.5, gold: 5.5, label: '防御', icon: '🛡', key: 'def' }
+    player: { hp: 120, atk: 14, def: 4 },
+
+    // 属性升级：白 / 绿 / 蓝 / 紫 / 金
+    attr: {
+      hp:  { label: '生命', icon: '❤', vals: [19, 36, 59, 90, 138], note: '提升生命上限，并立即恢复等量生命' },
+      atk: { label: '攻击', icon: '⚔', vals: [6, 9, 13, 20, 29],    note: '每次攻击造成更高伤害' },
+      def: { label: '防御', icon: '🛡', vals: [2, 3, 4, 6, 9],      note: '减免受到的伤害，并提升防御护盾' }
     },
-    rarity: [
-      { key: 'white',  name: '普通', c: '#c9d1e0', weight: w => Math.max(10, 42 - 1.4 * w) },
-      { key: 'green',  name: '精良', c: '#4ade80', weight: () => 30 },
-      { key: 'blue',   name: '稀有', c: '#48b8f8', weight: w => 14 + 0.35 * w },
-      { key: 'purple', name: '史诗', c: '#a78bfa', weight: w => 7 + 0.35 * w },
-      { key: 'gold',   name: '传说', c: '#fbbf24', weight: w => Math.min(12, 1.5 + 0.22 * w) }
-    ],
+
     // 怪物成长曲线
-    mon: { hp0: 26, hpK: 7.2, hpQ: 0.05, atk0: 8, atkK: 1.15, atkQ: 0.02, def0: 1, defK: 0.6, bossHp: 1.5, bossAtk: 1.12 },
-    heal: { min: 8, pct: 0.15, base: 13, perWave: 1.5 },
-    heavy: { mult: 1.75, penalty: 1.4, cd: 3 }
+    mon: {
+      hp0: 24, hpK: 4.5, hpQ: 0.055,
+      atk0: 8, atkK: 1.05, atkQ: 0.019,
+      def0: 1, defK: 0.55,
+      bossHp: 1.45, bossAtk: 1.05,
+      eqEvery: 4,        // 每 N 波获得一件装备
+      bleedMul: 0.8      // 怪物流血强度系数
+    },
+
+    heal: { min: 12, pct: 0.24, base: 18, perWave: 2.6 },
+    defend: { base: 8, defMul: 2.4, capPct: 0.5, decay: 0.7 },
+    rage: { start: 14, per: 0.12 },
+    forge: { maxLevel: 5 }
+  };
+
+  const RARITY = [
+    { key: 'white',  name: '普通', c: '#c9d1e0', w: w => Math.max(10, 44 - 1.5 * w) },
+    { key: 'green',  name: '精良', c: '#4ade80', w: () => 30 },
+    { key: 'blue',   name: '稀有', c: '#48b8f8', w: w => 13 + 0.4 * w },
+    { key: 'purple', name: '史诗', c: '#a78bfa', w: w => 6 + 0.4 * w },
+    { key: 'gold',   name: '传说', c: '#fbbf24', w: w => Math.min(10, 1 + 0.2 * w) }
+  ];
+
+  const SLOTS = [
+    { key: 'weapon',  name: '武器', icon: '⚔',  statK: 'atk' },
+    { key: 'armor',   name: '护甲', icon: '🛡',  statK: 'def' },
+    { key: 'helm',    name: '头盔', icon: '⛑',  statK: 'hp' },
+    { key: 'trinket', name: '饰品', icon: '💠',  statK: null }
+  ];
+
+  /* ---------- 装备定义 ----------
+     stat：各稀有度的基础属性加成；step：每级追加
+     mk(r, L0)：按稀有度索引与等级偏移算出具体效果数值
+  ------------------------------------- */
+  const ITEM_DEFS = {
+    weapon: [
+      {
+        k: 'bleed', name: '血刃', icon: '🗡️', stat: [2, 3, 5, 8, 12], step: 2,
+        mk: (r, L0) => ({
+          dmg: Math.round([2, 3, 5, 7, 10][r] + 2 * L0),
+          turns: [3, 3, 4, 4, 5][r] + Math.floor(L0 / 2)
+        }),
+        desc: v => '命中后附加流血：每回合 <em>' + v.dmg + '</em> 点，持续 <em>' + v.turns + '</em> 回合',
+        tag: v => '流血 ' + v.dmg + ' × ' + v.turns
+      },
+      {
+        k: 'crit', name: '裂风刃', icon: '🌪️', stat: [2, 3, 5, 7, 10], step: 2,
+        mk: (r, L0) => ({
+          chance: [12, 18, 25, 32, 40][r] + 4 * L0,
+          mult: Number(([1.6, 1.7, 1.8, 1.9, 2.0][r] + 0.05 * L0).toFixed(2))
+        }),
+        desc: v => '<em>' + v.chance + '%</em> 概率造成 <em>' + v.mult + '</em> 倍伤害',
+        tag: v => '暴击 ' + v.chance + '%'
+      },
+      {
+        k: 'leech', name: '噬血剑', icon: '🩸', stat: [2, 3, 5, 8, 12], step: 2,
+        mk: (r, L0) => ({ pct: [8, 12, 17, 23, 30][r] + 3 * L0 }),
+        desc: v => '造成伤害的 <em>' + v.pct + '%</em> 转化为自身治疗',
+        tag: v => '吸血 ' + v.pct + '%'
+      }
+    ],
+    armor: [
+      {
+        k: 'thorn', name: '荆棘甲', icon: '🌵', stat: [1, 2, 3, 4, 6], step: 1,
+        mk: (r, L0) => ({ dmg: Math.round([2, 3, 4, 6, 8][r] + 1.5 * L0) }),
+        desc: v => '每次被攻击时反弹 <em>' + v.dmg + '</em> 点伤害',
+        tag: v => '反伤 ' + v.dmg
+      },
+      {
+        k: 'guard', name: '壁垒甲', icon: '🛡️', stat: [1, 2, 3, 4, 6], step: 1,
+        mk: (r, L0) => ({ shield: Math.round([6, 10, 15, 21, 28][r] + 4 * L0) }),
+        desc: v => '防御时额外获得 <em>' + v.shield + '</em> 点护盾',
+        tag: v => '护盾 +' + v.shield
+      },
+      {
+        k: 'bulwark', name: '龙鳞甲', icon: '🐉', stat: [1, 2, 3, 4, 6], step: 1,
+        mk: (r, L0) => ({ pct: Math.min(60, [6, 9, 13, 18, 24][r] + 3 * L0) }),
+        desc: v => '受到的伤害降低 <em>' + v.pct + '%</em>',
+        tag: v => '减伤 ' + v.pct + '%'
+      }
+    ],
+    helm: [
+      {
+        k: 'vamp', name: '回响头盔', icon: '🩹', stat: [10, 16, 24, 36, 52], step: 8,
+        mk: (r, L0) => ({ pct: [15, 20, 26, 32, 40][r] + 3 * L0 }),
+        desc: v => '受到伤害后回复该次伤害的 <em>' + v.pct + '%</em>',
+        tag: v => '回复 ' + v.pct + '%'
+      },
+      {
+        k: 'dotres', name: '抗性头冠', icon: '🧿', stat: [10, 16, 24, 36, 52], step: 8,
+        mk: (r, L0) => ({ pct: [20, 28, 36, 45, 55][r] + 4 * L0 }),
+        desc: v => '受到的流血伤害降低 <em>' + v.pct + '%</em>',
+        tag: v => '抗流血 ' + v.pct + '%'
+      },
+      {
+        k: 'shieldstart', name: '守望头盔', icon: '🪖', stat: [10, 16, 24, 36, 52], step: 8,
+        mk: (r, L0) => ({ shield: Math.round([8, 12, 18, 26, 35][r] + 5 * L0) }),
+        desc: v => '每波开始时自动获得 <em>' + v.shield + '</em> 点护盾',
+        tag: v => '开局盾 ' + v.shield
+      }
+    ],
+    trinket: [
+      {
+        k: 'pierce', name: '破魔坠', icon: '🔮', stat: null,
+        mk: (r, L0) => ({ pct: [10, 15, 20, 28, 36][r] + 4 * L0 }),
+        desc: v => '攻击时无视目标 <em>' + v.pct + '%</em> 的防御',
+        tag: v => '破甲 ' + v.pct + '%'
+      },
+      {
+        k: 'might', name: '巨力符', icon: '💪', statK: 'atk', stat: [3, 5, 8, 12, 18], step: 3,
+        mk: () => ({}),
+        desc: (v, it) => '攻击力提高 <em>+' + it.statV + '</em>',
+        tag: (v, it) => '攻击 +' + it.statV
+      },
+      {
+        k: 'ward', name: '磐石符', icon: '🪨', statK: 'def', stat: [2, 3, 5, 8, 11], step: 2,
+        mk: () => ({}),
+        desc: (v, it) => '防御力提高 <em>+' + it.statV + '</em>',
+        tag: (v, it) => '防御 +' + it.statV
+      }
+    ]
   };
 
   const MONSTER_POOL = [
@@ -1024,15 +1341,12 @@
   const $ = id => document.getElementById(id);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
   function fmt(n) {
-    if (!isFinite(n)) return '∞';
-    return Number.isInteger(n) ? String(n) : n.toFixed(1);
-  }
-
-  function calcDamage(atk, def) {
-    const raw = Math.max(atk - def, atk * 0.12);
-    return Math.max(1, Math.round(raw * (0.93 + Math.random() * 0.14)));
+    const v = Math.round(n);
+    if (!isFinite(v)) return '∞';
+    return String(v);
   }
 
   /* =========================================================
@@ -1071,13 +1385,17 @@
     osc.stop(t0 + dur + 0.03);
   }
 
-  function sfxHit(heavy) {
-    tone({ freq: heavy ? 320 : 460, type: 'triangle', dur: 0.12, vol: 0.13, slide: 140 });
+  function sfxHit(crit) {
+    tone({ freq: crit ? 380 : 460, type: 'triangle', dur: 0.12, vol: 0.13, slide: 140 });
     tone({ freq: 110, type: 'sawtooth', dur: 0.16, vol: 0.08, slide: 55, delay: 0.01 });
   }
   function sfxHurt() {
     tone({ freq: 150, type: 'sawtooth', dur: 0.2, vol: 0.09, slide: 60 });
     tone({ freq: 70, type: 'sine', dur: 0.24, vol: 0.12, slide: 40 });
+  }
+  function sfxGuard() {
+    tone({ freq: 300, type: 'sine', dur: 0.22, vol: 0.1, slide: 520 });
+    tone({ freq: 600, type: 'sine', dur: 0.3, vol: 0.06, delay: 0.05 });
   }
   function sfxWin() {
     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
@@ -1097,41 +1415,153 @@
     tone({ freq: 90, type: 'sawtooth', dur: 0.55, vol: 0.13, slide: 55 });
     tone({ freq: 180, type: 'square', dur: 0.4, vol: 0.06, delay: 0.05 });
   }
+  function sfxTick() {
+    tone({ freq: 260, type: 'square', dur: 0.07, vol: 0.05, slide: 180 });
+  }
+
+  /* =========================================================
+     装备逻辑
+     ========================================================= */
+  function rarOf(idx) { return RARITY[clamp(idx, 0, 4)]; }
+
+  function buildItem(slotKey, defIdx, rarIdx, level) {
+    const def = ITEM_DEFS[slotKey][defIdx];
+    const slot = SLOTS.find(s => s.key === slotKey);
+    const L0 = level - 1;
+    const item = {
+      slot: slotKey,
+      slotName: slot.name,
+      def: def,
+      key: def.k,
+      name: def.name,
+      icon: def.icon,
+      rarity: clamp(rarIdx, 0, 4),
+      level: level,
+      statK: def.stat ? (def.statK || slot.statK) : null,
+      statV: def.stat ? Math.round(def.stat[clamp(rarIdx, 0, 4)] + (def.step || 0) * L0) : 0,
+      eff: def.mk(clamp(rarIdx, 0, 4), L0)
+    };
+    item.c = rarOf(item.rarity).c;
+    return item;
+  }
+
+  function randomItem(slotKey, rarIdx) {
+    return buildItem(slotKey, Math.floor(Math.random() * ITEM_DEFS[slotKey].length), rarIdx, 1);
+  }
+
+  function itemDesc(item) {
+    const d = item.def.desc(item.eff, item);
+    const statLine = item.statV > 0
+      ? '<em>+' + item.statV + ' ' + { atk: '攻击', def: '防御', hp: '生命' }[item.statK] + '</em>'
+      : '';
+    return statLine ? statLine + '<br>' + d : d;
+  }
+
+  function itemDescText(item) {
+    return itemDesc(item).replace(/<br>/g, '，').replace(/<\/?em>/g, '');
+  }
+
+  function aggregate(items) {
+    const A = {
+      atkFlat: 0, defFlat: 0, hpFlat: 0,
+      bleed: null, crit: 0, critMult: 1.6, leech: 0, thorn: 0,
+      guard: 0, bulwark: 0, vamp: 0, dotres: 0, shieldstart: 0, pierce: 0
+    };
+    items.forEach(it => {
+      if (it.statK === 'atk') A.atkFlat += it.statV;
+      else if (it.statK === 'def') A.defFlat += it.statV;
+      else if (it.statK === 'hp') A.hpFlat += it.statV;
+
+      const e = it.eff;
+      switch (it.key) {
+        case 'bleed':
+          if (!A.bleed || e.dmg > A.bleed.dmg) A.bleed = { dmg: e.dmg, turns: e.turns };
+          break;
+        case 'crit':
+          A.crit += e.chance;
+          A.critMult = Math.max(A.critMult, e.mult);
+          break;
+        case 'leech': A.leech += e.pct; break;
+        case 'thorn': A.thorn += e.dmg; break;
+        case 'guard': A.guard += e.shield; break;
+        case 'bulwark': A.bulwark += e.pct; break;
+        case 'vamp': A.vamp += e.pct; break;
+        case 'dotres': A.dotres += e.pct; break;
+        case 'shieldstart': A.shieldstart += e.shield; break;
+        case 'pierce': A.pierce += e.pct; break;
+      }
+    });
+    return A;
+  }
+
+  function recalc(u) {
+    const oldMax = u.maxHp || 0;
+    u.atk = u.baseAtk + u.agg.atkFlat;
+    u.def = u.baseDef + u.agg.defFlat;
+    u.maxHp = u.baseHp + u.agg.hpFlat;
+    if (oldMax > 0) {
+      if (u.maxHp > oldMax) u.hp += (u.maxHp - oldMax);
+      u.hp = Math.min(u.hp, u.maxHp);
+    } else {
+      u.hp = u.maxHp;
+    }
+  }
+
+  function refresh(u) {
+    u.agg = aggregate(u.items);
+    recalc(u);
+  }
+
+  function itemAt(u, slotKey) {
+    return u.items.find(i => i.slot === slotKey) || null;
+  }
 
   /* =========================================================
      状态
      ========================================================= */
   const state = {
     wave: 1,
-    player: { hp: 100, maxHp: 100, atk: 12, def: 3 },
-    monster: null,
+    round: 0,
     phase: 'battle',   // battle | busy | upgrade | over
-    heavyCd: 0,
+    player: null,
+    monster: null,
     best: Number(localStorage.getItem('abyss_best') || 0)
   };
 
+  function makeUnit(base) {
+    const u = {
+      baseHp: base.hp, baseAtk: base.atk, baseDef: base.def,
+      items: [], shield: 0, bleed: null, defended: false,
+      maxHp: 0, hp: 0, atk: 0, def: 0, agg: null, isMon: false
+    };
+    u.agg = aggregate(u.items);
+    recalc(u);
+    return u;
+  }
+
   /* =========================================================
-     DOM 引用
+     DOM
      ========================================================= */
   const el = {
-    waveNum: $('waveNum'),
-    recordNum: $('recordNum'),
+    waveNum: $('waveNum'), recordNum: $('recordNum'),
     ally: $('ally'), foe: $('foe'),
     allyAvatar: $('allyAvatar'), foeAvatar: $('foeAvatar'),
     allyFill: $('allyFill'), allyGhost: $('allyGhost'), allyBarTxt: $('allyBarTxt'), allyBar: $('allyBar'),
     foeFill: $('foeFill'), foeGhost: $('foeGhost'), foeBarTxt: $('foeBarTxt'), foeBar: $('foeBar'),
+    allyShieldBar: $('allyShieldBar'), allyShieldFill: $('allyShieldFill'),
+    foeShieldBar: $('foeShieldBar'), foeShieldFill: $('foeShieldFill'),
     allyAtk: $('allyAtk'), allyDef: $('allyDef'),
     foeAtk: $('foeAtk'), foeDef: $('foeDef'),
+    allyEq: $('allyEq'), foeEq: $('foeEq'),
+    allyStatus: $('allyStatus'), foeStatus: $('foeStatus'),
     foeName: $('foeName'), foeCrown: $('foeCrown'),
-    turnTip: $('turnTip'),
-    impact: $('impact'),
-    attackBtn: $('attackBtn'), heavyBtn: $('heavyBtn'), heavyCd: $('heavyCd'),
+    turnTip: $('turnTip'), impact: $('impact'),
+    attackBtn: $('attackBtn'), defendBtn: $('defendBtn'), defendSub: $('defendSub'),
     upOverlay: $('upgradeOverlay'), cards: $('cards'), upSub: $('upSub'),
-    curHp: $('curHp'), curAtk: $('curAtk'), curDef: $('curDef'),
+    curHp: $('curHp'), curAtk: $('curAtk'), curDef: $('curDef'), eqPanel: $('eqPanel'),
     overOverlay: $('overOverlay'), overWave: $('overWave'),
-    overHp: $('overHp'), overAtk: $('overAtk'), overDef: $('overDef'),
-    overKiller: $('overKiller'), overKills: $('overKills'),
-    overBest: $('overBest'),
+    overHp: $('overHp'), overAtk: $('overAtk'), overDef: $('overDef'), overEq: $('overEq'),
+    overKiller: $('overKiller'), overKills: $('overKills'), overBest: $('overBest'),
     banner: $('banner'),
     trackPips: $('trackPips'), trackLabel: $('trackLabel'),
     soundBtn: $('soundBtn'), restartBtn: $('restartBtn'), againBtn: $('againBtn')
@@ -1156,10 +1586,7 @@
     const w = state.wave;
     const inCycle = (w - 1) % 5;
     const pips = el.trackPips.children;
-
-    for (let i = 0; i < 4; i++) {
-      pips[i].classList.toggle('on', i < inCycle);
-    }
+    for (let i = 0; i < 4; i++) pips[i].classList.toggle('on', i < inCycle);
     pips[4].classList.toggle('on', w % 5 === 0);
 
     const left = w % 5 === 0 ? 0 : 5 - (w % 5);
@@ -1182,58 +1609,122 @@
 
   function renderBars() {
     const p = state.player, m = state.monster;
-    const pPct = Math.max(0, p.hp / p.maxHp) * 100;
-    const mPct = m ? Math.max(0, m.hp / m.maxHp) * 100 : 0;
-
+    const pPct = clamp(p.hp / p.maxHp, 0, 1) * 100;
     el.allyFill.style.width = pPct + '%';
     el.allyGhost.style.width = pPct + '%';
-    el.allyBarTxt.textContent = fmt(Math.ceil(p.hp)) + ' / ' + fmt(p.maxHp);
+    el.allyBarTxt.textContent = fmt(p.hp) + ' / ' + fmt(p.maxHp);
     el.allyBar.classList.toggle('low', pPct < 30);
 
+    const pShieldPct = clamp(p.shield / (p.maxHp * CFG.defend.capPct), 0, 1) * 100;
+    el.allyShieldFill.style.width = pShieldPct + '%';
+    el.allyShieldBar.classList.toggle('on', p.shield > 0);
+
     if (m) {
+      const mPct = clamp(m.hp / m.maxHp, 0, 1) * 100;
       el.foeFill.style.width = mPct + '%';
       el.foeGhost.style.width = mPct + '%';
-      el.foeBarTxt.textContent = fmt(Math.ceil(m.hp)) + ' / ' + fmt(m.maxHp);
+      el.foeBarTxt.textContent = fmt(m.hp) + ' / ' + fmt(m.maxHp);
       el.foeBar.classList.toggle('low', mPct < 30);
+      const mShieldPct = clamp(m.shield / (m.maxHp * CFG.defend.capPct), 0, 1) * 100;
+      el.foeShieldFill.style.width = mShieldPct + '%';
+      el.foeShieldBar.classList.toggle('on', m.shield > 0);
     }
   }
 
-  function renderStats() {
+  function renderStats(pop) {
     const p = state.player, m = state.monster;
-    el.allyAtk.textContent = fmt(Math.round(p.atk * 10) / 10);
-    el.allyDef.textContent = fmt(Math.round(p.def * 10) / 10);
+    el.allyAtk.textContent = fmt(p.atk);
+    el.allyDef.textContent = fmt(p.def);
+    if (pop) {
+      el.allyAtk.parentElement.classList.remove('up');
+      el.allyDef.parentElement.classList.remove('up');
+      void el.allyAtk.offsetWidth;
+      el.allyAtk.parentElement.classList.add('up');
+      el.allyDef.parentElement.classList.add('up');
+    }
     if (m) {
       el.foeAtk.textContent = fmt(m.atk);
       el.foeDef.textContent = fmt(m.def);
     }
   }
 
+  function renderEquip(host, unit, justSlot) {
+    host.innerHTML = '';
+    SLOTS.forEach(slot => {
+      const it = itemAt(unit, slot.key);
+      const d = document.createElement('div');
+      d.className = 'eq-slot' + (it ? ' filled' : '') + (justSlot === slot.key ? ' just' : '');
+      if (it) {
+        d.style.setProperty('--c', it.c);
+        d.title = it.name + ' Lv.' + it.level + ' · ' + rarOf(it.rarity).name + '\n' + itemDescText(it);
+        d.innerHTML = '<span>' + it.icon + '</span><span class="eq-lv">' + it.level + '</span>';
+      } else {
+        d.title = slot.name + '（空）';
+        d.innerHTML = '<span style="opacity:.5">' + slot.icon + '</span>';
+      }
+      host.appendChild(d);
+    });
+  }
+
+  function renderStatus(host, unit) {
+    host.innerHTML = '';
+    if (unit.bleed) {
+      const c = document.createElement('span');
+      c.className = 'st-chip st-bleed';
+      c.textContent = '🩸 ' + unit.bleed.dmg + '×' + unit.bleed.turns;
+      c.title = '流血：每回合损失 ' + unit.bleed.dmg + ' 点生命，剩余 ' + unit.bleed.turns + ' 回合';
+      host.appendChild(c);
+    }
+  }
+
+  function defendValue(u) {
+    return Math.round(CFG.defend.base + u.def * CFG.defend.defMul + u.agg.guard);
+  }
+
   function renderButtons() {
     const fighting = state.phase === 'battle';
     el.attackBtn.disabled = !fighting;
-    el.heavyBtn.disabled = !fighting || state.heavyCd > 0;
-    el.heavyCd.textContent = state.heavyCd > 0 ? '冷却 ' + state.heavyCd : '';
+    el.defendBtn.disabled = !fighting;
+    if (state.player) {
+      el.defendSub.textContent = '护盾 +' + defendValue(state.player);
+    }
   }
 
-  function render() {
+  function render(pop) {
     renderBars();
-    renderStats();
+    renderStats(pop);
     renderButtons();
+    if (state.player) renderEquip(el.allyEq, state.player);
+    if (state.monster) {
+      renderEquip(el.foeEq, state.monster);
+      renderStatus(el.foeStatus, state.monster);
+    }
+    if (state.player) renderStatus(el.allyStatus, state.player);
   }
 
-  function setTip(text) {
+  function setTip(text, warn) {
     el.turnTip.textContent = text;
+    el.turnTip.classList.toggle('warn', !!warn);
   }
 
   /* =========================================================
      特效
      ========================================================= */
+  const floatSlots = new WeakMap();
+
   function floatNum(host, text, cls) {
+    // 同一目标同时出现的飘字错开，避免叠字
+    const n = floatSlots.get(host) || 0;
+    floatSlots.set(host, (n + 1) % 3);
     const d = document.createElement('div');
     d.className = 'float-num ' + (cls || '');
     d.textContent = text;
+    d.style.marginLeft = [-34, 0, 34][n] + 'px';
+    d.style.marginTop = [-6, 0, -24][n] + 'px';
     host.appendChild(d);
-    d.addEventListener('animationend', () => d.remove());
+    const kill = () => d.remove();
+    d.addEventListener('animationend', kill);
+    setTimeout(kill, 1200);
   }
 
   function impact(isRed) {
@@ -1250,8 +1741,97 @@
     el.banner.classList.add('play');
   }
 
+  const allyHost = () => el.ally.querySelector('.avatar-wrap');
+  const foeHost = () => el.foe.querySelector('.avatar-wrap');
+
   /* =========================================================
-     怪物生成
+     战斗核心
+     ========================================================= */
+  function dealDamage(target, dmg) {
+    let d = dmg;
+    if (target.shield > 0) {
+      const absorbed = Math.min(target.shield, d);
+      target.shield -= absorbed;
+      d -= absorbed;
+    }
+    target.hp = Math.max(0, target.hp - d);
+    return d;   // 实际打到生命上的伤害
+  }
+
+  function healUnit(u, amount) {
+    if (amount <= 0) return 0;
+    const before = u.hp;
+    u.hp = Math.min(u.maxHp, u.hp + amount);
+    return u.hp - before;
+  }
+
+  function strike(attacker, defender) {
+    const A = attacker.agg, D = defender.agg;
+
+    const effDef = defender.def * (1 - Math.min(60, A.pierce) / 100);
+    let dmg = Math.max(attacker.atk - effDef, attacker.atk * 0.15);
+
+    let crit = false;
+    if (A.crit > 0 && Math.random() * 100 < A.crit) {
+      dmg *= A.critMult;
+      crit = true;
+    }
+    dmg = dmg * (0.94 + Math.random() * 0.12);
+    if (D.bulwark > 0) dmg *= (1 - Math.min(60, D.bulwark) / 100);
+    dmg = Math.max(1, Math.round(dmg));
+
+    const shieldBefore = defender.shield;
+    const applied = dealDamage(defender, dmg);
+
+    // 吸血（攻击方）
+    if (A.leech > 0 && applied > 0) {
+      const h = healUnit(attacker, Math.floor(applied * A.leech / 100));
+      if (h > 0 && attacker === state.player) floatNum(allyHost(), '+' + h, 'heal');
+    }
+    // 受伤回复（防守方）
+    if (D.vamp > 0 && applied > 0 && defender.hp > 0) {
+      const h = healUnit(defender, Math.max(1, Math.floor(applied * D.vamp / 100)));
+      if (h > 0 && defender === state.player) floatNum(allyHost(), '+' + h, 'heal');
+    }
+    // 荆棘反伤
+    if (D.thorn > 0 && attacker.hp > 0) {
+      attacker.hp = Math.max(0, attacker.hp - D.thorn);
+      floatNum(attacker === state.player ? allyHost() : foeHost(), '-' + D.thorn, 'hurt');
+    }
+    // 施加流血
+    if (A.bleed && defender.hp > 0) {
+      const mul = attacker.isMon ? CFG.mon.bleedMul : 1;
+      const bd = Math.max(1, Math.round(A.bleed.dmg * mul));
+      if (!defender.bleed || bd >= defender.bleed.dmg) {
+        defender.bleed = { dmg: bd, turns: A.bleed.turns };
+      } else {
+        defender.bleed.turns = Math.max(defender.bleed.turns, A.bleed.turns);
+      }
+    }
+
+    return { dmg, applied, crit, absorbed: shieldBefore > 0 && applied === 0 };
+  }
+
+  function doDefend(u) {
+    const cap = Math.floor(u.maxHp * CFG.defend.capPct);
+    const gain = Math.min(defendValue(u), Math.max(0, cap - u.shield));
+    u.shield = Math.min(cap, u.shield + defendValue(u));
+    u.defended = true;
+    return defendValue(u);
+  }
+
+  function tickBleed(u) {
+    if (!u.bleed) return 0;
+    let d = u.bleed.dmg;
+    if (u.agg.dotres > 0) d = Math.max(1, Math.round(d * (1 - Math.min(80, u.agg.dotres) / 100)));
+    u.hp = Math.max(0, u.hp - d);        // 流血无视护盾
+    u.bleed.turns -= 1;
+    if (u.bleed.turns <= 0) u.bleed = null;
+    return d;
+  }
+
+  /* =========================================================
+     怪物
      ========================================================= */
   function makeMonster(wave) {
     const n = wave - 1;
@@ -1277,13 +1857,24 @@
       emoji = t.emoji;
     }
 
-    return {
-      name, emoji, boss: isBoss,
-      maxHp: Math.round(maxHp),
-      hp: Math.round(maxHp),
-      atk: Math.round(atk),
-      def: Math.round(def)
-    };
+    const u = makeUnit({ hp: Math.round(maxHp), atk: Math.round(atk), def: Math.round(def) });
+    u.isMon = true;
+    u.boss = isBoss;
+    u.name = name;
+    u.emoji = emoji;
+
+    // 随波次获得装备
+    const count = Math.min(4, Math.floor((wave - 1) / C.eqEvery));
+    const pool = SLOTS.map(s => s.key);
+    for (let i = 0; i < count; i++) {
+      const slotKey = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      const rar = clamp(Math.floor(wave / 7) + (Math.random() < 0.4 ? 1 : 0), 0, 4);
+      u.items.push(randomItem(slotKey, rar));
+    }
+    refresh(u);
+    u.hp = u.maxHp;
+    u.shield = 0;
+    return u;
   }
 
   function renderMonster() {
@@ -1295,113 +1886,257 @@
   }
 
   /* =========================================================
-     升级选项
+     升级卡池
      ========================================================= */
   function rollRarity(wave) {
-    const list = CFG.rarity;
-    const weights = list.map(r => r.weight(wave));
+    const weights = RARITY.map(r => r.w(wave));
     const total = weights.reduce((a, b) => a + b, 0);
     let r = Math.random() * total;
-    for (let i = 0; i < list.length; i++) {
+    for (let i = 0; i < RARITY.length; i++) {
       r -= weights[i];
-      if (r <= 0) return list[i];
+      if (r <= 0) return i;
     }
-    return list[0];
+    return 0;
   }
 
-  function makeUpgradeOptions(wave) {
-    // 三种属性各出现一次，稀有度独立随机 —— 玩家在「属性」与「稀有度」之间权衡
-    return ['hp', 'atk', 'def'].map(attr => ({ attr, rarity: rollRarity(wave) }));
+  function makeCards(wave) {
+    const p = state.player;
+    const pool = [];
+
+    ['hp', 'atk', 'def'].forEach(attr => {
+      const ri = rollRarity(wave);
+      pool.push({ t: 'attr', key: 'a:' + attr, attr, ri, val: CFG.attr[attr].vals[ri], w: 12 });
+    });
+
+    SLOTS.forEach(slot => {
+      const it = itemAt(p, slot.key);
+      if (!it) {
+        const ri = rollRarity(wave);
+        const defIdx = Math.floor(Math.random() * ITEM_DEFS[slot.key].length);
+        pool.push({ t: 'equip', key: 's:' + slot.key, slot: slot.key, defIdx, ri, w: 11 });
+      } else if (it.level < CFG.forge.maxLevel) {
+        pool.push({ t: 'forge', key: 's:' + slot.key, slot: slot.key, item: it, w: 10 });
+      } else if (it.rarity < 4) {
+        pool.push({ t: 'ascend', key: 's:' + slot.key, slot: slot.key, item: it, w: 7 });
+      }
+    });
+
+    // 加权抽 3 张（同槽位不重复）
+    const out = [];
+    let left = pool.slice();
+    while (out.length < 3 && left.length) {
+      const total = left.reduce((a, b) => a + b.w, 0);
+      let r = Math.random() * total;
+      let idx = 0;
+      for (let i = 0; i < left.length; i++) {
+        r -= left[i].w;
+        if (r <= 0) { idx = i; break; }
+      }
+      const card = left[idx];
+      out.push(card);
+      left = left.filter(c => c.key !== card.key);
+    }
+
+    // 保证至少一张属性卡
+    if (out.length && !out.some(c => c.t === 'attr')) {
+      const attr = pick(['hp', 'atk', 'def']);
+      const ri = rollRarity(wave);
+      out[Math.floor(Math.random() * out.length)] = {
+        t: 'attr', key: 'a:' + attr, attr, ri, val: CFG.attr[attr].vals[ri]
+      };
+    }
+    return out;
   }
 
-  const ICONS = {
+  const ATTR_ICON = {
     hp: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>',
     atk: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.9 14.55 8.2v6.75h-5.1V8.2L12 1.9z"/><path d="M6.9 15.55h10.2v2.15H6.9z"/><path d="M10.6 17.7h2.8v4.4h-2.8z"/></svg>',
     def: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.7 3.5 5v6.3c0 5.15 3.55 9.75 8.5 11.3 4.95-1.55 8.5-6.15 8.5-11.3V5L12 1.7z"/></svg>'
   };
 
-  const NOTE = {
-    hp: '提升生命上限，并立即恢复等量生命',
-    atk: '每次攻击造成更高伤害',
-    def: '减免每次受到的伤害'
-  };
+  function cardRarityClass(ri) {
+    return ri === 4 ? ' gold' : '';
+  }
+
+  function renderCard(card) {
+    const node = document.createElement('div');
+    node.className = 'up-card';
+
+    if (card.t === 'attr') {
+      const meta = CFG.attr[card.attr];
+      const rar = rarOf(card.ri);
+      node.classList.add('up-card');
+      if (card.ri === 4) node.classList.add('gold');
+      node.style.setProperty('--c', rar.c);
+      node.innerHTML =
+        '<div class="card-rar">' + rar.name + '</div>' +
+        '<div class="card-icon">' + ATTR_ICON[card.attr] + '</div>' +
+        '<div class="card-name">' + meta.label + '</div>' +
+        '<div class="card-val">+' + card.val + '</div>' +
+        '<div class="card-note">' + meta.note + '</div>';
+      return node;
+    }
+
+    if (card.t === 'equip') {
+      const rar = rarOf(card.ri);
+      const slot = SLOTS.find(s => s.key === card.slot);
+      const it = buildItem(card.slot, card.defIdx, card.ri, 1);
+      node.className = 'up-card' + cardRarityClass(card.ri);
+      node.style.setProperty('--c', rar.c);
+      node.innerHTML =
+        '<div class="card-rar">' + rar.name + ' · ' + slot.name + '</div>' +
+        '<div class="card-icon">' + it.icon + '</div>' +
+        '<div class="card-name">' + it.name + '</div>' +
+        '<div class="card-eff">' + itemDesc(it) + '</div>' +
+        '<div class="card-tag">装备 ' + slot.name + '位</div>';
+      return node;
+    }
+
+    if (card.t === 'forge') {
+      const it = card.item;
+      const next = buildItem(it.slot, ITEM_DEFS[it.slot].indexOf(it.def), it.rarity, it.level + 1);
+      node.className = 'up-card';
+      node.style.setProperty('--c', it.c);
+      node.innerHTML =
+        '<div class="card-rar">强化 · ' + it.slotName + '</div>' +
+        '<div class="card-icon">' + it.icon + '</div>' +
+        '<div class="card-name">' + it.name + ' <span style="color:' + it.c + '">Lv.' + it.level + ' → ' + next.level + '</span></div>' +
+        '<div class="card-eff">' + itemDesc(next) + '</div>' +
+        '<div class="card-tag">强化现有装备</div>';
+      return node;
+    }
+
+    // ascend
+    const it = card.item;
+    const newRar = rarOf(it.rarity + 1);
+    const next = buildItem(it.slot, ITEM_DEFS[it.slot].indexOf(it.def), it.rarity + 1, 1);
+    node.className = 'up-card' + (it.rarity + 1 === 4 ? ' gold' : '');
+    node.style.setProperty('--c', newRar.c);
+    node.innerHTML =
+      '<div class="card-rar">升华 · ' + newRar.name + '</div>' +
+      '<div class="card-icon">' + it.icon + '</div>' +
+      '<div class="card-name">' + it.name + ' <span style="color:' + newRar.c + '">' + rarOf(it.rarity).name + ' → ' + newRar.name + '</span></div>' +
+      '<div class="card-eff">' + itemDesc(next) + '</div>' +
+      '<div class="card-tag">稀有度提升，等级重置为 1</div>';
+    return node;
+  }
+
+  function renderEqPanel() {
+    el.eqPanel.innerHTML = '';
+    SLOTS.forEach(slot => {
+      const it = itemAt(state.player, slot.key);
+      const cell = document.createElement('div');
+      cell.className = 'eq-cell' + (it ? '' : ' empty');
+      if (it) {
+        const rar = rarOf(it.rarity);
+        cell.innerHTML =
+          '<div class="eq-cell-ic">' + it.icon + '</div>' +
+          '<div class="eq-cell-body">' +
+            '<div class="eq-cell-name">' + it.name +
+              '<span style="color:' + rar.c + '">Lv.' + it.level + '</span></div>' +
+            '<div class="eq-cell-eff">' + itemDescText(it) + '</div>' +
+          '</div>';
+      } else {
+        cell.innerHTML =
+          '<div class="eq-cell-ic" style="opacity:.5">' + slot.icon + '</div>' +
+          '<div class="eq-cell-body">' +
+            '<div class="eq-cell-name" style="color:#6f6a85">' + slot.name + '空置</div>' +
+            '<div class="eq-cell-eff">战利品可填补此位</div>' +
+          '</div>';
+      }
+      el.eqPanel.appendChild(cell);
+    });
+  }
 
   function showUpgrade() {
     state.phase = 'upgrade';
     el.upSub.textContent = '第 ' + state.wave + ' 波已征服 · 从三项中选择一项';
     el.curHp.textContent = fmt(state.player.maxHp);
-    el.curAtk.textContent = fmt(Math.round(state.player.atk * 10) / 10);
-    el.curDef.textContent = fmt(Math.round(state.player.def * 10) / 10);
+    el.curAtk.textContent = fmt(state.player.atk);
+    el.curDef.textContent = fmt(state.player.def);
 
-    const opts = makeUpgradeOptions(state.wave);
+    const cards = makeCards(state.wave);
     el.cards.innerHTML = '';
-
-    opts.forEach((opt) => {
-      const meta = CFG.up[opt.attr];
-      const rar = opt.rarity;
-      const val = meta[rar.key];
-
-      const card = document.createElement('div');
-      card.className = 'up-card' + (rar.key === 'gold' ? ' gold' : '');
-      card.style.setProperty('--c', rar.c);
-
-      card.innerHTML =
-        '<div class="card-rar">' + rar.name + '</div>' +
-        '<div class="card-icon">' + ICONS[opt.attr] + '</div>' +
-        '<div class="card-name">' + meta.label + '</div>' +
-        '<div class="card-val">+' + fmt(val) + '</div>' +
-        '<div class="card-note">' + NOTE[opt.attr] + '</div>';
-
-      card.addEventListener('click', () => chooseUpgrade(opt, card));
-      el.cards.appendChild(card);
+    cards.forEach(card => {
+      const node = renderCard(card);
+      node.addEventListener('click', () => chooseUpgrade(card, node));
+      el.cards.appendChild(node);
     });
 
+    renderEqPanel();
     el.upOverlay.classList.add('show');
     sfxUpgrade();
   }
 
-  async function chooseUpgrade(opt, cardEl) {
+  async function chooseUpgrade(card, node) {
     if (state.phase !== 'upgrade') return;
     state.phase = 'busy';
 
     Array.from(el.cards.children).forEach(c => {
-      if (c === cardEl) c.classList.add('picked');
+      if (c === node) c.classList.add('picked');
       else c.classList.add('dim');
     });
 
-    const table = { hp: CFG.up.hp, atk: CFG.up.atk, def: CFG.up.def }[opt.attr];
-    const val = table[opt.rarity.key];
+    const p = state.player;
+    let justSlot = null;
 
-    if (opt.attr === 'hp') {
-      state.player.maxHp += val;
-      state.player.hp += val;
-    } else if (opt.attr === 'atk') {
-      state.player.atk += val;
+    if (card.t === 'attr') {
+      if (card.attr === 'hp') {
+        p.baseHp += card.val;
+        p.hp += card.val;
+      } else if (card.attr === 'atk') {
+        p.baseAtk += card.val;
+      } else {
+        p.baseDef += card.val;
+      }
+      refresh(p);
+    } else if (card.t === 'equip') {
+      p.items.push(buildItem(card.slot, card.defIdx, card.ri, 1));
+      refresh(p);
+      justSlot = card.slot;
+    } else if (card.t === 'forge') {
+      const it = card.item;
+      const defIdx = ITEM_DEFS[it.slot].indexOf(it.def);
+      const idx = p.items.indexOf(it);
+      p.items[idx] = buildItem(it.slot, defIdx, it.rarity, it.level + 1);
+      refresh(p);
+      justSlot = it.slot;
     } else {
-      state.player.def += val;
+      const it = card.item;
+      const defIdx = ITEM_DEFS[it.slot].indexOf(it.def);
+      const idx = p.items.indexOf(it);
+      p.items[idx] = buildItem(it.slot, defIdx, it.rarity + 1, 1);
+      refresh(p);
+      justSlot = it.slot;
     }
 
     tone({ freq: 660, type: 'sine', dur: 0.18, vol: 0.1 });
-    await sleep(560);
+    await sleep(520);
 
     el.upOverlay.classList.remove('show');
-    await sleep(280);
+    await sleep(260);
 
-    state.wave++;
-    startWave();
+    state.wave += 1;
+    startWave(justSlot);
   }
 
   /* =========================================================
      流程
      ========================================================= */
-  function startWave() {
+  function startWave(justSlot) {
     state.monster = makeMonster(state.wave);
-    state.heavyCd = 0;
+    state.round = 0;
     state.phase = 'battle';
+
+    const p = state.player;
+    p.shield = Math.min(Math.floor(p.maxHp * CFG.defend.capPct), p.agg.shieldstart || 0);
+    p.bleed = null;
+    p.defended = false;
 
     renderWave();
     renderMonster();
     render();
+    if (justSlot) renderEquip(el.allyEq, p, justSlot);
     setTip('你的回合');
 
     if (state.monster.boss) {
@@ -1410,71 +2145,110 @@
     }
   }
 
-  async function playerAttack(heavy) {
-    if (state.phase !== 'battle') return;
-    if (heavy && state.heavyCd > 0) return;
+  function monsterChooseAction() {
+    const m = state.monster;
+    const low = m.hp / m.maxHp < 0.35;
+    if (low && Math.random() < 0.4) return 'defend';
+    return 'attack';
+  }
 
+  async function doRound(action) {
+    if (state.phase !== 'battle') return;
     state.phase = 'busy';
     renderButtons();
 
     const p = state.player;
     const m = state.monster;
+    state.round += 1;
 
-    /* --- 玩家出手 --- */
-    el.ally.classList.add('lunge');
-    setTip(heavy ? '重击！' : '攻击');
-    sfxHit(heavy);
-    await sleep(heavy ? 260 : 180);
-    el.ally.classList.remove('lunge');
+    /* ---- 玩家行动 ---- */
+    if (action === 'attack') {
+      el.ally.classList.add('lunge');
+      setTip('攻击');
+      sfxHit(false);
+      await sleep(180);
+      el.ally.classList.remove('lunge');
 
-    const dmg = calcDamage(p.atk * (heavy ? CFG.heavy.mult : 1), m.def);
-    m.hp = Math.max(0, m.hp - dmg);
-
-    el.foe.classList.add('hit', 'flash-dmg');
-    floatNum(el.foe.querySelector('.avatar-wrap'), '-' + dmg, 'dmg');
-    impact(false);
-    render();
-
-    await sleep(300);
-    el.foe.classList.remove('hit', 'flash-dmg');
-
-    if (heavy) state.heavyCd = CFG.heavy.cd;
-
-    if (m.hp <= 0) {
-      await onVictory();
-      return;
+      const res = strike(p, m);
+      if (res.crit) sfxHit(true);
+      el.foe.classList.add('hit', 'flash-dmg');
+      floatNum(foeHost(), (res.absorbed ? '格挡 ' : '') + '-' + res.dmg, res.absorbed ? 'block' : (res.crit ? 'crit' : 'dmg'));
+      impact(false);
+      render();
+      await sleep(280);
+      el.foe.classList.remove('hit', 'flash-dmg');
+    } else {
+      const gain = doDefend(p);
+      el.ally.classList.add('guard');
+      setTip('防御');
+      sfxGuard();
+      floatNum(allyHost(), '+' + gain + ' 护盾', 'shield');
+      render();
+      await sleep(340);
+      el.ally.classList.remove('guard');
     }
 
-    /* --- 怪物反击 --- */
+    if (m.hp <= 0) { await onVictory(); return; }
+
+    /* ---- 怪物行动 ---- */
     setTip('敌方回合');
-    await sleep(120);
-    el.foe.classList.add('lunge');
-    await sleep(180);
-    el.foe.classList.remove('lunge');
+    await sleep(140);
 
-    let incoming = calcDamage(m.atk, p.def);
-    if (heavy) incoming = Math.max(1, Math.round(incoming * CFG.heavy.penalty));
-    p.hp = Math.max(0, p.hp - incoming);
+    const mAct = monsterChooseAction();
+    if (mAct === 'defend') {
+      const gain = doDefend(m);
+      el.foe.classList.add('guard');
+      floatNum(foeHost(), '+' + gain + ' 护盾', 'shield');
+      render();
+      await sleep(320);
+      el.foe.classList.remove('guard');
+    } else {
+      el.foe.classList.add('lunge');
+      await sleep(170);
+      el.foe.classList.remove('lunge');
 
-    el.ally.classList.add('hit', 'flash-dmg');
-    floatNum(el.ally.querySelector('.avatar-wrap'), '-' + incoming, 'hurt');
-    impact(true);
-    sfxHurt();
-    render();
-
-    await sleep(320);
-    el.ally.classList.remove('hit', 'flash-dmg');
-
-    if (p.hp <= 0) {
-      gameOver();
-      return;
+      const res = strike(m, p);
+      el.ally.classList.add('hit', 'flash-dmg');
+      floatNum(allyHost(), (res.absorbed ? '格挡 ' : '') + '-' + res.dmg, res.absorbed ? 'block' : 'hurt');
+      impact(true);
+      sfxHurt();
+      render();
+      await sleep(300);
+      el.ally.classList.remove('hit', 'flash-dmg');
     }
 
-    if (!heavy) state.heavyCd = Math.max(0, state.heavyCd - 1);
+    if (p.hp <= 0) { gameOver(); return; }
 
-    state.phase = 'battle';
-    setTip('你的回合');
+    /* ---- 回合结束：流血 / 护盾衰减 ---- */
+    await sleep(120);
+
+    const bm = tickBleed(m);
+    if (bm > 0) {
+      floatNum(foeHost(), '-' + bm + ' 流血', 'dot');
+      sfxTick();
+      render();
+      await sleep(240);
+    }
+    if (m.hp <= 0) { await onVictory(); return; }
+
+    const bp = tickBleed(p);
+    if (bp > 0) {
+      floatNum(allyHost(), '-' + bp + ' 流血', 'dot');
+      sfxTick();
+      render();
+      await sleep(220);
+    }
+    if (p.hp <= 0) { gameOver(); return; }
+
+    if (!p.defended && p.shield > 0) p.shield = Math.floor(p.shield * CFG.defend.decay);
+    if (!m.defended && m.shield > 0) m.shield = Math.floor(m.shield * CFG.defend.decay);
+    p.defended = false;
+    m.defended = false;
+
     render();
+    state.phase = 'battle';
+    setTip(state.round >= CFG.rage.start ? '第 ' + state.round + ' 回合 · 敌方狂暴' : '你的回合', state.round >= CFG.rage.start);
+    renderButtons();
   }
 
   async function onVictory() {
@@ -1484,42 +2258,45 @@
     el.foe.classList.add('dying');
     sfxWin();
     setTip('胜利');
-
-    const maxHp = state.player.maxHp;
-    const healAmt = Math.round(Math.max(CFG.heal.min, Math.min(maxHp * CFG.heal.pct, CFG.heal.base + CFG.heal.perWave * (state.wave - 1))));
-
-    await sleep(640);
-    el.foe.classList.remove('dying');
-
-    const before = state.player.hp;
-    state.player.hp = Math.min(maxHp, state.player.hp + healAmt);
-    const gained = Math.round(state.player.hp - before);
-    if (gained > 0) floatNum(el.ally.querySelector('.avatar-wrap'), '+' + gained, 'heal');
     render();
 
-    await sleep(520);
+    const p = state.player;
+    const healAmt = Math.round(Math.max(
+      CFG.heal.min,
+      Math.min(p.maxHp * CFG.heal.pct, CFG.heal.base + CFG.heal.perWave * (state.wave - 1))
+    ));
+
+    await sleep(620);
+    el.foe.classList.remove('dying');
+
+    const gained = healUnit(p, healAmt);
+    if (gained > 0) floatNum(allyHost(), '+' + gained, 'heal');
+    render();
+
+    await sleep(500);
     showUpgrade();
   }
 
   function gameOver() {
     state.phase = 'over';
     renderButtons();
-    setTip('你倒下了');
+    setTip('你倒下了', true);
     sfxLose();
 
     if (state.wave > state.best) {
       state.best = state.wave;
       try { localStorage.setItem('abyss_best', String(state.best)); } catch (e) {}
     }
-
     el.recordNum.textContent = state.best;
 
+    const p = state.player;
     setTimeout(() => {
       el.overWave.textContent = state.wave;
       el.overKiller.textContent = '被「' + (state.monster ? state.monster.name : '深渊') + '」击败';
-      el.overHp.textContent = fmt(Math.round(state.player.maxHp));
-      el.overAtk.textContent = fmt(Math.round(state.player.atk * 10) / 10);
-      el.overDef.textContent = fmt(Math.round(state.player.def * 10) / 10);
+      el.overHp.textContent = fmt(p.maxHp);
+      el.overAtk.textContent = fmt(p.atk);
+      el.overDef.textContent = fmt(p.def);
+      el.overEq.textContent = p.items.length + ' / 4';
       el.overKills.textContent = '击败 ' + Math.max(0, state.wave - 1) + ' 个敌人';
       el.overBest.innerHTML = '最佳纪录：第 <b>' + state.best + '</b> 波';
       el.overOverlay.classList.add('show');
@@ -1529,26 +2306,25 @@
   function resetGame() {
     el.upOverlay.classList.remove('show');
     el.overOverlay.classList.remove('show');
-    el.ally.classList.remove('hit', 'flash-dmg', 'lunge');
-    el.foe.classList.remove('hit', 'flash-dmg', 'lunge', 'dying');
+    el.ally.classList.remove('hit', 'flash-dmg', 'lunge', 'guard');
+    el.foe.classList.remove('hit', 'flash-dmg', 'lunge', 'dying', 'guard');
 
     state.wave = 1;
-    state.player = { hp: CFG.player.hp, maxHp: CFG.player.hp, atk: CFG.player.atk, def: CFG.player.def };
-    state.heavyCd = 0;
+    state.round = 0;
+    state.player = makeUnit(CFG.player);
     state.monster = null;
     state.phase = 'battle';
 
-    el.allyAvatar.textContent = '⚔️';
     el.recordNum.textContent = state.best;
-
+    el.allyAvatar.textContent = '⚔️';
     startWave();
   }
 
   /* =========================================================
-     事件绑定
+     事件
      ========================================================= */
-  el.attackBtn.addEventListener('click', () => playerAttack(false));
-  el.heavyBtn.addEventListener('click', () => playerAttack(true));
+  el.attackBtn.addEventListener('click', () => doRound('attack'));
+  el.defendBtn.addEventListener('click', () => doRound('defend'));
   el.againBtn.addEventListener('click', resetGame);
   el.restartBtn.addEventListener('click', () => {
     if (state.phase === 'busy') return;
@@ -1565,10 +2341,10 @@
     if (e.repeat) return;
     if (e.code === 'Space' || e.key === 'Enter') {
       e.preventDefault();
-      playerAttack(false);
-    } else if (e.key === 'd' || e.key === 'D') {
+      doRound('attack');
+    } else if (e.key === 'd' || e.key === 'D' || e.key === 'f' || e.key === 'F') {
       e.preventDefault();
-      playerAttack(true);
+      doRound('defend');
     } else if (e.key === 'r' || e.key === 'R') {
       if (state.phase !== 'busy') resetGame();
     }
@@ -1579,6 +2355,7 @@
      ========================================================= */
   if (state.best > 0) el.recordNum.textContent = state.best;
   buildTrack();
+  state.player = makeUnit(CFG.player);
   startWave();
 })();
 </script>
