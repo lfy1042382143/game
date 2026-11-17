@@ -1,0 +1,5 @@
+name = "abyss-trial"
+compatibility_date = "2026-01-01"
+
+# 纯静态站点：构建产物目录（由 scripts/deploy.sh 生成）
+pages_build_output_dir = "./dist"

@@ -86,3 +86,21 @@ js/
 | 每波回合 | 5~6 |
 
 改完数值建议同样跑一遍批量对局，确认中位仍落在 18~22 波区间。
+
+## 部署
+
+线上地址：<https://abyss-trial.pages.dev>（Cloudflare Pages，项目名 `abyss-trial`）
+
+```bash
+bash scripts/deploy.sh        # 生成 dist/ 并推送到 Cloudflare Pages
+```
+
+脚本只拷贝 `index.html`、`css/`、`js/` 到 `dist/`（`.git/`、`.workbuddy/` 不上传），再执行 `wrangler pages deploy`。
+首次在新机器部署需先 `npx wrangler login` 授权。
+
+`wrangler.toml` 里固定了项目名与产物目录，所以也可以直接：
+
+```bash
+npx wrangler pages deploy
+```
+

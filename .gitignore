@@ -1,6 +1,9 @@
 # WorkBuddy 项目元数据与会话记录（含本地路径等隐私信息）
 .workbuddy/
 
+# Cloudflare Pages 构建产物
+dist/
+
 # 临时文件
 _*.html
 _*.js
