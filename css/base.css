@@ -1,0 +1,57 @@
+/* ============================================================
+   重置、主题底色、背景层、应用骨架 
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Segoe UI", system-ui, sans-serif;
+  background: #08060c;
+  color: #e9e6f2;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 背景 ---------- */
+.bg-base, .bg-grid, .bg-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.bg-base {
+  background:
+    radial-gradient(700px 640px at 30% 47%, rgba(245, 196, 81, .16), transparent 64%),
+    radial-gradient(700px 640px at 70% 47%, rgba(196, 54, 86, .20), transparent 64%),
+    radial-gradient(1100px 700px at 50% 120%, rgba(92, 62, 168, .24), transparent 72%),
+    linear-gradient(#0c0913, #08060c 55%);
+}
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, .028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .028) 1px, transparent 1px);
+  background-size: 52px 52px;
+  -webkit-mask-image: radial-gradient(circle at 50% 42%, #000 10%, transparent 72%);
+  mask-image: radial-gradient(circle at 50% 42%, #000 10%, transparent 72%);
+}
+.bg-vignette {
+  background: radial-gradient(circle at 50% 45%, transparent 45%, rgba(4, 2, 8, .78) 100%);
+}
+
+/* ---------- 布局骨架 ---------- */
+#app {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(10px, 1.8vw, 26px);
+  gap: clamp(6px, 1.2vh, 16px);
+}

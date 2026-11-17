@@ -1,0 +1,67 @@
+/* ============================================================
+   伤害飘字、动作动画（前冲 / 受击 / 防御 / 消散） 
+   ============================================================ */
+
+/* ---------- 飘字 ---------- */
+.float-num {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  font-weight: 900;
+  font-size: clamp(17px, 2.5vw, 26px);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 6;
+  animation: floatUp .92s cubic-bezier(.2, .7, .35, 1) forwards;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, .9), 0 0 22px currentColor;
+}
+.float-num.dmg { color: #ffe9a3; }
+.float-num.crit { color: #ffb347; font-size: clamp(21px, 3vw, 32px); }
+.float-num.hurt { color: #ff6b81; }
+.float-num.heal { color: #6ee7a8; }
+.float-num.shield { color: #7fd8ff; }
+.float-num.dot { color: #ff8fa3; }
+.float-num.block { color: #9fe0ff; font-size: clamp(13px, 1.8vw, 19px); }
+@keyframes floatUp {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(.62); }
+  22% { opacity: 1; transform: translate(-50%, -36px) scale(1.16); }
+  62% { opacity: 1; transform: translate(-50%, -60px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -96px) scale(.94); }
+}
+
+/* ---------- 动作动画 ---------- */
+@keyframes lunge {
+  0% { transform: translateX(0); }
+  34% { transform: translateX(30px) scale(1.035); }
+  100% { transform: translateX(0); }
+}
+@keyframes lungeFoe {
+  0% { transform: translateX(0); }
+  34% { transform: translateX(-30px) scale(1.035); }
+  100% { transform: translateX(0); }
+}
+@keyframes hitShake {
+  0%, 100% { transform: translateX(0); }
+  18% { transform: translateX(-9px) rotate(-1.4deg); }
+  38% { transform: translateX(8px) rotate(1.2deg); }
+  58% { transform: translateX(-5px); }
+  78% { transform: translateX(3px); }
+}
+@keyframes dying {
+  0% { transform: scale(1) rotate(0); opacity: 1; filter: brightness(1); }
+  30% { filter: brightness(2.4) saturate(0); }
+  100% { transform: scale(.82) rotate(-6deg); opacity: 0; filter: brightness(.6); }
+}
+@keyframes brace {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(120, 210, 255, .55); }
+  40% { transform: scale(1.02); box-shadow: 0 0 0 12px rgba(120, 210, 255, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(120, 210, 255, 0); }
+}
+
+.ally.lunge { animation: lunge .34s cubic-bezier(.3,.8,.4,1); }
+.foe.lunge { animation: lungeFoe .34s cubic-bezier(.3,.8,.4,1); }
+.ally.hit, .foe.hit { animation: hitShake .36s cubic-bezier(.3,.8,.4,1); }
+.ally.guard, .foe.guard { animation: brace .5s cubic-bezier(.3,.8,.4,1); }
+.foe.dying { animation: dying .62s cubic-bezier(.4,0,.6,1) forwards; }
+
+.flash-dmg .avatar { filter: brightness(1.9) saturate(1.3); }
