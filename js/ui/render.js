@@ -109,6 +109,13 @@
 
   function renderStatus(host, unit) {
     host.innerHTML = '';
+    if (unit.shield > 0) {
+      const s = document.createElement('span');
+      s.className = 'st-chip st-shield';
+      s.textContent = '🛡 ' + unit.shield;
+      s.title = '护盾：优先吸收伤害，回合结束衰减但不会低于开局护盾';
+      host.appendChild(s);
+    }
     if (unit.bleed) {
       const c = document.createElement('span');
       c.className = 'st-chip st-bleed';

@@ -33,8 +33,8 @@
     return item;
   }
 
-  function randomItem(slotKey, rarIdx) {
-    return buildItem(slotKey, Math.floor(Math.random() * ITEM_DEFS[slotKey].length), rarIdx, 1);
+  function randomItem(slotKey, rarIdx, level) {
+    return buildItem(slotKey, Math.floor(Math.random() * ITEM_DEFS[slotKey].length), rarIdx, level || 1);
   }
 
   /** 复制一件装备为独立实例（掉落时用，避免与怪物共享引用） */
@@ -127,5 +127,16 @@
     return Math.round(CFG.defend.base + u.def * CFG.defend.defMul + u.agg.guard);
   }
 
-  Object.assign(G, { rarOf, buildItem, randomItem, cloneItem, upgradePath, itemDesc, itemDescText, aggregate, recalc, refresh, itemAt, defendValue });
+  /** 护盾上限：最大生命的固定比例 */
+  function shieldCap(u) {
+    return Math.floor(u.maxHp * CFG.defend.capPct);
+  }
+
+  /** 开局护盾：守望头盔的固定护盾，每波开始时施加（双方通用） */
+  function startShield(u) {
+    if (!u || !u.agg) return 0;
+    return Math.max(0, Math.min(shieldCap(u), Math.round(u.agg.shieldstart)));
+  }
+
+  Object.assign(G, { rarOf, buildItem, randomItem, cloneItem, upgradePath, itemDesc, itemDescText, aggregate, recalc, refresh, itemAt, defendValue, shieldCap, startShield });
 })(window.ABYSS = window.ABYSS || {});

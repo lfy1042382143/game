@@ -119,6 +119,16 @@
     const box = el.lootBox;
     if (!box) return;
 
+    // 同款已满级（传说 Lv.5）时没有任何操作空间，直接判为已处理，
+    // 否则「还有 N 件待处理」会一直卡住属性卡选择
+    state.loots.forEach(e => {
+      if (!e.done && planFor(e.item).mode === 'max') {
+        e.done = true;
+        e.skipped = true;
+        e.result = '该槽位已满级 · 无法提升';
+      }
+    });
+
     const loots = state.loots;
     box.innerHTML = '';
 

@@ -5,7 +5,7 @@
 (function (G) {
   'use strict';
 
-  const { CFG, state, el, fmt, sleep, renderWave, renderMonster, render, renderEquip, renderButtons, setTip, floatNum, impact, showBanner, allyHost, foeHost, strike, doDefend, tickBleed, healUnit, makeUnit, makeMonster, showUpgrade, sfxHit, sfxHurt, sfxGuard, sfxWin, sfxLose, sfxBoss, sfxTick } = G;
+  const { CFG, state, el, fmt, sleep, renderWave, renderMonster, render, renderEquip, renderButtons, setTip, floatNum, impact, showBanner, allyHost, foeHost, strike, doDefend, tickBleed, healUnit, makeUnit, makeMonster, showUpgrade, sfxHit, sfxHurt, sfxGuard, sfxWin, sfxLose, sfxBoss, sfxTick, startShield } = G;
 
   /* =========================================================
      流程
@@ -16,9 +16,17 @@
     state.phase = 'battle';
 
     const p = state.player;
-    p.shield = Math.min(Math.floor(p.maxHp * CFG.defend.capPct), p.agg.shieldstart || 0);
-    p.bleed = null;
-    p.defended = false;
+    const m = state.monster;
+
+    // 双方共用同一套开局结算：清状态、重置出手节拍、施加「开局护盾」词条
+    [p, m].forEach(u => {
+      u.bleed = null;
+      u.defended = false;
+      u.strikes = 0;
+      u.guardUsed = 0;
+      u.lastAct = '';
+      u.shield = startShield(u);
+    });
 
     renderWave();
     renderMonster();
@@ -26,19 +34,29 @@
     if (justSlot) renderEquip(el.allyEq, p, justSlot);
     setTip('你的回合');
 
+    if (p.shield > 0) floatNum(allyHost(), '+' + p.shield + ' 护盾', 'shield');
+    if (m.shield > 0) floatNum(foeHost(), '+' + m.shield + ' 护盾', 'shield');
+
     if (state.monster.boss) {
       showBanner('BOSS 来袭');
       sfxBoss();
     }
   }
 
-  /** 怪物 AI（无随机）：血量首次跌破 50% / 25% 各举盾一次，且不连续举盾 */
+  /** 回合结束护盾衰减：不会低于开局护盾（守望头盔的护盾整波有效） */
+  function decayShield(u) {
+    const base = startShield(u);
+    if (u.defended || u.shield <= base) return;
+    u.shield = Math.max(base, Math.floor(u.shield * CFG.defend.decay));
+  }
+
+  /** 怪物 AI（无随机）：血量跌破血线就举盾；带壁垒甲的敌人多一次举盾机会 */
   function monsterChooseAction() {
     const m = state.monster;
     if (m.lastAct === 'defend') return 'attack';
-    if (m.guardUsed >= 2) return 'attack';
-    const next = m.guardUsed === 0 ? 0.5 : 0.25;
-    if (m.hp / m.maxHp <= next) {
+    const triggers = m.agg.guard > 0 ? [0.62, 0.38, 0.15] : [0.5, 0.25];
+    if (m.guardUsed >= triggers.length) return 'attack';
+    if (m.hp / m.maxHp <= triggers[m.guardUsed]) {
       m.guardUsed += 1;
       return 'defend';
     }
@@ -75,13 +93,14 @@
       el.ally.classList.add('guard');
       setTip('防御');
       sfxGuard();
-      floatNum(allyHost(), '+' + gain + ' 护盾', 'shield');
+      floatNum(allyHost(), gain > 0 ? '+' + gain + ' 护盾' : '护盾已满', 'shield');
       render();
       await sleep(340);
       el.ally.classList.remove('guard');
     }
 
     if (m.hp <= 0) { await onVictory(); return; }
+    if (p.hp <= 0) { gameOver(); return; }   // 荆棘甲反伤可能同归于尽
 
     /* ---- 怪物行动 ---- */
     setTip('敌方回合');
@@ -92,7 +111,7 @@
     if (mAct === 'defend') {
       const gain = doDefend(m);
       el.foe.classList.add('guard');
-      floatNum(foeHost(), '+' + gain + ' 护盾', 'shield');
+      floatNum(foeHost(), gain > 0 ? '+' + gain + ' 护盾' : '护盾已满', 'shield');
       render();
       await sleep(320);
       el.foe.classList.remove('guard');
@@ -111,6 +130,7 @@
       el.ally.classList.remove('hit', 'flash-dmg');
     }
 
+    if (m.hp <= 0) { await onVictory(); return; }   // 反伤击杀
     if (p.hp <= 0) { gameOver(); return; }
 
     /* ---- 回合结束：流血 / 护盾衰减 ---- */
@@ -134,8 +154,8 @@
     }
     if (p.hp <= 0) { gameOver(); return; }
 
-    if (!p.defended && p.shield > 0) p.shield = Math.floor(p.shield * CFG.defend.decay);
-    if (!m.defended && m.shield > 0) m.shield = Math.floor(m.shield * CFG.defend.decay);
+    if (!p.defended && p.shield > 0) decayShield(p);
+    if (!m.defended && m.shield > 0) decayShield(m);
     p.defended = false;
     m.defended = false;
 

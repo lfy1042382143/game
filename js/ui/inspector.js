@@ -6,7 +6,7 @@
 (function (G) {
   'use strict';
 
-  const { CFG, SLOTS, state, el, $, fmt, rarOf, itemAt, itemDesc, defendValue } = G;
+  const { CFG, SLOTS, state, el, $, fmt, rarOf, itemAt, itemDesc, defendValue, shieldCap } = G;
 
   const iv = {
     overlay: $('inspectOverlay'),
@@ -70,7 +70,7 @@
   /* ---------- 生效中的战斗参数 ---------- */
   function renderTraits(u) {
     const a = u.agg;
-    const cap = Math.floor(u.maxHp * CFG.defend.capPct);
+    const cap = shieldCap(u);
     const list = [];
 
     list.push(['护盾', fmt(u.shield) + ' / ' + fmt(cap), u.shield > 0 ? 'on' : '']);
@@ -88,9 +88,9 @@
     if (a.dotres > 0) list.push(['抗流血', Math.round(a.dotres) + '%', '']);
     if (a.pierce > 0) list.push(['破甲', Math.round(a.pierce) + '%', '']);
     if (a.guard > 0) list.push(['防御额外盾', '+' + Math.round(a.guard), '']);
-    if (a.shieldstart > 0) list.push(['开局护盾', '+' + Math.round(a.shieldstart), '']);
+    if (a.shieldstart > 0) list.push(['开局护盾', '+' + Math.round(a.shieldstart) + ' · 整波保留', 'on']);
     list.push(['防御护盾', '+' + defendValue(u), '']);
-    if (u.isMon) list.push(['举盾节奏', u.guardUsed + ' / 2 次（50% · 25% 血线）', '']);
+    if (u.isMon) list.push(['举盾节奏', u.guardUsed + ' / ' + (a.guard > 0 ? 3 : 2) + ' 次' + (a.guard > 0 ? '（壁垒甲 +1）' : ''), '']);
 
     iv.traits.innerHTML = list.map(([k, v, cls]) =>
       '<div class="ins-trait ' + cls + '"><span>' + k + '</span><b>' + v + '</b></div>'

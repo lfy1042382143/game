@@ -370,6 +370,7 @@
   to { transform: scale(1); opacity: 1; }
 }
 .st-bleed { color: #ff8fa3; background: rgba(255, 60, 90, .16); border: 1px solid rgba(255, 60, 90, .38); }
+.st-shield { color: #9fe0ff; background: rgba(70, 160, 255, .16); border: 1px solid rgba(90, 180, 255, .4); }
 
 /* 中间 */
 .center {

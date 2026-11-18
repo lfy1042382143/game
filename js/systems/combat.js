@@ -5,7 +5,7 @@
 (function (G) {
   'use strict';
 
-  const { CFG, state, defendValue, floatNum, allyHost, foeHost } = G;
+  const { CFG, state, defendValue, shieldCap, floatNum, allyHost, foeHost } = G;
 
   /* =========================================================
      战斗核心
@@ -28,6 +28,11 @@
     return u.hp - before;
   }
 
+  /** 护盾/治疗飘字统一走这里，双方都能看见自己的词条在生效 */
+  function fxHost(u) {
+    return u === state.player ? allyHost() : foeHost();
+  }
+
   function strike(attacker, defender) {
     const A = attacker.agg, D = defender.agg;
 
@@ -42,6 +47,10 @@
       crit = true;
     }
     if (D.bulwark > 0) dmg *= (1 - Math.min(60, D.bulwark) / 100);
+    // 狂暴：单场拖过 N 回合后怪物每回合增伤，避免双方治疗互抵后无限僵持
+    if (attacker.isMon && state.round > CFG.rage.start) {
+      dmg *= 1 + CFG.rage.per * (state.round - CFG.rage.start);
+    }
     dmg = Math.max(1, Math.round(dmg));   // 无随机浮动，伤害恒定
 
     const shieldBefore = defender.shield;
@@ -50,17 +59,17 @@
     // 吸血（攻击方）
     if (A.leech > 0 && applied > 0) {
       const h = healUnit(attacker, Math.floor(applied * A.leech / 100));
-      if (h > 0 && attacker === state.player) floatNum(allyHost(), '+' + h, 'heal');
+      if (h > 0) floatNum(fxHost(attacker), '+' + h, 'heal');
     }
     // 受伤回复（防守方）
     if (D.vamp > 0 && applied > 0 && defender.hp > 0) {
       const h = healUnit(defender, Math.max(1, Math.floor(applied * D.vamp / 100)));
-      if (h > 0 && defender === state.player) floatNum(allyHost(), '+' + h, 'heal');
+      if (h > 0) floatNum(fxHost(defender), '+' + h, 'heal');
     }
-    // 荆棘反伤
+    // 荆棘反伤：属于伤害，同样先由护盾吸收
     if (D.thorn > 0 && attacker.hp > 0) {
-      attacker.hp = Math.max(0, attacker.hp - D.thorn);
-      floatNum(attacker === state.player ? allyHost() : foeHost(), '-' + D.thorn, 'hurt');
+      const reflected = dealDamage(attacker, D.thorn);
+      floatNum(fxHost(attacker), (reflected === 0 ? '格挡 ' : '') + '-' + (reflected === 0 ? D.thorn : reflected), reflected === 0 ? 'block' : 'hurt');
     }
     // 施加流血
     if (A.bleed && defender.hp > 0) {
@@ -77,11 +86,11 @@
   }
 
   function doDefend(u) {
-    const cap = Math.floor(u.maxHp * CFG.defend.capPct);
-    const gain = Math.min(defendValue(u), Math.max(0, cap - u.shield));
+    const cap = shieldCap(u);
+    const before = u.shield;
     u.shield = Math.min(cap, u.shield + defendValue(u));
     u.defended = true;
-    return defendValue(u);
+    return u.shield - before;   // 实际获得的护盾（可能被上限吃掉）
   }
 
   function tickBleed(u) {

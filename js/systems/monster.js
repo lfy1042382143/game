@@ -42,13 +42,15 @@
 
     // 随波次获得装备：第 1 波就有 1 件，之后每 eqEvery 波多一件
     const count = Math.min(C.eqMax, C.eqBase + Math.floor((wave - 1) / C.eqEvery));
+    // 装备等级随波次提升，否则后期怪物的装备强度会被基础数值稀释成摆设
+    const lv = clamp(1 + Math.floor((wave - 1) / C.eqLvEvery), 1, CFG.forge.maxLevel);
     const pool = SLOTS.map(s => s.key);
     for (let i = 0; i < count; i++) {
       const slotKey = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
       // 稀有度基线按波次走，升档改为固定节拍（每 rarUpEvery 件升 1 档），不再掷骰
       const up = (wave + i) % C.rarUpEvery === 0 ? 1 : 0;
       const rar = clamp(Math.floor(wave * C.rarK) + up, 0, 4);
-      u.items.push(randomItem(slotKey, rar));
+      u.items.push(randomItem(slotKey, rar, lv));
     }
     refresh(u);
     u.hp = u.maxHp;
