@@ -53,9 +53,18 @@
     },
     {
       key: 'homing', name: '追踪箭', icon: '🧲', kind: 'mode',
-      max: p => p.homing >= 2,
-      desc: '箭矢自动弯向最近的敌人',
+      max: p => p.homing >= 3,
+      desc: '箭矢自动弯向最近的敌人（转向更快，可绕过障碍）',
       apply(p) { p.homing++; }
+    },
+    {
+      key: 'range', name: '射程提升', icon: '📡', kind: 'mode',
+      max: p => p.rangeMul >= 2.0,
+      desc: '攻击射程 +15%（更远的索敌与箭矢飞行距离）',
+      apply(p) {
+        p.rangeMul = Math.min(2.0, p.rangeMul * 1.15);
+        p.range = Math.round(CFG.player.range * p.rangeMul);
+      }
     },
     {
       key: 'orbit', name: '环绕飞刃', icon: '🌀', kind: 'mode',
@@ -97,7 +106,7 @@
       icon = meta.icon; label = meta.label; val = '+' + card.val; note = meta.note;
     } else {
       icon = card.icon; label = card.name;
-      val = card.key === 'orbit' ? '+2' : '+1';
+      val = card.key === 'orbit' ? '+2' : (card.key === 'range' ? '+15%' : '+1');
       note = card.desc;
     }
     const node = document.createElement('div');
@@ -182,11 +191,11 @@
 
     state.pendingLevelUps = Math.max(0, state.pendingLevelUps - 1);
 
-    // 还有未处理的升级 → 继续弹；否则若波次已清空（有待处理战利品）→ 战利品；否则回到战斗
+    // 还有未处理的升级 → 继续弹；若全灭（胜利升级）→ 推进下一波；否则回到战斗
     if (state.pendingLevelUps > 0) {
       G.showLevelUp();
-    } else if (state.loots.length) {
-      G.showLoot();
+    } else if (state.foes.length && state.foes.every(f => f.dead)) {
+      G.advanceWave();
     } else {
       state.phase = 'play';
     }

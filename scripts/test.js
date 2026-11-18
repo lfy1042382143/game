@@ -190,19 +190,25 @@ function featureTests() {
   assert(p15.baseHp === G.CFG.player.hp + G.CFG.growth.hp, 'T15 升级自动加生命', p15.baseHp);
   assert(G.state.pendingLevelUps === 1, 'T15 升级累积待处理选项', G.state.pendingLevelUps);
 
-  // T16 升级卡效果：攻速 / 散射 / 环绕飞刃
-  const haste = G.LEVEL_POOL[0], multi = G.LEVEL_POOL[1], orbit = G.LEVEL_POOL[4];
+  // T16 升级卡效果：攻速 / 散射 / 环绕飞刃 / 射程
+  const poolByKey = k => G.LEVEL_POOL.find(c => c.key === k);
+  const haste = poolByKey('haste'), multi = poolByKey('multi'), orbit = poolByKey('orbit'), rangeC = poolByKey('range');
   haste.apply(p15);
   multi.apply(p15);
   orbit.apply(p15);
+  const rng0 = p15.range;
+  rangeC.apply(p15);
   assert(Math.abs(G.effAtkCd(p15) - G.CFG.player.atkCd * 0.82) < 0.01, 'T16 攻速提升卡生效', G.effAtkCd(p15));
   assert(p15.shots === 2, 'T16 散射箭卡生效', p15.shots);
   assert(p15.orbits === 2, 'T16 环绕飞刃卡生效', p15.orbits);
-  // 散射：一次 volley 生成 2 支箭
+  assert(p15.range > rng0, 'T16 射程提升卡生效', { rng0, rng1: p15.range });
+  // 散射：一次 volley 生成 2 支箭，箭矢寿命 = 射程/弹速
   G.state.foes[0].x = p15.x + 200; G.state.foes[0].y = p15.y;
   const nb0 = G.state.bullets.length;
   G.fireVolley(p15, G.state.foes[0]);
   assert(G.state.bullets.length - nb0 === 2, 'T16 散射 volley 发射 2 支箭', G.state.bullets.length - nb0);
+  const nb = G.state.bullets[G.state.bullets.length - 1];
+  assert(Math.abs(nb.life - p15.range / G.CFG.player.bulletSpeed) < 0.01, 'T16 箭矢寿命与射程绑定', nb.life);
 
   // T17 等级里程碑解锁新地图（每 4 级一档：5/9/13 级解锁）
   reset();
@@ -230,39 +236,59 @@ function featureTests() {
   const d19 = G.dist(f19.x, f19.y, G.state.player.x, G.state.player.y);
   assert(d19 >= 300 && d19 <= 750, 'T19 敌人刷新在玩家周围环带', Math.round(d19));
 
-  // T7 波次全灭 → 升级选项 → 战利品 → 继续探索 → 下一波
+  // T19b 追踪箭强化：垂直偏差的箭矢也能命中目标
   reset();
-  G.state.foes[0].items.length = 0;
-  G.state.foes[0].items.push(G.buildItem('weapon', 0, 1, 1));
-  G.state.foes[0].agg = G.aggregate(G.state.foes[0].items);
-  G.state.foes.forEach(f => { f.hp = 0.5; });
-  run(5);
-  // 第 1 波击杀经验 = 8 < 15，不会升级 → 直接战利品
-  assert(G.state.phase === 'loot', 'T7 全灭后进入战利品阶段', G.state.phase);
-  assert(G.state.loots.length === 1, 'T7 敌人装备掉落为战利品', G.state.loots.length);
+  const p19b = G.state.player;
+  const hf = G.state.foes[0];
+  hf.x = p19b.x + 170; hf.y = p19b.y - 40;   // 目标在斜上方
+  hf.def = 0;
+  const hh0 = hf.hp;
+  // 先朝正右方射一支带追踪的箭（偏差约 76°），追踪应把它拉回目标
+  p19b.homing = 2;
+  G.state.bullets.push({ x: p19b.x, y: p19b.y, vx: 250, vy: 0, r: 5, dmg: 5, crit: false, side: 'p', life: 2, owner: p19b, pierceLeft: 0, homing: 2, hit: [] });
+  run(1.2);
+  assert(hf.hp < hh0, 'T19b 追踪箭大偏差角仍命中', { hh0, hh1: hf.hp });
 
-  // T8 拾取 → 继续探索 → 第 2 波
-  G.takeLoot(0);
-  assert(G.state.player.items.length === 1, 'T8 战利品装备到玩家');
+  // T19c 宝箱/地点刷新上限
+  reset();
+  for (let i = 0; i < 6; i++) { G.spawnChest(); G.spawnSite(); }
+  assert(G.state.chests.length <= G.CFG.chests.cap, 'T19c 宝箱数量有上限', G.state.chests.length);
+  assert(G.state.sites.length <= G.CFG.events.cap, 'T19c 事件地点数量有上限', G.state.sites.length);
+
+  // T7 宝箱：走近开启 → 装备战利品 → 继续战斗（波次不变）
+  reset();
+  G.state.chests.push({ x: G.state.player.x, y: G.state.player.y, opened: false, t: 0 });
+  run(0.4);
+  assert(G.state.phase === 'loot', 'T7 走近宝箱自动开启进入战利品', G.state.phase);
+  assert(G.state.loots.length >= 1, 'T7 宝箱开出装备', G.state.loots.length);
+  let g7 = 0;
+  while (G.lootPending() > 0 && g7++ < 5) G.takeLoot(G.state.loots.findIndex(e => !e.done));
+  assert(G.state.player.items.length >= 1, 'T7 宝箱装备到玩家');
   G.continueLoot();
-  assert(G.state.wave === 2, 'T8 继续探索后进入第 2 波', G.state.wave);
-  assert(G.state.phase === 'play', 'T8 回到 play 阶段', G.state.phase);
+  assert(G.state.phase === 'play' && G.state.wave === 1, 'T7 处理完战利品回战斗（波次不变）', { phase: G.state.phase, wave: G.state.wave });
 
-  // T9 升级优先于战利品 + 事件仍正常触发
+  // T8 波次全灭 → 直接推进下一波（无波次战利品）
   reset();
-  G.state.wave = 3;
-  G.state.foes.forEach(f => { f.dead = true; f.hp = 0; f.xp = 10; G.gainXp(10); });
-  G.rollLoot();
-  G.state.pendingLevelUps = 1;         // 模拟击杀中攒下的升级
-  G.onVictory();
-  assert(G.state.phase === 'levelup', 'T9 升级选项优先弹出', G.state.phase);
-  G.chooseLevelCard({ kind: 'attr', attr: 'atk', apply(pp) { pp.baseAtk += 9; } });
-  assert(G.state.phase === 'loot', 'T9 升级处理完转入战利品', G.state.phase);
-  G.clearLoot();
-  G.continueLoot();                    // wave → 4，cleared=3，应触发事件
-  assert(G.state.phase === 'event', 'T9 清完第 3 波后触发场景事件', G.state.phase);
-  G.chooseEventOption(G.EVENTS[0].options[2]);
-  assert(G.state.phase === 'play' && G.state.wave === 4, 'T9 事件选择后进入下一波', { phase: G.state.phase, wave: G.state.wave });
+  G.state.foes.forEach(f => { f.hp = 0.5; });
+  run(6);
+  assert(G.state.wave === 2 && G.state.phase === 'play', 'T8 全灭后直接进入第 2 波', { wave: G.state.wave, phase: G.state.phase });
+  assert(G.state.loots.length === 0, 'T8 击杀不再掉落装备', G.state.loots.length);
+  assert(G.state.foes.every(f => !f.items || f.items.length === 0), 'T8 敌人不再携带装备');
+
+  // T9 事件地点：走近触发 → 选择 → 地点消失
+  reset();
+  const site = { x: G.state.player.x, y: G.state.player.y, evt: G.EVENTS[0], used: false };
+  G.state.sites.push(site);
+  run(0.3);
+  assert(G.state.phase === 'event', 'T9 走近事件地点触发弹窗', G.state.phase);
+  G.chooseEventOption(G.EVENTS[0].options[2]);   // 离开
+  assert(G.state.phase === 'play', 'T9 事件选择后回到战斗', G.state.phase);
+  assert(site.used === true, 'T9 事件地点一次性（触发后消失）');
+
+  // T9a 经验需求逐层递增（二次曲线：相邻级差随等级扩大）
+  const n1 = G.xpNeed(1), n2 = G.xpNeed(2), n3 = G.xpNeed(3), n5 = G.xpNeed(5);
+  assert(n2 - n1 < n3 - n2 && n3 - n2 < G.xpNeed(5) - G.xpNeed(4), 'T9a 升级需求逐层递增', { n1, n2, n3, n5 });
+  assert(n2 > 30, 'T9a 前几级需求已明显提高（降频）', n2);
 
   // T9b 真实卡池选卡（含无 apply 的属性卡）不能卡死流程
   reset();
@@ -373,7 +399,9 @@ function simulate(runs) {
     if (st.phase === 'event') {
       const overlay = sandbox.document._els.eventOverlay;
       if (overlay.classList.contains('show')) {
-        G.chooseEventOption(G.EVENTS[0].options[G.EVENTS[0].options.length - 1]);
+        // 选当前地点事件的最后一个选项（通常是安全项）
+        const opts = (st.activeSite && st.activeSite.evt ? st.activeSite.evt : G.EVENTS[0]).options;
+        G.chooseEventOption(opts[opts.length - 1]);
       }
     }
   }
@@ -397,6 +425,15 @@ function simulate(runs) {
 
     engineKeys.clear();
     if (!near) return;
+
+    // 无近身威胁时优先去开宝箱（装备唯一来源）
+    const chest = st.chests.find(c => !c.opened && G.dist(p.x, p.y, c.x, c.y) < 520);
+    if (chest && nd > 300) {
+      const cx = chest.x - p.x, cy = chest.y - p.y;
+      if (Math.abs(cx) > 12) engineKeys.add(cx > 0 ? 'd' : 'a');
+      if (Math.abs(cy) > 12) engineKeys.add(cy > 0 ? 's' : 'w');
+      return;
+    }
 
     let dx, dy;
     if (Math.random() < 0.04) {

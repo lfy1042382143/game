@@ -6,25 +6,11 @@
 (function (G) {
   'use strict';
 
-  const { state, SLOTS, rarOf, itemAt, upgradePath, itemDesc } = G;
+  const { state, SLOTS, rarOf, itemAt, upgradePath, itemDesc, CFG } = G;
 
   /* =========================================================
-     掉落
+     （装备改为地图宝箱获取，敌人不再掉落装备）
      ========================================================= */
-
-  /** 全灭后收集本波所有敌人的装备作为战利品（逐件复制为独立实例） */
-  function rollLoot() {
-    state.loots = [];
-    state.foes.forEach(foe => {
-      if (!foe.items || !foe.items.length) return;
-      foe.items.forEach(it => {
-        // 带词缀的敌人「高风险高回报」：掉落物稀有度 +1（封顶传说）
-        const rar = foe.affix ? Math.min(4, it.rarity + 1) : it.rarity;
-        const copy = G.buildItem(it.slot, G.ITEM_DEFS[it.slot].indexOf(it.def), rar, it.level);
-        state.loots.push({ item: copy, done: false, result: '', slot: copy.slot });
-      });
-    });
-  }
 
   /** 还有几件没处理 */
   function lootPending() {
@@ -61,6 +47,79 @@
     if (plan.mode === 'ascend') return '吸收升华';
     if (plan.mode === 'swap') return '替 换';
     return '已满级';
+  }
+
+  /* =========================================================
+     宝箱：地图上刷新，走近开启 → 装备战利品（装备唯一来源）
+     ========================================================= */
+
+  /** 按波次生成一件随机装备（稀有度/等级随波次成长） */
+  function rollChestItem() {
+    const M = CFG.mon;
+    const slot = G.SLOTS[Math.floor(Math.random() * G.SLOTS.length)].key;
+    const rar = Math.min(4, Math.floor(state.wave * M.rarK) + (Math.random() < 0.25 ? 1 : 0));
+    const lv = Math.min(CFG.forge.maxLevel, 1 + Math.floor((state.wave - 1) / M.eqLvEvery));
+    return G.buildItem(slot, Math.floor(Math.random() * G.ITEM_DEFS[slot].length), rar, lv);
+  }
+
+  /** 生成一个宝箱实体（位置相对玩家环带，避开障碍） */
+  function spawnChest() {
+    const W = CFG.world, C = CFG.chests, p = state.player;
+    if (state.chests.length >= C.cap) return false;
+
+    for (let tries = 0; tries < 14; tries++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = C.minDist + Math.random() * (C.maxDist - C.minDist);
+      const x = Math.max(50, Math.min(W.w - 50, (p ? p.x : W.w / 2) + Math.cos(a) * d));
+      const y = Math.max(50, Math.min(W.h - 50, (p ? p.y : W.h / 2) + Math.sin(a) * d));
+      if (state.obstacles.some(o => G.circleRect(x, y, 40, o))) continue;
+      if (state.sites.some(s => G.dist(x, y, s.x, s.y) < 160)) continue;
+      if (state.chests.some(c => G.dist(x, y, c.x, c.y) < 200)) continue;
+      state.chests.push({ x, y, opened: false, t: Math.random() * 6 });
+      return true;
+    }
+    return false;
+  }
+
+  /** 玩家走近宝箱 → 开启（暂停 + 战利品弹窗） */
+  function checkChests() {
+    const p = state.player;
+    if (!p || state.phase !== 'play') return;
+    const C = CFG.chests;
+    for (const c of state.chests) {
+      if (c.opened) continue;
+      if (G.dist(p.x, p.y, c.x, c.y) < C.pickupR) {
+        openChest(c);
+        return;
+      }
+    }
+  }
+
+  /** 开启宝箱：生成装备战利品并弹出弹窗 */
+  function openChest(chest) {
+    chest.opened = true;
+    state.chests = state.chests.filter(c => c !== chest);
+
+    const C = CFG.chests;
+    const n = C.itemsMin + Math.floor(Math.random() * (C.itemsMax - C.itemsMin + 1));
+    state.loots = [];
+    state.lootSlots = [];
+    for (let i = 0; i < n; i++) {
+      const item = rollChestItem();
+      state.loots.push({ item, done: false, result: '', slot: item.slot });
+    }
+
+    G.sfxWin();
+    showLoot('宝箱开启 · 获得战利品');
+  }
+
+  /** 更新宝箱刷新计时 */
+  function updateChests(dt) {
+    state.chestT = (state.chestT || 0) + dt;
+    if (state.chestT >= CFG.chests.spawnEvery) {
+      state.chestT = 0;
+      spawnChest();
+    }
   }
 
   /* =========================================================
@@ -133,11 +192,10 @@
     const pending = lootPending();
     const allDone = pending === 0;
 
-    const fromNames = state.foes.map(f => f.name).slice(0, 3).join('、');
     const head =
       '<div class="loot-head">' +
         '<span class="loot-title">战利品</span>' +
-        '<span class="loot-from">来自「' + fromNames + (state.foes.length > 3 ? ' 等' : '') + '」' +
+        '<span class="loot-from">第 ' + state.wave + ' 波' +
           (loots.length > 1 ? ' · 共 ' + loots.length + ' 件' : '') + '</span>' +
         (allDone
           ? ''
@@ -170,10 +228,10 @@
     });
   }
 
-  /** 打开波次战利品弹窗（升级选项处理完后调用） */
-  function showLoot() {
+  /** 打开战利品弹窗（宝箱开启时调用；升级选项若挂起则在其后处理） */
+  function showLoot(title) {
     state.phase = 'loot';
-    G.el.upSub.textContent = '第 ' + state.wave + ' 波已征服 · 处理战利品';
+    G.el.upSub.textContent = title || '第 ' + state.wave + ' 波 · 处理战利品';
     G.el.curHp.textContent = G.fmt(state.player.maxHp);
     G.el.curAtk.textContent = G.fmt(state.player.atk);
     G.el.curDef.textContent = G.fmt(state.player.def);
@@ -182,12 +240,16 @@
     G.el.upgradeOverlay.classList.add('show');
   }
 
-  /** 处理完战利品 → 下一波（事件在 advanceWave 内判定） */
+  /** 处理完战利品 → 若有挂起的升级先弹升级，否则回到战斗 */
   function continueLoot() {
     if (state.phase !== 'loot' || lootPending() > 0) return;
     G.el.upgradeOverlay.classList.remove('show');
     G.clearLoot();
-    G.advanceWave();
+    if (state.pendingLevelUps > 0) {
+      G.showLevelUp();
+    } else {
+      state.phase = 'play';
+    }
   }
 
   /* =========================================================
@@ -267,7 +329,8 @@
   }
 
   Object.assign(G, {
-    rollLoot, lootPending, planFor, renderLoot,
+    rollChestItem, spawnChest, checkChests, openChest, updateChests,
+    lootPending, planFor, renderLoot,
     takeLoot, skipLoot, skipAll, clearLoot,
     showLoot, continueLoot
   });

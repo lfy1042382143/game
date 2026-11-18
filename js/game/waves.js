@@ -34,23 +34,8 @@
   }
 
   /* =========================================================
-     敌人装备
+     （装备已改为地图宝箱掉落，敌人不再携带装备）
      ========================================================= */
-  function equipFoe(u, wave, idx) {
-    const M = CFG.mon;
-    const n = Math.min(M.eqMax, M.eqBase + Math.floor((wave - 1) / M.eqEvery));
-    const lv = Math.min(CFG.forge.maxLevel, 1 + Math.floor((wave - 1) / M.eqLvEvery));
-    const baseRar = Math.floor(wave * M.rarK);
-
-    for (let i = 0; i < n; i++) {
-      // 槽位确定性轮换 + 每第 rarUpEvery 件稀有度 +1
-      const slot = G.SLOTS[(idx + i) % G.SLOTS.length].key;
-      const rar = Math.min(4, baseRar + ((i + idx) % M.rarUpEvery === M.rarUpEvery - 1 ? 1 : 0));
-      const item = G.buildItem(slot, (idx * 2 + i) % G.ITEM_DEFS[slot].length, rar, lv);
-      u.items.push(item);
-    }
-    G.refresh(u);
-  }
 
   /* =========================================================
      出生点位：玩家周围随机环带（随机出现，可预判性来自可见的刷新提示）
@@ -135,7 +120,6 @@
         affix.apply(u);
       }
 
-      equipFoe(u, wave, i);
       G.refresh(u);
 
       // 开局护盾（守望类词条通用逻辑）

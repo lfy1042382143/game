@@ -27,11 +27,20 @@
     state.pendingRage = false;
     state.floaters = [];
     state.bullets = [];
+    state.chests = [];
+    state.chestT = 0;
+    state.sites = [];
+    state.siteT = 0;
+    state.siteSeq = 0;
+    state.activeSite = null;
     state.mapIdx = 0;
     state.obsT = 0;
     state.player = G.makePlayer();
     state.obstacles = [];
     G.spawnObstaclesRandom(6);     // 初始障碍布局
+    G.spawnChest();                // 开局宝箱与事件地点
+    G.spawnSite();
+    G.spawnSite();
     startWave();
   }
 
@@ -69,6 +78,8 @@
     // 重新随机障碍布局
     state.obstacles = [];
     G.spawnObstaclesRandom(6);
+    G.spawnChest();               // 新地图自带一个宝箱与一个事件地点
+    G.spawnSite();
     state.banner = {
       text: '🗺 ' + map.name,
       sub: '新地图解锁 · 敌人更强',
@@ -102,6 +113,12 @@
     G.updateBullets(dt);
     G.tickBleeds(state.player, dt);
     updateObstacles(dt);
+    G.updateChests(dt);
+    G.updateSites(dt);
+
+    // 宝箱拾取与事件地点触发（都在 play 阶段内判定）
+    G.checkChests();
+    if (state.phase === 'play') G.checkSites();
 
     // 飘字
     for (let i = state.floaters.length - 1; i >= 0; i--) {
@@ -135,28 +152,26 @@
   }
 
   /* =========================================================
-     胜利 → 升级选项（若有）→ 战利品
+     胜利 → 直接推进下一波（装备走宝箱，不再有波次战利品）
      ========================================================= */
   function onVictory() {
     state.phase = 'busy';
     G.sfxWin();
-    G.rollLoot();
 
     if (state.pendingLevelUps > 0) {
-      G.showLevelUp();          // 升级处理完后由 chooseLevelCard 转 showLoot
+      G.showLevelUp();          // 升级处理完后由 chooseLevelCard 推进下一波
     } else {
-      G.showLoot();
+      advanceWave();
     }
   }
 
-  /** 战利品处理完 → 下一波（loot.continueLoot 调用） */
+  /** 下一波 */
   function advanceWave() {
     state.wave += 1;
     if (state.wave > state.best) {
       state.best = state.wave;
       G.saveBest();
     }
-    if (G.triggerEvent && G.triggerEvent()) return;   // 事件选择后由 chooseEventOption 推进
     startWave();
   }
 

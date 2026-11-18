@@ -24,10 +24,27 @@
       iframes: 0.8
     },
 
-    // 经验与升级
-    xp: { base: 15, perLevel: 9 },                      // 升到下一级所需 = base + (lv-1)*perLevel
+    // 经验与升级（需求逐层递增：二次曲线，升级节奏明显放缓）
+    xp: { base: 20, perLevel: 14, accel: 8 },           // 需求 = base + (lv-1)*perLevel + (lv-1)^2*accel
     growth: { hp: 14, atk: 3, def: 1, healPct: 0.3 },   // 每级自动成长 + 回复 30% 生命
     maps: { milestoneEvery: 4 },                        // 每 N 级解锁一张新地图
+
+    // 宝箱：地图上随机刷新，走近开启获得装备（装备唯一来源）
+    chests: {
+      cap: 3,            // 场上最多同时存在的宝箱数
+      spawnEvery: 13,    // 刷新间隔（秒）
+      minDist: 260, maxDist: 640,   // 相对玩家的刷新环带
+      pickupR: 34,       // 拾取半径
+      itemsMin: 1, itemsMax: 2      // 每个宝箱的装备件数
+    },
+
+    // 场景事件：地图上的特定地点，走近触发（一次性）
+    events: {
+      cap: 3,            // 场上最多同时存在的地点数
+      spawnEvery: 16,    // 刷新间隔（秒）
+      minDist: 300, maxDist: 700,
+      triggerR: 44       // 触发半径
+    },
 
     // 动态障碍物：随主角移动随机生成/移除
     obstacles: {
@@ -36,9 +53,9 @@
       sizeMin: 46, sizeMax: 88
     },
 
-    // 怪物成长曲线（整体增强）
+    // 怪物成长曲线（血量再增强；装备不再挂在敌人身上，强度直接给到面板）
     mon: {
-      hp0: 30, hpK: 16, hpQ: 0.18,
+      hp0: 36, hpK: 22, hpQ: 0.22,
       atk0: 9, atkK: 1.9, atkQ: 0.06,
       def0: 1, defK: 0.55,
       bossHp: 1.45, bossAtk: 1.05,
@@ -67,9 +84,6 @@
 
     // BOSS：缓慢追击 + 扇形弹幕
     boss: { r: 24, speed: 74, shootCd: 2.6, bulletSpeed: 170, spread: 3 },
-
-    // 场景事件节奏
-    events: { firstAt: 3, every: 3 },
 
     // 敌人词缀出现节奏
     affixes: { firstAt: 3, every: 2 },

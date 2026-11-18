@@ -31,6 +31,13 @@
     kills: 0,
     pendingLevelUps: 0,    // 待处理的升级选项数（每级一张三选一）
 
+    chests: [],            // 地图宝箱（走近开启 → 装备战利品）
+    chestT: 0,             // 宝箱刷新计时
+    sites: [],             // 事件地点（走近触发，一次性）
+    siteT: 0,              // 地点刷新计时
+    siteSeq: 0,            // 地点事件种类轮换序号
+    activeSite: null,      // 正在交互的事件地点
+
     pendingElite: false,
     pendingRage: false,
 
@@ -93,6 +100,8 @@
     p.pierce = 0;      // 箭矢贯穿数（贯穿箭）
     p.homing = 0;      // 追踪强度（追踪箭）
     p.orbits = 0;      // 环绕飞刃数量
+    p.rangeMul = 1;    // 射程乘算系数（射程提升卡）
+    p.range = C.range; // 当前射程（nearestFoe 与箭矢寿命都用它）
     return p;
   }
 

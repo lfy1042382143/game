@@ -31,10 +31,10 @@
     return false;
   }
 
-  /** 追踪箭：朝最近的存活敌人缓慢转向 */
+  /** 追踪箭：朝最近的存活敌人快速转向（转向足够快才有战术价值） */
   function steerHoming(b, dt) {
     if (!b.homing || b.side !== 'p') return;
-    let best = null, bd = CFG.player.range * 1.4;
+    let best = null, bd = 520;
     for (const f of state.foes) {
       if (f.dead) continue;
       const d = G.dist(b.x, b.y, f.x, f.y);
@@ -46,7 +46,7 @@
     let diff = want - cur;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    const rate = 2.2 * b.homing * dt;
+    const rate = 4.8 * b.homing * dt;
     const turn = clamp(diff, -rate, rate);
     const spd = Math.hypot(b.vx, b.vy);
     const na = cur + turn;

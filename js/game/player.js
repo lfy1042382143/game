@@ -52,7 +52,7 @@
   }
 
   function nearestFoe(p) {
-    let best = null, bd = CFG.player.range;
+    let best = null, bd = p.range;
     for (const f of state.foes) {
       if (f.dead) continue;
       const d = G.dist(p.x, p.y, f.x, f.y);
@@ -82,6 +82,7 @@
 
     const baseA = Math.atan2(ay - p.y, ax - p.x);
     const n = p.shots;
+    const life = p.range / CFG.player.bulletSpeed;   // 箭矢飞满射程即消失
     for (let i = 0; i < n; i++) {
       const a = baseA + (i - (n - 1) / 2) * 0.16;
       const v = { x: Math.cos(a), y: Math.sin(a) };
@@ -89,7 +90,7 @@
         x: p.x + v.x * (p.r + 4), y: p.y + v.y * (p.r + 4),
         vx: v.x * CFG.player.bulletSpeed, vy: v.y * CFG.player.bulletSpeed,
         r: 5, dmg: p.atk * mult, crit,
-        side: 'p', life: 2.2, owner: p,
+        side: 'p', life, owner: p,
         pierceLeft: p.pierce,
         homing: p.homing,
         hit: []

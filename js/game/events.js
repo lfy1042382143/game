@@ -1,8 +1,8 @@
 /* ============================================================
-   游戏层 · events.js
-   场景事件：每隔若干波触发一次确定性选择式事件。
-   事件弹出时游戏处于暂停状态（phase = 'event'），
-   选择完成后推进到下一波。
+   游戏层 · events.js（地点触发版）
+   场景事件：地图上会刷新事件地点（祭坛/歧路/商人/泉水），
+   玩家走近时触发选择弹窗（暂停），选择后该地点消失。
+   一次性地点，探索大地图时主动造访。
    ============================================================ */
 (function (G) {
   'use strict';
@@ -10,7 +10,7 @@
   const { state, CFG } = G;
 
   /* =========================================================
-     事件定义
+     事件定义（effect: 'elite' 下波精英增强 / 'rage' 下波攻击增强）
      ========================================================= */
   const EVENTS = [
     {
@@ -25,9 +25,9 @@
           apply(p) {
             const lose = Math.max(1, Math.round(p.baseHp * 0.2));
             p.baseHp -= lose;
-            p.hp = Math.min(p.hp, p.maxHp);
             p.baseAtk += Math.round(lose * 0.8);
             G.refresh(p);
+            p.hp = Math.min(p.hp, p.maxHp);
           }
         },
         {
@@ -56,14 +56,14 @@
       options: [
         {
           label: '挑战精英',
-          desc: '下波出现更强精英，但战利品更丰厚',
+          desc: '下一波出现更强精英（生命 +50%）',
           apply() {
             state.pendingElite = true;
           }
         },
         {
-          label: '搜寻宝箱',
-          desc: '立即回复 40% 生命并 +攻击',
+          label: '搜寻物资',
+          desc: '立即回复 40% 生命并 +2 攻击',
           apply(p) {
             G.healUnit(p, Math.round(p.maxHp * 0.4));
             p.baseAtk += 2;
@@ -86,7 +86,6 @@
             const slot = G.SLOTS[Math.floor(Math.random() * G.SLOTS.length)].key;
             const rar = Math.min(4, Math.floor(state.wave * CFG.mon.rarK));
             const item = G.randomItem(slot, rar, Math.min(CFG.forge.maxLevel, 1 + Math.floor((state.wave - 1) / CFG.mon.eqLvEvery)));
-            // 直接装备：同部位替换（商人的货，交易即得）
             const idx = p.items.findIndex(i => i.slot === slot);
             if (idx >= 0) p.items[idx] = item;
             else p.items.push(item);
@@ -108,7 +107,7 @@
       options: [
         {
           label: '畅饮泉水',
-          desc: '回满生命，但下波敌人攻击提升',
+          desc: '回满生命，但下一波敌人攻击提升',
           apply(p) {
             G.healUnit(p, p.maxHp);
             state.pendingRage = true;
@@ -124,17 +123,58 @@
   ];
 
   /* =========================================================
-     触发判定：每 every 波一次，从 firstAt 开始
+     地点管理：刷新（相对玩家环带，避开障碍/宝箱/其他地点）
      ========================================================= */
-  function eventDue(wave) {
-    const E = CFG.events;
-    return wave >= E.firstAt && (wave - E.firstAt) % E.every === 0;
+  function spawnSite() {
+    const W = CFG.world, C = CFG.events, p = state.player;
+    if (state.sites.length >= C.cap) return false;
+
+    // 确定性轮换事件种类：按已刷新次数推进，保证四种都能遇到
+    const evt = EVENTS[state.siteSeq % EVENTS.length];
+    state.siteSeq = (state.siteSeq || 0) + 1;
+
+    for (let tries = 0; tries < 14; tries++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = C.minDist + Math.random() * (C.maxDist - C.minDist);
+      const x = Math.max(50, Math.min(W.w - 50, (p ? p.x : W.w / 2) + Math.cos(a) * d));
+      const y = Math.max(50, Math.min(W.h - 50, (p ? p.y : W.h / 2) + Math.sin(a) * d));
+      if (state.obstacles.some(o => G.circleRect(x, y, 48, o))) continue;
+      if (state.chests.some(c => G.dist(x, y, c.x, c.y) < 160)) continue;
+      if (state.sites.some(s => G.dist(x, y, s.x, s.y) < 220)) continue;
+      state.sites.push({ x, y, evt, used: false });
+      return true;
+    }
+    return false;
   }
 
-  /** 按波次确定性轮换事件种类（不掷骰，可预测） */
-  function rollEvent(wave) {
-    const idx = Math.floor((wave - CFG.events.firstAt) / CFG.events.every) % EVENTS.length;
-    return EVENTS[idx];
+  /** 玩家走近地点 → 触发事件（暂停 + 选择弹窗） */
+  function checkSites() {
+    const p = state.player;
+    if (!p || state.phase !== 'play') return;
+    const C = CFG.events;
+    for (const s of state.sites) {
+      if (s.used) continue;
+      if (G.dist(p.x, p.y, s.x, s.y) < C.triggerR) {
+        triggerSite(s);
+        return;
+      }
+    }
+  }
+
+  function triggerSite(site) {
+    state.activeSite = site;
+    state.phase = 'event';
+    renderEvent(site.evt);
+    G.sfxUpgrade();
+  }
+
+  /** 刷新计时 */
+  function updateSites(dt) {
+    state.siteT = (state.siteT || 0) + dt;
+    if (state.siteT >= CFG.events.spawnEvery) {
+      state.siteT = 0;
+      spawnSite();
+    }
   }
 
   /* =========================================================
@@ -167,22 +207,18 @@
     state.phase = 'busy';
 
     opt.apply(state.player);
+    if (state.activeSite) state.activeSite.used = true;   // 一次性地点
+    state.activeSite = null;
     G.ui.syncTopbar();
     G.tone({ freq: 620, type: 'sine', dur: 0.18, vol: 0.1 });
 
-    G.startWave();
+    // 有挂起的升级先弹升级，否则回到战斗
+    if (state.pendingLevelUps > 0) {
+      G.showLevelUp();
+    } else {
+      state.phase = 'play';
+    }
   }
 
-  /** 事件入口：在选卡结算后调用（state.wave 已 +1，用 wave-1 判定） */
-  function triggerEvent() {
-    const cleared = state.wave - 1;
-    if (!eventDue(cleared)) return false;
-    const evt = rollEvent(cleared);
-    state.phase = 'event';
-    renderEvent(evt);
-    G.sfxUpgrade();
-    return true;
-  }
-
-  Object.assign(G, { EVENTS, eventDue, rollEvent, triggerEvent, chooseEventOption });
+  Object.assign(G, { EVENTS, spawnSite, checkSites, triggerSite, updateSites, chooseEventOption });
 })(window.ABYSS = window.ABYSS || {});

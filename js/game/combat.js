@@ -147,7 +147,10 @@
      - 跨过等级里程碑时解锁新地图（见 flow.switchMap）
      ========================================================= */
   function xpNeed(level) {
-    return CFG.xp.base + (level - 1) * CFG.xp.perLevel;
+    // 逐层递增：基础 + 线性 + 二次加速项（升级节奏随等级明显放缓）
+    const X = CFG.xp;
+    const l = level - 1;
+    return Math.round(X.base + l * X.perLevel + l * l * (X.accel || 0));
   }
 
   function gainXp(amount) {

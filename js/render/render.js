@@ -220,7 +220,55 @@
   }
 
   /* =========================================================
-     小地图（视口右下角）：世界轮廓 + 玩家/敌人位置
+     宝箱与事件地点（世界坐标）
+     ========================================================= */
+  function drawChests() {
+    state.chests.forEach(c => {
+      const bob = Math.sin(state.time * 3 + c.t) * 3;
+      ctx.globalAlpha = 0.9;
+      ctx.font = '26px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 12;
+      ctx.fillText('📦', c.x, c.y + bob);
+      ctx.shadowBlur = 0;
+      // 拾取范围提示
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, CFG.chests.pickupR, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(251,191,36,0.25)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  function drawSites() {
+    state.sites.forEach(s => {
+      if (s.used) return;
+      const pulse = 1 + Math.sin(state.time * 2.2) * 0.12;
+      // 光柱底座
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, CFG.events.triggerR * pulse, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(167,139,250,0.35)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, CFG.events.triggerR * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(167,139,250,0.08)';
+      ctx.fill();
+      ctx.font = '26px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#a78bfa';
+      ctx.shadowBlur = 14;
+      ctx.fillText(s.evt.icon, s.x, s.y);
+      ctx.shadowBlur = 0;
+    });
+  }
+
+  /* =========================================================
+     小地图（视口右下角）：世界轮廓 + 玩家/敌人/宝箱/地点
      ========================================================= */
   function drawMinimap() {
     const V = CFG.viewport, W = CFG.world;
@@ -238,6 +286,19 @@
     ctx.fillStyle = 'rgba(126,138,180,0.35)';
     state.obstacles.forEach(o => {
       ctx.fillRect(mx + o.x * sx, my + o.y * sy, Math.max(2, o.w * sx), Math.max(2, o.h * sy));
+    });
+
+    // 事件地点（紫色）
+    state.sites.forEach(s => {
+      if (s.used) return;
+      ctx.fillStyle = '#a78bfa';
+      ctx.fillRect(mx + s.x * sx - 2, my + s.y * sy - 2, 4, 4);
+    });
+
+    // 宝箱（金色）
+    state.chests.forEach(c => {
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect(mx + c.x * sx - 2, my + c.y * sy - 2, 4, 4);
     });
 
     // 敌人
@@ -266,6 +327,8 @@
     ctx.save();
     ctx.translate(-cam.x, -cam.y);
     drawArena();
+    drawSites();
+    drawChests();
     drawOrbitBlades();
     drawBullets();
     state.foes.forEach(f => drawUnit(f, false));
