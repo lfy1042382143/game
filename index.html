@@ -4,24 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>深渊试炼 · Abyss Trial</title>
-<meta name="description" content="回合制属性成长战斗：击杀怪物、三选一强化、收集装备，挑战更深的波次。">
+<meta name="description" content="实时 2D 俯视角 Roguelike：WASD 走位躲避弹幕，击杀近战与远程敌人，收集装备，挑战更深的波次。">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
 
-<!-- 基础与骨架 -->
+<!-- 基础与弹窗（复用） -->
 <link rel="stylesheet" href="css/base.css">
-<!-- 顶栏与战斗舞台 -->
-<link rel="stylesheet" href="css/battle.css">
-<!-- 进度条与操作区 -->
-<link rel="stylesheet" href="css/hud.css">
-<!-- 飘字与动作动画 -->
-<link rel="stylesheet" href="css/effects.css">
-<!-- 升级 / 结算弹窗 -->
 <link rel="stylesheet" href="css/overlay.css">
-<!-- 属性详情面板 -->
-<link rel="stylesheet" href="css/inspector.css">
-<!-- 响应式（放最后，便于覆盖） -->
-<link rel="stylesheet" href="css/responsive.css">
+<!-- 竞技场与顶栏（新版实时战斗） -->
+<link rel="stylesheet" href="css/arena.css">
 </head>
 <body>
 
@@ -35,62 +26,31 @@
       <span class="wave-label">Wave</span>
       <span class="wave-num" id="waveNum">01</span>
     </div>
+
+    <div class="stat-chips">
+      <span class="chip hp" title="生命"><i>❤</i><b id="statHp">120/120</b></span>
+      <span class="chip atk" title="攻击"><i>⚔</i><b id="statAtk">14</b></span>
+      <span class="chip def" title="防御"><i>🛡</i><b id="statDef">4</b></span>
+    </div>
+
+    <div class="eq-row" id="eqRow" title="当前装备"></div>
+
     <div class="top-right">
       <span class="record" id="recordBox">最佳 <b id="recordNum">0</b></span>
       <button class="icon-btn" id="soundBtn" title="音效开关">🔊</button>
-      <button class="icon-btn" id="restartBtn" title="重新开始">↻</button>
+      <button class="icon-btn" id="restartBtn" title="重新开始（R）">↻</button>
     </div>
   </header>
 
-  <main class="stage">
-    <section class="fighter ally" id="ally">
-      <div class="name-row">
-        <span class="name" id="allyName">冒险者</span>
-        <button class="info-btn" data-inspect="ally" title="查看属性与装备详情">ⓘ</button>
-      </div>
-      <div class="avatar-wrap">
-        <div class="aura"></div>
-        <div class="avatar" id="allyAvatar">⚔️</div>
-      </div>
-      <div class="bar" id="allyBar">
-        <div class="bar-ghost" id="allyGhost"></div>
-        <div class="fill" id="allyFill"></div>
-        <span class="bar-txt" id="allyBarTxt">120 / 120</span>
-      </div>
-      <div class="shield-bar" id="allyShieldBar"><div class="shield-fill" id="allyShieldFill"></div></div>
-      <div class="stats">
-        <span class="stat atk" id="allyAtkBox"><i>⚔</i><b id="allyAtk">14</b></span>
-        <span class="stat def" id="allyDefBox"><i>🛡</i><b id="allyDef">4</b></span>
-      </div>
-      <div class="eq-row" id="allyEq" data-inspect="ally" title="点击查看装备详情"></div>
-      <div class="status-row" id="allyStatus"></div>
-    </section>
-
-    <div class="center">
-      <div class="center-line"></div>
-      <div class="vs">VS</div>
-      <div class="turn-tip" id="turnTip">你的回合</div>
-      <div class="center-line"></div>
-      <div class="impact" id="impact"></div>
-    </div>
-
-    <section class="foes" id="foes"></section>
-  </main>
-
-  <div class="track" id="track">
-    <div class="track-pips" id="trackPips"></div>
-    <div class="track-label" id="trackLabel">距 BOSS 4 波</div>
+  <div id="stage">
+    <canvas id="canvas" width="960" height="600"></canvas>
+    <div class="hint" id="hintBar">WASD / 方向键移动 · 自动攻击最近的敌人 · 走位躲避弹幕与近战</div>
   </div>
-
-  <footer class="actions">
-    <button class="btn btn-attack" id="attackBtn">攻 击</button>
-    <button class="btn btn-defend" id="defendBtn">防 御<span class="sub" id="defendSub">护盾 +36</span></button>
-  </footer>
 </div>
 
 <div class="banner" id="banner"></div>
 
-<!-- 升级弹窗 -->
+<!-- 升级弹窗（战利品 + 三选一） -->
 <div class="overlay" id="upgradeOverlay">
   <div class="panel">
     <div class="up-head">
@@ -105,7 +65,7 @@
       <span class="cur-item"><i>⚔</i> 攻击 <b id="curAtk">14</b></span>
       <span class="cur-item"><i>🛡</i> 防御 <b id="curDef">4</b></span>
     </div>
-    <div class="eq-panel" id="eqPanel" title="点击查看属性与装备详情"></div>
+    <div class="eq-panel" id="eqPanel"></div>
   </div>
 </div>
 
@@ -141,60 +101,26 @@
   </div>
 </div>
 
-<!-- 属性 / 装备详情 -->
-<div class="overlay ins-overlay" id="inspectOverlay">
-  <div class="panel ins-panel" id="inspectPanel" role="dialog" aria-modal="true" aria-labelledby="insName">
-    <button class="ins-close" id="insClose" aria-label="关闭详情">✕</button>
-
-    <div class="ins-head">
-      <div class="ins-avatar" id="insAvatar">⚔️</div>
-      <div class="ins-title">
-        <div class="ins-kicker" id="insKicker">我方</div>
-        <h2 class="ins-name" id="insName">冒险者</h2>
-        <div class="ins-sub" id="insSub">第 1 波</div>
-      </div>
-    </div>
-
-    <div class="ins-cols">
-      <div class="ins-col">
-        <div class="ins-sec">属性明细</div>
-        <div class="ins-table" id="insStats"></div>
-      </div>
-      <div class="ins-col">
-        <div class="ins-sec">战斗参数</div>
-        <div class="ins-traits" id="insTraits"></div>
-      </div>
-    </div>
-
-    <div class="ins-duel" id="insDuel"></div>
-
-    <div class="ins-sec">装备 <span class="ins-count" id="insEqCount">0 / 4</span></div>
-    <div class="ins-items" id="insItems"></div>
-
-    <div class="ins-foot">点击空白处或右上角关闭 · 面板打开时战斗暂停</div>
-  </div>
-</div>
-
 <!-- ========== 脚本：按依赖顺序加载（经典脚本，file:// 直接可跑） ========== -->
 <script src="js/core/config.js"></script>
 <script src="js/core/utils.js"></script>
 <script src="js/core/audio.js"></script>
+<script src="js/core/engine.js"></script>
 
-<script src="js/systems/equipment.js"></script>
-<script src="js/systems/state.js"></script>
+<script src="js/game/equipment.js"></script>
+<script src="js/game/state.js"></script>
+<script src="js/game/combat.js"></script>
+<script src="js/game/bullets.js"></script>
+<script src="js/game/player.js"></script>
+<script src="js/game/enemies.js"></script>
+<script src="js/game/waves.js"></script>
+<script src="js/game/loot.js"></script>
+<script src="js/game/cards.js"></script>
+<script src="js/game/events.js"></script>
+<script src="js/game/flow.js"></script>
 
-<script src="js/ui/dom.js"></script>
-<script src="js/ui/render.js"></script>
-<script src="js/ui/fx.js"></script>
-
-<script src="js/systems/combat.js"></script>
-<script src="js/systems/monster.js"></script>
-<script src="js/systems/loot.js"></script>
-<script src="js/systems/cards.js"></script>
-<script src="js/systems/events.js"></script>
-<script src="js/systems/flow.js"></script>
-
-<script src="js/ui/inspector.js"></script>
+<script src="js/ui/ui.js"></script>
+<script src="js/render/render.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

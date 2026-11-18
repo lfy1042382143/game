@@ -1,11 +1,12 @@
 /* ============================================================
-   系统层 · cards.js
-   战后三选一：纯属性卡池（装备已改为击杀掉落，见 loot.js）
+   游戏层 · cards.js
+   战后三选一：纯属性卡池（装备由击杀掉落，见 loot.js）
+   选卡期间游戏暂停（phase !== 'play'）
    ============================================================ */
 (function (G) {
   'use strict';
 
-  const { CFG, SLOTS, RARITY, state, el, fmt, sleep, rarOf, itemAt, itemDescText, refresh, tone, sfxUpgrade } = G;
+  const { state, CFG, RARITY, SLOTS, rarOf, itemAt, itemDescText } = G;
 
   /* =========================================================
      升级卡池
@@ -26,26 +27,26 @@
     const out = [];
     ['hp', 'atk', 'def'].forEach(attr => {
       const ri = rollRarity(wave);
-      out.push({ t: 'attr', key: 'a:' + attr, attr, ri, val: CFG.attr[attr].vals[ri] });
+      out.push({ t: 'attr', key: 'a:' + attr, attr, ri, val: CFG.attr ? CFG.attr[attr].vals[ri] : [19, 36, 59, 90, 138][ri] });
     });
     return out;
   }
 
-  const ATTR_ICON = {
-    hp: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>',
-    atk: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.9 14.55 8.2v6.75h-5.1V8.2L12 1.9z"/><path d="M6.9 15.55h10.2v2.15H6.9z"/><path d="M10.6 17.7h2.8v4.4h-2.8z"/></svg>',
-    def: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.7 3.5 5v6.3c0 5.15 3.55 9.75 8.5 11.3 4.95-1.55 8.5-6.15 8.5-11.3V5L12 1.7z"/></svg>'
+  const ATTR_META = {
+    hp:  { label: '生命', icon: '❤', vals: [19, 36, 59, 90, 138], note: '提升生命上限，并立即恢复等量生命' },
+    atk: { label: '攻击', icon: '⚔', vals: [6, 9, 13, 20, 29],    note: '每次射击造成更高伤害' },
+    def: { label: '防御', icon: '🛡', vals: [2, 3, 4, 6, 9],      note: '减免受到的伤害' }
   };
 
   function renderCard(card) {
-    const meta = CFG.attr[card.attr];
+    const meta = ATTR_META[card.attr];
     const rar = rarOf(card.ri);
     const node = document.createElement('div');
     node.className = 'up-card' + (card.ri === 4 ? ' gold' : '');
     node.style.setProperty('--c', rar.c);
     node.innerHTML =
       '<div class="card-rar">' + rar.name + '</div>' +
-      '<div class="card-icon">' + ATTR_ICON[card.attr] + '</div>' +
+      '<div class="card-icon">' + meta.icon + '</div>' +
       '<div class="card-name">' + meta.label + '</div>' +
       '<div class="card-val">+' + card.val + '</div>' +
       '<div class="card-note">' + meta.note + '</div>';
@@ -53,7 +54,8 @@
   }
 
   function renderEqPanel() {
-    el.eqPanel.innerHTML = '';
+    const panel = G.el.eqPanel;
+    panel.innerHTML = '';
     SLOTS.forEach(slot => {
       const it = itemAt(state.player, slot.key);
       const cell = document.createElement('div');
@@ -75,37 +77,37 @@
             '<div class="eq-cell-eff">战利品可填补此位</div>' +
           '</div>';
       }
-      el.eqPanel.appendChild(cell);
+      panel.appendChild(cell);
     });
   }
 
   function showUpgrade() {
     state.phase = 'upgrade';
-    el.upSub.textContent = '第 ' + state.wave + ' 波已征服 · 提升一项属性';
-    el.curHp.textContent = fmt(state.player.maxHp);
-    el.curAtk.textContent = fmt(state.player.atk);
-    el.curDef.textContent = fmt(state.player.def);
+    G.el.upSub.textContent = '第 ' + state.wave + ' 波已征服 · 提升一项属性';
+    G.el.curHp.textContent = G.fmt(state.player.maxHp);
+    G.el.curAtk.textContent = G.fmt(state.player.atk);
+    G.el.curDef.textContent = G.fmt(state.player.def);
 
     const cards = makeCards(state.wave);
-    el.cards.innerHTML = '';
+    G.el.cards.innerHTML = '';
     cards.forEach(card => {
       const node = renderCard(card);
       node.addEventListener('click', () => chooseUpgrade(card, node));
-      el.cards.appendChild(node);
+      G.el.cards.appendChild(node);
     });
 
     G.renderLoot();
     renderEqPanel();
-    el.upOverlay.classList.add('show');
-    sfxUpgrade();
+    G.el.upgradeOverlay.classList.add('show');
+    G.sfxUpgrade();
   }
 
-  async function chooseUpgrade(card, node) {
+  function chooseUpgrade(card, node) {
     if (state.phase !== 'upgrade') return;
 
     // 战利品尚未处理完时，先要求做出决定
     if (G.lootPending() > 0) {
-      const box = el.lootBox;
+      const box = G.el.lootBox;
       if (box) {
         box.classList.remove('nudge');
         void box.offsetWidth;
@@ -116,7 +118,7 @@
 
     state.phase = 'busy';
 
-    Array.from(el.cards.children).forEach(c => {
+    Array.from(G.el.cards.children).forEach(c => {
       if (c === node) c.classList.add('picked');
       else c.classList.add('dim');
     });
@@ -131,24 +133,13 @@
     } else {
       p.baseDef += card.val;
     }
-    refresh(p);
+    G.refresh(p);
 
-    const justSlots = state.lootSlots.slice();
+    G.tone({ freq: 660, type: 'sine', dur: 0.18, vol: 0.1 });
 
-    tone({ freq: 660, type: 'sine', dur: 0.18, vol: 0.1 });
-    await sleep(520);
-
-    el.upOverlay.classList.remove('show');
-    await sleep(260);
-
+    G.el.upgradeOverlay.classList.remove('show');
     G.clearLoot();
-    state.wave += 1;
-
-    // 事件在波次奖励（掉落 + 属性卡）全部结算后才触发，不吞奖励
-    if (G.triggerEvent && G.triggerEvent()) {
-      return;   // 事件选择完成后由 chooseEventOption 调用 advanceWave
-    }
-    G.startWave(justSlots);
+    G.advanceWave();
   }
 
   Object.assign(G, { rollRarity, makeCards, renderCard, renderEqPanel, showUpgrade, chooseUpgrade });

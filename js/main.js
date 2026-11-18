@@ -1,62 +1,45 @@
 /* ============================================================
-   入口层 · main.js
-   事件绑定与启动。必须是最后一个加载的脚本，
-   此时 G 上所有能力都已就位。
+   入口 · main.js
+   初始化 DOM 引用、绑定按钮、启动引擎
    ============================================================ */
 (function (G) {
   'use strict';
 
-  const { CFG, state, el, tone, toggleMute, isMuted,
-          buildTrack, startWave, doRound, resetGame } = G;
+  function boot() {
+    G.ui.initDom();
+    G.render.init();
 
-  /* ---------- 战斗操作 ---------- */
-  el.attackBtn.addEventListener('click', () => doRound('attack'));
-  el.defendBtn.addEventListener('click', () => doRound('defend'));
+    // 按钮
+    G.el.restartBtn.addEventListener('click', () => { G.startRun(); });
+    G.el.againBtn.addEventListener('click', () => {
+      G.el.overOverlay.classList.remove('show');
+      G.startRun();
+    });
+    G.el.soundBtn.addEventListener('click', () => {
+      const muted = G.toggleMute();
+      G.el.soundBtn.textContent = muted ? '🔇' : '🔊';
+    });
 
-  /* ---------- 重开 ---------- */
-  el.againBtn.addEventListener('click', resetGame);
-  el.restartBtn.addEventListener('click', () => {
-    if (state.phase === 'busy') return;
-    resetGame();
-  });
-
-  /* ---------- 音效开关 ---------- */
-  el.soundBtn.textContent = isMuted() ? '🔇' : '🔊';
-  el.soundBtn.addEventListener('click', () => {
-    const muted = toggleMute();
-    el.soundBtn.textContent = muted ? '🔇' : '🔊';
-    if (!muted) tone({ freq: 660, type: 'sine', dur: 0.1, vol: 0.08 });
-  });
-
-  /* ---------- 键盘 ---------- */
-  document.addEventListener('keydown', e => {
-    if (e.repeat) return;
-    // 详情面板打开时，除 Esc（面板自己处理）外一律不响应
-    if (state.paused) return;
-
-    if (e.code === 'Space' || e.key === 'Enter') {
-      e.preventDefault();
-      doRound('attack');
-    } else if (e.key === 'd' || e.key === 'D' || e.key === 'f' || e.key === 'F') {
-      e.preventDefault();
-      doRound('defend');
-    } else if (e.key === 'r' || e.key === 'R') {
-      if (state.phase !== 'busy') resetGame();
-    } else if (e.key >= '1' && e.key <= '4') {
-      // 数字键切换攻击目标
-      const idx = Number(e.key) - 1;
-      if (state.phase === 'battle' && state.foes[idx] && state.foes[idx].hp > 0) {
-        state.target = idx;
-        G.renderBars();
-        G.setTip('攻击 ' + state.foes[idx].name);
+    // R 键快速重开
+    G.onKeyDown = k => {
+      if (k === 'r' && (G.state.phase === 'over' || G.state.phase === 'play')) {
+        if (G.state.phase === 'over') G.el.overOverlay.classList.remove('show');
+        G.startRun();
       }
-    }
-  });
+    };
 
-  /* ---------- 启动 ---------- */
-  if (state.best > 0) el.recordNum.textContent = state.best;
-  buildTrack();
-  state.player = G.makeUnit(CFG.player);
-  startWave();
+    // 首次交互后解锁音频（浏览器自动播放策略）
+    const unlock = () => { G.tone({ freq: 1, dur: 0.01, vol: 0.001 }); };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
 
+    G.startRun();
+    G.engine.start(G.update, G.render.frame);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
 })(window.ABYSS = window.ABYSS || {});

@@ -1,15 +1,13 @@
 /* ============================================================
-   系统层 · equipment.js
+   游戏层 · equipment.js
    装备实例构建、属性聚合、生命/攻击/防御重算、词条描述
+   （从回合制版本移植，逻辑不变）
    ============================================================ */
 (function (G) {
   'use strict';
 
   const { CFG, RARITY, SLOTS, ITEM_DEFS, clamp } = G;
 
-  /* =========================================================
-     装备逻辑
-     ========================================================= */
   function rarOf(idx) { return RARITY[clamp(idx, 0, 4)]; }
 
   function buildItem(slotKey, defIdx, rarIdx, level) {
@@ -70,7 +68,7 @@
     const A = {
       atkFlat: 0, defFlat: 0, hpFlat: 0,
       bleed: null, crit: 0, critMult: 1.6, leech: 0, thorn: 0,
-      guard: 0, bulwark: 0, vamp: 0, dotres: 0, shieldstart: 0, pierce: 0
+      guard: 0, bulwark: 0, vamp: 0, dotres: 0, swiftstep: 0, pierce: 0
     };
     items.forEach(it => {
       if (it.statK === 'atk') A.atkFlat += it.statV;
@@ -83,7 +81,6 @@
           if (!A.bleed || e.dmg > A.bleed.dmg) A.bleed = { dmg: e.dmg, turns: e.turns };
           break;
         case 'crit':
-          // 多件暴击装备只取最快节拍（数值更小 = 更频繁）
           A.crit = A.crit ? Math.min(A.crit, e.every) : e.every;
           A.critMult = Math.max(A.critMult, e.mult);
           break;
@@ -93,7 +90,7 @@
         case 'bulwark': A.bulwark += e.pct; break;
         case 'vamp': A.vamp += e.pct; break;
         case 'dotres': A.dotres += e.pct; break;
-        case 'shieldstart': A.shieldstart += e.shield; break;
+        case 'swiftstep': A.swiftstep += e.pct; break;
         case 'pierce': A.pierce += e.pct; break;
       }
     });
@@ -122,21 +119,11 @@
     return u.items.find(i => i.slot === slotKey) || null;
   }
 
-  /** 防御时获得的护盾值：基础 + 防御成长 + 壁垒甲加成 */
-  function defendValue(u) {
-    return Math.round(CFG.defend.base + u.def * CFG.defend.defMul + u.agg.guard);
-  }
-
-  /** 护盾上限：最大生命的固定比例 */
-  function shieldCap(u) {
-    return Math.floor(u.maxHp * CFG.defend.capPct);
-  }
-
-  /** 开局护盾：守望头盔的固定护盾，每波开始时施加（双方通用） */
+  /** 开局护盾（壁垒甲）：每波开始时施加 */
   function startShield(u) {
     if (!u || !u.agg) return 0;
-    return Math.max(0, Math.min(shieldCap(u), Math.round(u.agg.shieldstart)));
+    return Math.max(0, Math.round(u.agg.guard));
   }
 
-  Object.assign(G, { rarOf, buildItem, randomItem, cloneItem, upgradePath, itemDesc, itemDescText, aggregate, recalc, refresh, itemAt, defendValue, shieldCap, startShield });
+  Object.assign(G, { rarOf, buildItem, randomItem, cloneItem, upgradePath, itemDesc, itemDescText, aggregate, recalc, refresh, itemAt, startShield });
 })(window.ABYSS = window.ABYSS || {});

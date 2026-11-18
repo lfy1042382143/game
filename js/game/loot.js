@@ -1,25 +1,28 @@
 /* ============================================================
-   系统层 · loot.js
-   战利品：击杀后怪物身上的每件装备都会掉落，逐件决定
-   装备 / 吸收强化 / 吸收升华 / 替换 / 放弃
+   游戏层 · loot.js
+   战利品：波次全灭后，敌人身上的每件装备都会掉落，
+   逐件决定 装备 / 吸收强化 / 吸收升华 / 替换 / 放弃
    ============================================================ */
 (function (G) {
   'use strict';
 
-  const { SLOTS, state, el, rarOf, cloneItem, upgradePath, itemAt, itemDesc, refresh, render, tone } = G;
+  const { state, SLOTS, rarOf, itemAt, upgradePath, itemDesc } = G;
 
   /* =========================================================
-     掉落与决策
+     掉落
      ========================================================= */
 
-  /** 击杀后取怪物全部装备作为战利品（逐件复制为独立实例） */
-  function rollLoot(monster) {
-    if (!monster || !monster.items || !monster.items.length) return [];
-    return monster.items.map(it => {
-      // 带词缀的敌人「高风险高回报」：掉落物稀有度 +1（封顶传说），需重建以重算属性
-      const rar = monster.affix ? Math.min(4, it.rarity + 1) : it.rarity;
-      const copy = G.buildItem(it.slot, G.ITEM_DEFS[it.slot].indexOf(it.def), rar, it.level);
-      return { item: copy, done: false, result: '', slot: copy.slot };
+  /** 全灭后收集本波所有敌人的装备作为战利品（逐件复制为独立实例） */
+  function rollLoot() {
+    state.loots = [];
+    state.foes.forEach(foe => {
+      if (!foe.items || !foe.items.length) return;
+      foe.items.forEach(it => {
+        // 带词缀的敌人「高风险高回报」：掉落物稀有度 +1（封顶传说）
+        const rar = foe.affix ? Math.min(4, it.rarity + 1) : it.rarity;
+        const copy = G.buildItem(it.slot, G.ITEM_DEFS[it.slot].indexOf(it.def), rar, it.level);
+        state.loots.push({ item: copy, done: false, result: '', slot: copy.slot });
+      });
     });
   }
 
@@ -41,14 +44,9 @@
     return { mode: 'swap', cur };
   }
 
-  const PLAN_TEXT = {
-    new: '空置槽位 · 直接装备',
-    swap: '已有不同装备，装备后将替换'
-  };
-
   function planLabel(plan) {
     switch (plan.mode) {
-      case 'new': return PLAN_TEXT.new;
+      case 'new': return '空置槽位 · 直接装备';
       case 'upgrade': return '与现有装备同款 · 吸收强化 <b>Lv.' + plan.cur.level + ' → Lv.' + plan.next.level + '</b>';
       case 'ascend': return '与现有装备同款且已满级 · 吸收升华 <b>' + rarOf(plan.cur.rarity).name + ' → ' + rarOf(plan.cur.rarity + 1).name + '</b>';
       case 'swap': return '现有 <b>' + plan.cur.name + ' Lv.' + plan.cur.level + '</b>（' + rarOf(plan.cur.rarity).name + '），替换后旧装备丢弃';
@@ -68,13 +66,6 @@
   /* =========================================================
      渲染
      ========================================================= */
-  function syncStats() {
-    const p = state.player;
-    if (el.curHp) el.curHp.textContent = G.fmt(p.maxHp);
-    if (el.curAtk) el.curAtk.textContent = G.fmt(p.atk);
-    if (el.curDef) el.curDef.textContent = G.fmt(p.def);
-  }
-
   function slotNameOf(key) {
     const s = SLOTS.find(x => x.key === key);
     return s ? s.name : '';
@@ -116,7 +107,7 @@
   }
 
   function renderLoot() {
-    const box = el.lootBox;
+    const box = G.el.lootBox;
     if (!box) return;
 
     // 同款已满级（传说 Lv.5）时没有任何操作空间，直接判为已处理，
@@ -135,22 +126,19 @@
     if (!loots.length) {
       box.classList.remove('show');
       box.className = 'loot';
-      el.cards.classList.remove('locked');
+      G.el.cards.classList.remove('locked');
       return;
     }
 
     const pending = lootPending();
     const allDone = pending === 0;
 
+    const fromNames = state.foes.map(f => f.name).slice(0, 3).join('、');
     const head =
       '<div class="loot-head">' +
         '<span class="loot-title">战利品</span>' +
-        '<span class="loot-from">来自' +
-          (state.foes && state.foes.length > 1
-            ? '「' + state.foes.length + ' 个敌人」'
-            : '「' + (state.monster ? state.monster.name : '敌人') + '」') +
-          (loots.length > 1 ? ' · 共 ' + loots.length + ' 件' : '') +
-        '</span>' +
+        '<span class="loot-from">来自「' + fromNames + (state.foes.length > 3 ? ' 等' : '') + '」' +
+          (loots.length > 1 ? ' · 共 ' + loots.length + ' 件' : '') + '</span>' +
         (allDone
           ? ''
           : '<span class="loot-hint">' + (pending > 1 ? '还有 ' + pending + ' 件待处理' : '处理后可选属性') + '</span>') +
@@ -162,7 +150,7 @@
       '<div class="loot-list">' + loots.map(rowHtml).join('') + '</div>';
 
     // 未处理完则锁定属性卡
-    el.cards.classList.toggle('locked', !allDone);
+    G.el.cards.classList.toggle('locked', !allDone);
 
     box.querySelectorAll('[data-act]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -204,16 +192,15 @@
       text = '已替换为 <b>' + loot.name + '</b> Lv.' + loot.level;
     }
 
-    refresh(p);
+    G.refresh(p);
     entry.done = true;
     entry.result = text;
     entry.slot = loot.slot;
     state.lootSlots.push(loot.slot);
 
-    tone({ freq: 720, type: 'sine', dur: 0.16, vol: 0.09 });
+    G.tone({ freq: 720, type: 'sine', dur: 0.16, vol: 0.09 });
 
-    syncStats();
-    render(true);
+    G.ui.syncTopbar();
     renderLoot();
   }
 
@@ -223,7 +210,7 @@
     entry.done = true;
     entry.skipped = true;
     entry.result = '已放弃';
-    tone({ freq: 300, type: 'sine', dur: 0.12, vol: 0.06 });
+    G.tone({ freq: 300, type: 'sine', dur: 0.12, vol: 0.06 });
     renderLoot();
   }
 
@@ -237,7 +224,7 @@
       n++;
     });
     if (!n) return;
-    tone({ freq: 300, type: 'sine', dur: 0.12, vol: 0.06 });
+    G.tone({ freq: 300, type: 'sine', dur: 0.12, vol: 0.06 });
     renderLoot();
   }
 
@@ -245,15 +232,15 @@
   function clearLoot() {
     state.loots = [];
     state.lootSlots = [];
-    if (el.lootBox) {
-      el.lootBox.innerHTML = '';
-      el.lootBox.className = 'loot';
+    if (G.el.lootBox) {
+      G.el.lootBox.innerHTML = '';
+      G.el.lootBox.className = 'loot';
     }
-    if (el.cards) el.cards.classList.remove('locked');
+    if (G.el.cards) G.el.cards.classList.remove('locked');
   }
 
   Object.assign(G, {
     rollLoot, lootPending, planFor, renderLoot,
-    takeLoot, skipLoot, skipAll, clearLoot, syncStats
+    takeLoot, skipLoot, skipAll, clearLoot
   });
 })(window.ABYSS = window.ABYSS || {});
