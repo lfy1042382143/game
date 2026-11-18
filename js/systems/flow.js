@@ -135,6 +135,13 @@
     }
     state.actPtr = (state.actPtr + actCount) % alive.length;
 
+    // 迅捷词缀：每回合都行动（不参与轮流），额外加入行动列表
+    alive.forEach(foe => {
+      if (foe.affix && foe.affix.key === 'swift' && !acting.includes(foe)) {
+        acting.push(foe);
+      }
+    });
+
     for (const foe of acting) {
       if (foe.hp <= 0) continue;
       if (p.hp <= 0) break;
@@ -202,6 +209,21 @@
     });
     p.defended = false;
 
+    // 再生词缀：每 3 回合回复 8% 生命
+    state.foes.forEach(foe => {
+      if (foe.hp <= 0 || !foe.affix || foe.affix.key !== 'regen') return;
+      foe.regenTick = (foe.regenTick || 0) + 1;
+      if (foe.regenTick >= 3) {
+        foe.regenTick = 0;
+        const heal = Math.max(1, Math.round(foe.maxHp * 0.08));
+        const gained = healUnit(foe, heal);
+        if (gained > 0) {
+          floatNum(foeHost(foe), '+' + gained + ' 再生', 'heal');
+          render();
+        }
+      }
+    });
+
     render();
     state.phase = 'battle';
     setTip(state.round >= CFG.rage.start ? '第 ' + state.round + ' 回合 · 敌方狂暴' : '选择目标 · 你的回合', state.round >= CFG.rage.start);
@@ -231,17 +253,14 @@
     render();
 
     await sleep(500);
-    // 掉落 = 所有敌人身上的装备合并
+    // 掉落 = 所有敌人身上的装备合并（波次奖励，与波次绑定，永远先结算）
     state.loots = [];
     state.foes.forEach(foe => {
       state.loots = state.loots.concat(G.rollLoot(foe));
     });
     state.lootSlots = [];
 
-    // 先结算场景事件（若有），否则直接进入升级
-    if (G.triggerEvent && G.triggerEvent()) {
-      return;   // 事件选择完成后会调用 advanceWave
-    }
+    // 进入升级界面：先处理掉落 + 选属性卡，事件在升级完成后才触发
     showUpgrade();
   }
 

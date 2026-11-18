@@ -156,7 +156,7 @@
         el.setFoeCard(foe, card);
       });
     } else {
-      // 复用：更新名称、头像、皇冠（波次变化时可能变）
+      // 复用：更新名称、头像、皇冠、词缀（波次变化时可能变）
       state.foes.forEach((foe, i) => {
         const card = cards[i];
         el.setFoeCard(foe, card);
@@ -165,6 +165,15 @@
         card.querySelector('.crown').style.display = foe.boss ? '' : 'none';
         card.classList.toggle('boss', !!foe.boss);
         card.classList.toggle('elite', !!foe.elite && !foe.boss);
+        const affixEl = card.querySelector('.affix-tag');
+        if (affixEl) affixEl.remove();
+        if (foe.affix) {
+          const tag = document.createElement('span');
+          tag.className = 'affix-tag';
+          tag.title = foe.affix.name + ' · ' + foe.affix.desc;
+          tag.textContent = foe.affix.icon + ' ' + foe.affix.name;
+          card.querySelector('.name-row').appendChild(tag);
+        }
         renderEquip(card.querySelector('.eq-row'), foe);
         renderStatus(card.querySelector('.status-row'), foe);
       });
@@ -181,6 +190,9 @@
       '<div class="name-row">' +
         '<span class="crown" style="display:' + (foe.boss ? '' : 'none') + '">👑</span>' +
         '<span class="name">' + foe.name + '</span>' +
+        (foe.affix
+          ? '<span class="affix-tag" title="' + foe.affix.name + ' · ' + foe.affix.desc + '">' + foe.affix.icon + ' ' + foe.affix.name + '</span>'
+          : '') +
         '<button class="info-btn" data-inspect="foe" title="查看敌方属性与装备详情">ⓘ</button>' +
       '</div>' +
       '<div class="avatar-wrap">' +
@@ -226,11 +238,12 @@
   }
 
   function render(pop) {
+    // 必须先渲染敌人卡片（建立 WeakMap 映射），renderBars 才能给选中目标加高亮
+    if (state.foes.length) renderFoes();
     renderBars();
     renderStats(pop);
     renderButtons();
     if (state.player) renderEquip(el.allyEq, state.player);
-    if (state.foes.length) renderFoes();
     if (state.player) renderStatus(el.allyStatus, state.player);
   }
 

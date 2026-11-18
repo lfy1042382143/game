@@ -39,6 +39,12 @@
     const effDef = defender.def * (1 - Math.min(60, A.pierce) / 100);
     let dmg = Math.max(attacker.atk - effDef, attacker.atk * 0.15);
 
+    // 狂怒词缀：血量越低攻击越高（最高 +80%）
+    if (attacker.affix && attacker.affix.key === 'frenzy') {
+      const hpRatio = attacker.hp / attacker.maxHp;
+      dmg *= 1 + 0.8 * (1 - hpRatio);
+    }
+
     // 暴击为固定节拍：第 N 次攻击必定触发，双方都可精确预判
     let crit = false;
     attacker.strikes = (attacker.strikes || 0) + 1;
@@ -70,6 +76,11 @@
     if (D.thorn > 0 && attacker.hp > 0) {
       const reflected = dealDamage(attacker, D.thorn);
       floatNum(fxHost(attacker), (reflected === 0 ? '格挡 ' : '') + '-' + (reflected === 0 ? D.thorn : reflected), reflected === 0 ? 'block' : 'hurt');
+    }
+    // 尖刺词缀：被攻击时反弹固定伤害（可被护盾吸收）
+    if (defender.affix && defender.affix.key === 'spikes' && applied > 0 && attacker.hp > 0) {
+      const reflected = dealDamage(attacker, 3);
+      floatNum(fxHost(attacker), (reflected === 0 ? '格挡 ' : '') + '-3', reflected === 0 ? 'block' : 'hurt');
     }
     // 施加流血
     if (A.bleed && defender.hp > 0) {

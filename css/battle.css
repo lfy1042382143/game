@@ -146,6 +146,20 @@
   border-radius: 5px;
 }
 
+/* 敌人词缀标签（行为差异，玩家可预判） */
+.affix-tag {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  color: #ffd78a;
+  background: rgba(245, 158, 11, .16);
+  border: 1px solid rgba(245, 158, 11, .42);
+  padding: 1px 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
 .fighter {
   flex: 0 1 auto;
   width: clamp(170px, 23vw, 286px);

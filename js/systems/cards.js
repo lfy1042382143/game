@@ -143,6 +143,11 @@
 
     G.clearLoot();
     state.wave += 1;
+
+    // 事件在波次奖励（掉落 + 属性卡）全部结算后才触发，不吞奖励
+    if (G.triggerEvent && G.triggerEvent()) {
+      return;   // 事件选择完成后由 chooseEventOption 调用 advanceWave
+    }
     G.startWave(justSlots);
   }
 

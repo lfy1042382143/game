@@ -15,12 +15,12 @@
   /** 击杀后取怪物全部装备作为战利品（逐件复制为独立实例） */
   function rollLoot(monster) {
     if (!monster || !monster.items || !monster.items.length) return [];
-    return monster.items.map(it => ({
-      item: cloneItem(it),
-      done: false,
-      result: '',
-      slot: it.slot
-    }));
+    return monster.items.map(it => {
+      // 带词缀的敌人「高风险高回报」：掉落物稀有度 +1（封顶传说），需重建以重算属性
+      const rar = monster.affix ? Math.min(4, it.rarity + 1) : it.rarity;
+      const copy = G.buildItem(it.slot, G.ITEM_DEFS[it.slot].indexOf(it.def), rar, it.level);
+      return { item: copy, done: false, result: '', slot: copy.slot };
+    });
   }
 
   /** 还有几件没处理 */

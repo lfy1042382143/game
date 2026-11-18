@@ -5,7 +5,7 @@
 (function (G) {
   'use strict';
 
-  const { CFG, SLOTS, MONSTER_POOL, BOSS_POOL, PREFIX, pick, clamp, makeUnit, randomItem, refresh, state, el } = G;
+  const { CFG, SLOTS, MONSTER_POOL, BOSS_POOL, PREFIX, AFFIXES, pick, clamp, makeUnit, randomItem, refresh, state, el } = G;
 
   /* =========================================================
      怪物
@@ -115,6 +115,18 @@
       // 泉水事件：下波敌人攻击提升
       if (state.pendingRage) {
         u.baseAtk = Math.round(u.baseAtk * 1.25);
+        refresh(u);
+      }
+
+      // 敌人词缀：从 firstAt 波起、每 every 波普遍带词缀，按位置确定性轮换
+      // 真 BOSS 不带词缀（首领行为已特殊），精英与随从才带
+      const A = CFG.affixes;
+      u.affix = null;
+      if (wave >= A.firstAt && (wave - A.firstAt) % A.every === 0 && !(isBoss && i === 0)) {
+        const offset = (Math.floor((wave - A.firstAt) / A.every) + i) % AFFIXES.length;
+        const affix = AFFIXES[offset];
+        u.affix = affix;
+        affix.apply(u);
         refresh(u);
       }
 

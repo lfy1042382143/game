@@ -38,7 +38,9 @@
       guardUsed: 0,      // 本波已举盾次数（怪物 AI 用）
       lastAct: '',       // 上一回合动作，避免连续举盾
       maxHp: 0, hp: 0, atk: 0, def: 0, agg: null, isMon: false,
-      elite: false       // 是否为精英怪（小队中较强的一只）
+      elite: false,      // 是否为精英怪（小队中较强的一只）
+      affix: null,       // 敌人词缀（行为差异，见 config.AFFIXES）
+      regenTick: 0       // 再生词缀的回合计数
     };
     u.agg = aggregate(u.items);
     recalc(u);

@@ -80,14 +80,18 @@
       options: [
         {
           label: '交易装备',
-          desc: '损失 15% 当前生命，获得一件随机部位装备',
+          desc: '损失 15% 当前生命，获得一件随机部位装备（自动装备/替换）',
           apply(p) {
             p.hp = Math.max(1, Math.round(p.hp * 0.85));
-            // 随机部位、中等稀有度
             const slot = G.SLOTS[Math.floor(Math.random() * G.SLOTS.length)].key;
             const rar = Math.min(4, Math.floor(state.wave * CFG.mon.rarK));
             const item = G.randomItem(slot, rar, Math.min(CFG.forge.maxLevel, 1 + Math.floor((state.wave - 1) / CFG.mon.eqLvEvery)));
-            state.eventLoot = item;
+            // 直接装备：同部位替换（商人的货，不做逐件决策，交易即得）
+            const cur = G.itemAt(p, slot);
+            const idx = p.items.findIndex(i => i.slot === slot);
+            if (idx >= 0) p.items[idx] = item;
+            else p.items.push(item);
+            G.refresh(p);
           }
         },
         {
@@ -123,21 +127,23 @@
   /* =========================================================
      触发判定：每 every 波一次，从 firstAt 开始
      ========================================================= */
-  function eventDue() {
+  function eventDue(wave) {
+    const w = wave === undefined ? state.wave : wave;
     const E = CFG.events;
-    return state.wave >= E.firstAt && (state.wave - E.firstAt) % E.every === 0;
+    return w >= E.firstAt && (w - E.firstAt) % E.every === 0;
   }
 
   /** 按波次确定性轮换事件种类（不掷骰，可预测） */
-  function rollEvent() {
-    const idx = Math.floor((state.wave - CFG.events.firstAt) / CFG.events.every) % EVENTS.length;
+  function rollEvent(wave) {
+    const w = wave === undefined ? state.wave : wave;
+    const idx = Math.floor((w - CFG.events.firstAt) / CFG.events.every) % EVENTS.length;
     return EVENTS[idx];
   }
 
   /* =========================================================
      渲染与交互
      ========================================================= */
-  function renderEvent(evt) {
+  function renderEvent(evt, wave) {
     const box = el.eventBox;
     const title = el.eventTitle;
     const icon = el.eventIcon;
@@ -171,30 +177,20 @@
 
     const p = state.player;
     opt.apply(p);
-    state.eventLoot = state.eventLoot || null;
     render(true);
     tone({ freq: 620, type: 'sine', dur: 0.18, vol: 0.1 });
 
-    // 商人交易掉落 → 直接进战利品，进入升级界面由玩家处理
-    if (state.eventLoot) {
-      state.loots = [{ item: state.eventLoot, done: false, result: '', slot: state.eventLoot.slot }];
-      state.eventLoot = null;
-    }
-
     setTimeout(() => {
-      // 进入下一波（战利品若有则在升级界面处理）
-      if (state.loots && state.loots.length) {
-        showUpgrade();
-      } else {
-        G.advanceWave();
-      }
+      G.advanceWave();
     }, 260);
   }
 
-  /** 事件入口：胜利结算后、进入升级/下一波前触发 */
+  /** 事件入口：结算刚征服的波（wave 已 +1，故传入 wave-1） */
   function triggerEvent() {
-    if (!eventDue()) return false;
-    const evt = rollEvent();
+    // 传入刚征服的波次：调用时 state.wave 已 +1，用 wave-1 判定
+    const cleared = state.wave - 1;
+    if (!eventDue(cleared)) return false;
+    const evt = rollEvent(cleared);
     state.phase = 'event';
     renderEvent(evt);
     sfxUpgrade();

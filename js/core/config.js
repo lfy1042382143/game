@@ -53,6 +53,13 @@
       firstAt: 3        // 首个事件出现的波次
     },
 
+    // 敌人词缀：给敌人赋予行为差异，打破「无脑攻击」的单调
+    // 分配规则确定性（按波次+位置固定轮换，不掷骰），玩家可见可预判
+    affixes: {
+      firstAt: 3,       // 从第 3 波起开始出现词缀
+      every: 2          // 之后每 N 波敌人普遍带词缀（3、5、7...）
+    },
+
     heal: { min: 12, pct: 0.24, base: 18, perWave: 2.6 },
     defend: { base: 8, defMul: 2.4, capPct: 0.5, decay: 0.7 },
     rage: { start: 14, per: 0.12 },
@@ -190,5 +197,35 @@
   ];
   const PREFIX = ['狂暴的', '腐朽的', '幽暗的', '嗜血的', '远古的', '被诅咒的', '游荡的'];
 
-  Object.assign(G, { CFG, RARITY, SLOTS, ITEM_DEFS, MONSTER_POOL, BOSS_POOL, PREFIX });
+  /* ---------- 敌人词缀：行为差异（确定性分配，玩家可预判） ----------
+     每个词缀都是「强化 + 弱点」的双刃剑，玩家针对弱点打就有优势 */
+  const AFFIXES = [
+    {
+      key: 'armored', name: '重甲', icon: '🛡️',
+      desc: '防御 ×1.8，但生命 −20%（破甲装备克制）',
+      apply(u) { u.baseDef = Math.round(u.baseDef * 1.8); u.baseHp = Math.round(u.baseHp * 0.8); }
+    },
+    {
+      key: 'swift', name: '迅捷', icon: '⚡',
+      desc: '每回合都行动，但生命 −25%（优先集火）',
+      apply(u) { u.baseHp = Math.round(u.baseHp * 0.75); }
+    },
+    {
+      key: 'frenzy', name: '狂怒', icon: '🔥',
+      desc: '血量越低攻击越高（最高 +80%），但防御 −40%（速杀）',
+      apply(u) { u.baseDef = Math.round(u.baseDef * 0.6); }
+    },
+    {
+      key: 'regen', name: '再生', icon: '🌿',
+      desc: '每 3 回合回复 8% 生命，但攻击 −30%（持续输出克制）',
+      apply(u) { u.baseAtk = Math.round(u.baseAtk * 0.7); }
+    },
+    {
+      key: 'spikes', name: '尖刺', icon: '🦔',
+      desc: '被攻击反弹 3 点伤害，但防御 −40%（护盾/破甲克制）',
+      apply(u) { u.baseDef = Math.round(u.baseDef * 0.6); }
+    }
+  ];
+
+  Object.assign(G, { CFG, RARITY, SLOTS, ITEM_DEFS, MONSTER_POOL, BOSS_POOL, PREFIX, AFFIXES });
 })(window.ABYSS = window.ABYSS || {});

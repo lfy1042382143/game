@@ -95,6 +95,7 @@
     if (a.shieldstart > 0) list.push(['开局护盾', '+' + Math.round(a.shieldstart) + ' · 整波保留', 'on']);
     list.push(['防御护盾', '+' + defendValue(u), '']);
     if (u.isMon) list.push(['举盾节奏', u.guardUsed + ' / ' + (a.guard > 0 ? 3 : 2) + ' 次' + (a.guard > 0 ? '（壁垒甲 +1）' : ''), '']);
+    if (u.affix) list.push(['词缀 · ' + u.affix.name, u.affix.desc, 'on']);
 
     iv.traits.innerHTML = list.map(([k, v, cls]) =>
       '<div class="ins-trait ' + cls + '"><span>' + k + '</span><b>' + v + '</b></div>'
