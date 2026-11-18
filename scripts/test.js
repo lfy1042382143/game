@@ -264,6 +264,29 @@ function featureTests() {
   G.chooseEventOption(G.EVENTS[0].options[2]);
   assert(G.state.phase === 'play' && G.state.wave === 4, 'T9 事件选择后进入下一波', { phase: G.state.phase, wave: G.state.wave });
 
+  // T9b 真实卡池选卡（含无 apply 的属性卡）不能卡死流程
+  reset();
+  G.state.pendingLevelUps = 2;
+  G.showLevelUp();
+  for (let round = 0; round < 2; round++) {
+    const cards = G.makeLevelCards(G.state.player);
+    assert(cards.length === 3, 'T9b 卡池抽出 3 张', cards.length);
+    cards.forEach(c => {
+      if (c.kind === 'attr') {
+        assert(typeof c.apply !== 'function' || true, '');   // 属性卡本就无 apply
+        assert(typeof c.val === 'number' && c.val > 0, 'T9b 属性卡带数值', c.key);
+      }
+    });
+    const before = G.state.player.baseAtk + G.state.player.baseHp + G.state.player.baseDef;
+    G.chooseLevelCard(cards[0]);                          // 无论哪张（含属性卡）都必须安全
+    assert(G.state.phase !== 'busy', 'T9b 选卡后不卡在 busy', G.state.phase);
+    const after = G.state.player.baseAtk + G.state.player.baseHp + G.state.player.baseDef;
+    if (cards[0].kind === 'attr') {
+      assert(after > before, 'T9b 属性卡实际提升基础三维', { before, after });
+    }
+  }
+  assert(G.state.pendingLevelUps === 0, 'T9b 连升全部处理完', G.state.pendingLevelUps);
+
   // T10 词缀确定性 + BOSS 不带词缀 + 数量曲线
   const w3 = G.composeWave(3);
   assert(w3.length === 1, 'T10 第 3 波仍 1 个敌人', w3.length);

@@ -168,10 +168,13 @@
     if (state.phase !== 'levelup') return;
     state.phase = 'busy';
 
-    const p = state.player;
-    card.apply(p);
-    if (card.kind === 'attr' && card.attr === 'hp') p.hp += card.val;   // 生命卡立即回血
-    G.refresh(p);
+    // 兜底：任何卡效果抛异常都不能把游戏永久卡死
+    try {
+      applyCard(card);
+    } catch (err) {
+      if (typeof console !== 'undefined' && console.error) console.error('升级卡效果异常:', err);
+    }
+
     G.ui.syncTopbar();
 
     G.el.upgradeOverlay.classList.remove('show');
@@ -186,6 +189,21 @@
       G.showLoot();
     } else {
       state.phase = 'play';
+    }
+  }
+
+  function applyCard(card) {
+    const p = state.player;
+    if (card.kind === 'attr') {
+      // 属性卡：加到基础三维（与升级自动成长同路），经 refresh 与装备聚合后生效
+      if (card.attr === 'hp') p.baseHp += card.val;
+      else if (card.attr === 'atk') p.baseAtk += card.val;
+      else p.baseDef += card.val;
+      G.refresh(p);
+      if (card.attr === 'hp') G.healUnit(p, card.val);   // 生命卡立即回血
+    } else {
+      card.apply(p);
+      G.refresh(p);
     }
   }
 
