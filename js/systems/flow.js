@@ -161,6 +161,10 @@
     render();
 
     await sleep(500);
+    state.loot = G.rollLoot(state.monster);
+    state.lootDone = false;
+    state.lootSlot = null;
+    state.lootResultText = '';
     showUpgrade();
   }
 
@@ -195,6 +199,8 @@
     el.overOverlay.classList.remove('show');
     el.ally.classList.remove('hit', 'flash-dmg', 'lunge', 'guard');
     el.foe.classList.remove('hit', 'flash-dmg', 'lunge', 'dying', 'guard');
+
+    G.clearLoot();
 
     state.wave = 1;
     state.round = 0;

@@ -37,6 +37,23 @@
     return buildItem(slotKey, Math.floor(Math.random() * ITEM_DEFS[slotKey].length), rarIdx, 1);
   }
 
+  /** 复制一件装备为独立实例（掉落时用，避免与怪物共享引用） */
+  function cloneItem(it) {
+    return buildItem(it.slot, ITEM_DEFS[it.slot].indexOf(it.def), it.rarity, it.level);
+  }
+
+  /** 现有装备的进阶方向：先强化等级，满级后升华稀有度 */
+  function upgradePath(it) {
+    const defIdx = ITEM_DEFS[it.slot].indexOf(it.def);
+    if (it.level < CFG.forge.maxLevel) {
+      return { kind: 'upgrade', item: buildItem(it.slot, defIdx, it.rarity, it.level + 1) };
+    }
+    if (it.rarity < RARITY.length - 1) {
+      return { kind: 'ascend', item: buildItem(it.slot, defIdx, it.rarity + 1, 1) };
+    }
+    return { kind: 'max', item: it };
+  }
+
   function itemDesc(item) {
     const d = item.def.desc(item.eff, item);
     const statLine = item.statV > 0
@@ -109,5 +126,5 @@
     return Math.round(CFG.defend.base + u.def * CFG.defend.defMul + u.agg.guard);
   }
 
-  Object.assign(G, { rarOf, buildItem, randomItem, itemDesc, itemDescText, aggregate, recalc, refresh, itemAt, defendValue });
+  Object.assign(G, { rarOf, buildItem, randomItem, cloneItem, upgradePath, itemDesc, itemDescText, aggregate, recalc, refresh, itemAt, defendValue });
 })(window.ABYSS = window.ABYSS || {});

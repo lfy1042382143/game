@@ -20,13 +20,20 @@
 
     // 怪物成长曲线
     mon: {
-      hp0: 24, hpK: 4.5, hpQ: 0.055,
-      atk0: 8, atkK: 1.05, atkQ: 0.019,
+      hp0: 24, hpK: 9, hpQ: 0.15,
+      atk0: 8, atkK: 1.3, atkQ: 0.05,
       def0: 1, defK: 0.55,
       bossHp: 1.45, bossAtk: 1.05,
-      eqEvery: 4,        // 每 N 波获得一件装备
+      eqBase: 1,         // 第 1 波起就带 1 件装备（同时是玩家的首件战利品）
+      eqEvery: 4,        // 之后每 N 波多带一件
+      eqMax: 4,
+      rarK: 0.2,         // 装备稀有度基线 = floor(波数 × rarK)
+      rarUp: 0.35,       // 在此基础上升一档的概率
       bleedMul: 0.8      // 怪物流血强度系数
     },
+
+    // 战利品：击杀后从怪物身上随机取 1 件装备掉落
+    loot: { perKill: 1 },
 
     heal: { min: 12, pct: 0.24, base: 18, perWave: 2.6 },
     defend: { base: 8, defMul: 2.4, capPct: 0.5, decay: 0.7 },

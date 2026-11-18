@@ -26,6 +26,9 @@
   .actions { gap: 8px; }
   .eq-cell { min-height: 0; padding: 6px; }
   .eq-cell-eff { font-size: 8.5px; }
+  .loot-card { flex-wrap: wrap; row-gap: 10px; }
+  .loot-btns { flex-direction: row; width: 100%; }
+  .loot-btn { flex: 1; min-width: 0; }
 }
 @media (max-height: 620px) {
   .fighter { padding: 9px 8px; gap: 4px; min-height: 0; }
@@ -34,6 +37,8 @@
   .cur-stats { margin-top: 10px; padding-top: 8px; }
   .up-card { min-height: 0; padding: 10px 8px; }
   .card-icon { margin: 2px 0 0; }
+  .loot.show { margin-bottom: 8px; }
+  .loot-eff, .loot-cmp { margin-top: 3px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

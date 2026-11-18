@@ -25,7 +25,7 @@
     foeName: $('foeName'), foeCrown: $('foeCrown'),
     turnTip: $('turnTip'), impact: $('impact'),
     attackBtn: $('attackBtn'), defendBtn: $('defendBtn'), defendSub: $('defendSub'),
-    upOverlay: $('upgradeOverlay'), cards: $('cards'), upSub: $('upSub'),
+    upOverlay: $('upgradeOverlay'), cards: $('cards'), upSub: $('upSub'), lootBox: $('lootBox'),
     curHp: $('curHp'), curAtk: $('curAtk'), curDef: $('curDef'), eqPanel: $('eqPanel'),
     overOverlay: $('overOverlay'), overWave: $('overWave'),
     overHp: $('overHp'), overAtk: $('overAtk'), overDef: $('overDef'), overEq: $('overEq'),

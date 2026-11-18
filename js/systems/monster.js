@@ -40,12 +40,12 @@
     u.name = name;
     u.emoji = emoji;
 
-    // 随波次获得装备
-    const count = Math.min(4, Math.floor((wave - 1) / C.eqEvery));
+    // 随波次获得装备：第 1 波就有 1 件，之后每 eqEvery 波多一件
+    const count = Math.min(C.eqMax, C.eqBase + Math.floor((wave - 1) / C.eqEvery));
     const pool = SLOTS.map(s => s.key);
     for (let i = 0; i < count; i++) {
       const slotKey = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-      const rar = clamp(Math.floor(wave / 7) + (Math.random() < 0.4 ? 1 : 0), 0, 4);
+      const rar = clamp(Math.floor(wave * C.rarK) + (Math.random() < C.rarUp ? 1 : 0), 0, 4);
       u.items.push(randomItem(slotKey, rar));
     }
     refresh(u);
