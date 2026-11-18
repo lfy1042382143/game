@@ -32,11 +32,13 @@
     return key === 'foe' ? state.monster : state.player;
   }
 
-  /* ---------- 单次攻击的期望伤害（不做随机浮动，只算固定加成） ---------- */
+  /* ---------- 单次攻击伤害（无随机浮动；暴击按节拍折算成精确均值） ---------- */
   function hitDamage(att, def) {
     const effDef = def.def * (1 - Math.min(60, att.agg.pierce) / 100);
     let d = Math.max(att.atk - effDef, att.atk * 0.15);
     if (def.agg.bulwark > 0) d *= 1 - Math.min(60, def.agg.bulwark) / 100;
+    const a = att.agg;
+    if (a.crit > 0) d *= 1 + (a.critMult - 1) / a.crit;   // N 击里 1 击暴击，均值可精确算出
     return Math.max(1, Math.round(d));
   }
 
@@ -75,7 +77,10 @@
 
     if (u.bleed) list.push(['流血', u.bleed.dmg + ' × ' + u.bleed.turns + ' 回合', 'bad']);
     if (a.bleed) list.push(['附加流血', a.bleed.dmg + ' × ' + a.bleed.turns + ' 回合', '']);
-    if (a.crit > 0) list.push(['暴击', Math.round(a.crit) + '% · ' + a.critMult + '倍', '']);
+    if (a.crit > 0) {
+      const left = a.crit - ((u.strikes || 0) % a.crit);
+      list.push(['暴击节拍', '每 ' + a.crit + ' 击 ×' + a.critMult + ' · 还差 ' + left + ' 击', '']);
+    }
     if (a.leech > 0) list.push(['吸血', Math.round(a.leech) + '%', '']);
     if (a.thorn > 0) list.push(['反伤', fmt(a.thorn), '']);
     if (a.bulwark > 0) list.push(['减伤', Math.round(a.bulwark) + '%', '']);
@@ -85,6 +90,7 @@
     if (a.guard > 0) list.push(['防御额外盾', '+' + Math.round(a.guard), '']);
     if (a.shieldstart > 0) list.push(['开局护盾', '+' + Math.round(a.shieldstart), '']);
     list.push(['防御护盾', '+' + defendValue(u), '']);
+    if (u.isMon) list.push(['举盾节奏', u.guardUsed + ' / 2 次（50% · 25% 血线）', '']);
 
     iv.traits.innerHTML = list.map(([k, v, cls]) =>
       '<div class="ins-trait ' + cls + '"><span>' + k + '</span><b>' + v + '</b></div>'
@@ -201,12 +207,11 @@
   }
 
   function close() {
-    if (!iv.overlay.classList.contains('show')) return;
     clearInterval(timer);
     timer = null;
-    iv.overlay.classList.remove('show');
     current = null;
-    state.paused = false;
+    iv.overlay.classList.remove('show');
+    state.paused = false;   // 无论面板是否曾显示，都确保解除挂起
     G.renderButtons();
   }
 

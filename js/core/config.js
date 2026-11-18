@@ -20,15 +20,15 @@
 
     // 怪物成长曲线
     mon: {
-      hp0: 24, hpK: 12.5, hpQ: 0.15,
-      atk0: 8, atkK: 1.55, atkQ: 0.05,
+      hp0: 24, hpK: 14, hpQ: 0.15,
+      atk0: 8, atkK: 1.7, atkQ: 0.05,
       def0: 1, defK: 0.55,
       bossHp: 1.45, bossAtk: 1.05,
       eqBase: 1,         // 第 1 波起就带 1 件装备（同时是玩家的首件战利品）
       eqEvery: 4,        // 之后每 N 波多带一件
       eqMax: 4,
       rarK: 0.2,         // 装备稀有度基线 = floor(波数 × rarK)
-      rarUp: 0.35,       // 在此基础上升一档的概率
+      rarUpEvery: 3,     // 每 N 件装备中有 1 件稀有度 +1 档（固定节拍，非概率）
       bleedMul: 0.8      // 怪物流血强度系数
     },
 
@@ -72,12 +72,13 @@
       },
       {
         k: 'crit', name: '裂风刃', icon: '🌪️', stat: [2, 3, 5, 7, 10], step: 2,
+        // 暴击改为固定节拍：每第 N 次攻击必定触发，不再掷骰
         mk: (r, L0) => ({
-          chance: [12, 18, 25, 32, 40][r] + 4 * L0,
+          every: Math.max(2, [5, 4, 4, 3, 3][r] - Math.floor(L0 / 2)),
           mult: Number(([1.6, 1.7, 1.8, 1.9, 2.0][r] + 0.05 * L0).toFixed(2))
         }),
-        desc: v => '<em>' + v.chance + '%</em> 概率造成 <em>' + v.mult + '</em> 倍伤害',
-        tag: v => '暴击 ' + v.chance + '%'
+        desc: v => '每第 <em>' + v.every + '</em> 次攻击必定造成 <em>' + v.mult + '</em> 倍伤害',
+        tag: v => '每 ' + v.every + ' 击 ×' + v.mult
       },
       {
         k: 'leech', name: '噬血剑', icon: '🩸', stat: [2, 3, 5, 8, 12], step: 2,

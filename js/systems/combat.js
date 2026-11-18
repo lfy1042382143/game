@@ -34,14 +34,15 @@
     const effDef = defender.def * (1 - Math.min(60, A.pierce) / 100);
     let dmg = Math.max(attacker.atk - effDef, attacker.atk * 0.15);
 
+    // 暴击为固定节拍：第 N 次攻击必定触发，双方都可精确预判
     let crit = false;
-    if (A.crit > 0 && Math.random() * 100 < A.crit) {
+    attacker.strikes = (attacker.strikes || 0) + 1;
+    if (A.crit > 0 && attacker.strikes % A.crit === 0) {
       dmg *= A.critMult;
       crit = true;
     }
-    dmg = dmg * (0.94 + Math.random() * 0.12);
     if (D.bulwark > 0) dmg *= (1 - Math.min(60, D.bulwark) / 100);
-    dmg = Math.max(1, Math.round(dmg));
+    dmg = Math.max(1, Math.round(dmg));   // 无随机浮动，伤害恒定
 
     const shieldBefore = defender.shield;
     const applied = dealDamage(defender, dmg);

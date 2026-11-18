@@ -45,7 +45,9 @@
     const pool = SLOTS.map(s => s.key);
     for (let i = 0; i < count; i++) {
       const slotKey = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-      const rar = clamp(Math.floor(wave * C.rarK) + (Math.random() < C.rarUp ? 1 : 0), 0, 4);
+      // 稀有度基线按波次走，升档改为固定节拍（每 rarUpEvery 件升 1 档），不再掷骰
+      const up = (wave + i) % C.rarUpEvery === 0 ? 1 : 0;
+      const rar = clamp(Math.floor(wave * C.rarK) + up, 0, 4);
       u.items.push(randomItem(slotKey, rar));
     }
     refresh(u);

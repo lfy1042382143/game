@@ -83,7 +83,8 @@
           if (!A.bleed || e.dmg > A.bleed.dmg) A.bleed = { dmg: e.dmg, turns: e.turns };
           break;
         case 'crit':
-          A.crit += e.chance;
+          // 多件暴击装备只取最快节拍（数值更小 = 更频繁）
+          A.crit = A.crit ? Math.min(A.crit, e.every) : e.every;
           A.critMult = Math.max(A.critMult, e.mult);
           break;
         case 'leech': A.leech += e.pct; break;

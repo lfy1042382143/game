@@ -32,10 +32,16 @@
     }
   }
 
+  /** 怪物 AI（无随机）：血量首次跌破 50% / 25% 各举盾一次，且不连续举盾 */
   function monsterChooseAction() {
     const m = state.monster;
-    const low = m.hp / m.maxHp < 0.35;
-    if (low && Math.random() < 0.4) return 'defend';
+    if (m.lastAct === 'defend') return 'attack';
+    if (m.guardUsed >= 2) return 'attack';
+    const next = m.guardUsed === 0 ? 0.5 : 0.25;
+    if (m.hp / m.maxHp <= next) {
+      m.guardUsed += 1;
+      return 'defend';
+    }
     return 'attack';
   }
 
@@ -82,6 +88,7 @@
     await sleep(140);
 
     const mAct = monsterChooseAction();
+    m.lastAct = mAct;
     if (mAct === 'defend') {
       const gain = doDefend(m);
       el.foe.classList.add('guard');
@@ -193,6 +200,8 @@
   }
 
   function resetGame() {
+    if (G.inspector && G.inspector.isOpen()) G.inspector.close();
+    state.paused = false;
     el.upOverlay.classList.remove('show');
     el.overOverlay.classList.remove('show');
     el.ally.classList.remove('hit', 'flash-dmg', 'lunge', 'guard');
