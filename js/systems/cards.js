@@ -103,8 +103,8 @@
   async function chooseUpgrade(card, node) {
     if (state.phase !== 'upgrade') return;
 
-    // 战利品尚未处理时，先要求做出决定
-    if (state.loot && !state.lootDone) {
+    // 战利品尚未处理完时，先要求做出决定
+    if (G.lootPending() > 0) {
       const box = el.lootBox;
       if (box) {
         box.classList.remove('nudge');
@@ -133,7 +133,7 @@
     }
     refresh(p);
 
-    const justSlot = state.lootSlot;
+    const justSlots = state.lootSlots.slice();
 
     tone({ freq: 660, type: 'sine', dur: 0.18, vol: 0.1 });
     await sleep(520);
@@ -143,7 +143,7 @@
 
     G.clearLoot();
     state.wave += 1;
-    G.startWave(justSlot);
+    G.startWave(justSlots);
   }
 
   Object.assign(G, { rollRarity, makeCards, renderCard, renderEqPanel, showUpgrade, chooseUpgrade });

@@ -8,10 +8,11 @@
 - **攻击**：常规输出，伤害 = 攻击 − 目标防御（带 15% 保底）
 - **防御**：按防御属性换护盾（`8 + 防御 × 2.4 + 壁垒甲加成`），护盾上限为生命上限的 50%，不防御的回合衰减 30%
 - **升级**：每波胜利后固定三张属性卡（生命 / 攻击 / 防御各一张），稀有度独立随机
-- **战利品**：击杀后从怪物身上随机掉一件它的装备，需先处理才能选属性卡
+- **战利品**：击杀后怪物身上的**每一件**装备都会掉落，逐件决定去留；全部处理完才能选属性卡
   - 空槽位 → 直接装备
   - 同款装备 → **吸收强化**（Lv+1，满 Lv.5 后转为升华，稀有度 +1 并重置 Lv.1）
   - 不同款 → 可**替换**（旧装备丢弃），也可以放弃
+  - 还有剩余件数时头部会出现「全部放弃」，一次清空
 - **装备**：4 部位（武器 / 护甲 / 头盔 / 饰品）× 3 件，五档稀有度，可升到 Lv.5 后升华
 - **怪物**：第 1 波带 1 件装备，之后每 4 波多一件（最多 4 件）；血量低于 35% 会转入防御；每 5 波是 BOSS
 
@@ -39,7 +40,7 @@ js/
     state.js               全局状态与单位工厂
     combat.js              伤害结算、护盾、暴击、吸血、反伤、流血
     monster.js             按波次生成怪物与随机装备（怪物装备同时是掉落来源）
-    loot.js                战利品判定：装备 / 吸收强化 / 升华 / 替换 / 放弃
+    loot.js                战利品列表：逐件判定 装备 / 吸收强化 / 升华 / 替换 / 放弃
     cards.js               纯属性三选一卡池与交互
     flow.js                回合时序、波次推进、胜负判定
   ui/
@@ -72,7 +73,7 @@ js/
 | `player` | 初始生命 / 攻击 / 防御 |
 | `attr` | 三种属性的五档升级值（白→金） |
 | `mon` | 怪物成长曲线：`hp0/hpK/hpQ` 生命、`atk0/atkK/atkQ` 攻击、`def0/defK` 防御、`bossHp/bossAtk` BOSS 倍率、`eqBase/eqEvery/eqMax` 装备数量、`rarK/rarUp` 装备稀有度成长、`bleedMul` 流血强度 |
-| `loot` | 击杀掉落件数（`perKill`） |
+| `loot` | —（已移除：怪物身上有几件装备就掉几件，件数由 `mon.eqBase/eqEvery/eqMax` 决定） |
 | `heal` | 每波战后回复（有上限，避免滚雪球） |
 | `defend` | 护盾公式、上限百分比、未防御时的衰减 |
 | `rage` | 单场超过 N 回合后怪物每回合增伤，防止无限僵持 |
@@ -82,41 +83,45 @@ js/
 
 ## 平衡基线
 
-用真实游戏代码跑 30 局自动对局（随机选属性卡、战利品一律装备、12% 概率防御）的统计：
+用真实游戏代码跑批量自动对局（随机选属性卡、战利品能装就装、12% 概率防御）的统计。
+为避免按局数抽样波动，脚本用固定随机种子（`mulberry32`）给每局喂牌序，同一组 24 个种子可直接横向比参数：
 
-| 指标 | 结果 |
+| 指标 | 结果（24 局，固定种子） |
 | --- | --- |
-| 中位波数 | 20 |
-| p10 / p90 | 15 / 42 |
-| 平均 | 24.3 |
-| 每波回合 | 5~7 |
+| 中位波数 | 18 |
+| p10 / p90 | 13 / 25 |
+| 平均 | 19.4 |
+| 每波回合 | 6.5 |
 
 改完数值建议同样跑一遍批量对局，确认中位仍落在 18~22 波区间。
 
 > 改动装备获取方式后玩家变强了很多：卡池由「属性 + 装备」变成纯属性，等于每波都拿到 100% 的属性成长，
-> 且每波白嫖一件装备。原先的中位是 21 波，改成纯属性卡后一度冲到 131 波。
-> 最终靠把怪物血量/攻击曲线整体上移（`hpK 4.5→9`、`hpQ 0.055→0.15`、`atkK 1.05→1.3`、`atkQ 0.019→0.05`）拉回 20 波。
+> 且每波白嫖装备。原先的中位是 21 波，改成纯属性卡后一度冲到 131 波。
+> 让战利品从「随机 1 件」变成「怪物装备全掉」之后中位又涨到 30，
+> 最终把怪物曲线继续上移（`hpK 9→12.5`、`atkK 1.3→1.55`）拉回 18 波。
 > 调平衡时优先动 `mon.hpK`（决定战斗回合数 → 决定玩家掉血速度），`atkK` 是第二杠杆。
 
 ## 部署
 
-线上地址：
+线上地址：<https://game.cat21432961.online>
 
-- <https://game.cat21432961.online>（自定义域名，CNAME → `abyss-trial.pages.dev`）
-- <https://abyss-trial.pages.dev>（Cloudflare Pages 默认域名，项目名 `abyss-trial`）
-
-两个地址指向同一个生产部署。
+部署形态与 `mailhub` / `book` 一致：**Cloudflare Workers**（静态资源 Worker，没有 `main` 入口，`[assets]` 直接托管 `dist/`），
+不再使用 Cloudflare Pages。Worker 名 `game`，自定义域名由 `wrangler.toml` 的 `[[routes]]`（`custom_domain = true`）托管 DNS 与证书。
 
 ```bash
-bash scripts/deploy.sh        # 生成 dist/ 并推送到 Cloudflare Pages
+bash scripts/deploy.sh        # 生成 dist/ → 给资源加版本指纹 → wrangler deploy
 ```
 
-脚本只拷贝 `index.html`、`css/`、`js/` 到 `dist/`（`.git/`、`.workbuddy/` 不上传），再执行 `wrangler pages deploy`。
+脚本只拷贝 `index.html`、`css/`、`js/` 到 `dist/`（`.git/`、`.workbuddy/` 不会上传）。
 首次在新机器部署需先 `npx wrangler login` 授权。
 
-`wrangler.toml` 里固定了项目名与产物目录，所以也可以直接：
+`wrangler.toml` 已固定 Worker 名与产物目录，也可以直接：
 
 ```bash
-npx wrangler pages deploy
+npx wrangler deploy
 ```
+
+> 从 Pages 迁到 Worker 时踩过一个坑：`game.cat21432961.online` 当时已有一条指向 `abyss-trial.pages.dev` 的 CNAME，
+> Workers 会报 `100117 …already has externally managed DNS records`。必须先删掉那条旧记录，
+> 再 `wrangler deploy`，自定义域名与证书由 Workers 自动接管。
 

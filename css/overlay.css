@@ -74,7 +74,7 @@
 
 .loot-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   margin-bottom: 7px;
   padding-left: 2px;
@@ -101,6 +101,52 @@
   border-radius: 5px;
   padding: 2px 7px;
 }
+
+/* 多件战利品：一次全部放弃 */
+.loot-skipall {
+  flex: 0 0 auto;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: #8b85a3;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 5px;
+  padding: 3px 8px;
+  transition: color .18s, border-color .18s, background .18s;
+}
+.loot-skipall:hover {
+  color: #ddd8ee;
+  border-color: rgba(255, 255, 255, .28);
+  background: rgba(255, 255, 255, .06);
+}
+
+/* 多件时逐行堆叠 */
+.loot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.loot-list::-webkit-scrollbar { width: 5px; }
+.loot-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, .16);
+  border-radius: 3px;
+}
+/* 多件时行内更紧凑，保证三张属性卡不被挤出视野 */
+.loot-list .loot-card {
+  padding: 8px 12px;
+  gap: 10px;
+  border-radius: 12px;
+}
+.loot-list .loot-ic { font-size: 22px; }
+.loot-list .loot-eff { margin-top: 3px; font-size: 10.5px; line-height: 1.45; }
+.loot-list .loot-cmp { margin-top: 3px; font-size: 10px; }
+.loot-list .loot-btn { padding: 6px 12px; min-width: 88px; font-size: 11.5px; }
 
 .loot-card {
   display: flex;
@@ -203,11 +249,13 @@
   cursor: not-allowed;
 }
 .loot-done {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   letter-spacing: .04em;
   color: #4ade80;
-  white-space: nowrap;
+  line-height: 1.5;
+  text-align: right;
+  max-width: 200px;
 }
 .loot-done b { color: #9df3bb; }
 .loot-done.muted { color: #7d7793; font-weight: 600; }

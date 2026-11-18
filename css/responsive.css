@@ -29,6 +29,9 @@
   .loot-card { flex-wrap: wrap; row-gap: 10px; }
   .loot-btns { flex-direction: row; width: 100%; }
   .loot-btn { flex: 1; min-width: 0; }
+  .loot-done { max-width: none; text-align: left; }
+  .loot-list { max-height: 42vh; }
+  .loot-hint { display: none; }
 }
 @media (max-height: 620px) {
   .fighter { padding: 9px 8px; gap: 4px; min-height: 0; }

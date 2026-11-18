@@ -17,9 +17,9 @@
     paused: false,     // 详情面板打开时挂起，避免键盘误触出招
     player: null,
     monster: null,
-    loot: null,        // 本波掉落的装备
-    lootDone: false,   // 战利品是否已处理（装备/放弃）
-    lootSlot: null,    // 本次战利品落入的槽位，用于高亮
+    loots: [],         // 本波掉落的装备（怪物身上有几件就掉几件）
+                       // 每项形如 { item, done, result, slot }
+    lootSlots: [],     // 本波实际入手的槽位，用于下一波高亮
     best: Number(localStorage.getItem('abyss_best') || 0)
   };
 

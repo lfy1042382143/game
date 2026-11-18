@@ -161,10 +161,8 @@
     render();
 
     await sleep(500);
-    state.loot = G.rollLoot(state.monster);
-    state.lootDone = false;
-    state.lootSlot = null;
-    state.lootResultText = '';
+    state.loots = G.rollLoot(state.monster);
+    state.lootSlots = [];
     showUpgrade();
   }
 

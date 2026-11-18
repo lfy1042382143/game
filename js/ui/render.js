@@ -89,11 +89,12 @@
   }
 
   function renderEquip(host, unit, justSlot) {
+    const just = Array.isArray(justSlot) ? justSlot : (justSlot ? [justSlot] : []);
     host.innerHTML = '';
     SLOTS.forEach(slot => {
       const it = itemAt(unit, slot.key);
       const d = document.createElement('div');
-      d.className = 'eq-slot' + (it ? ' filled' : '') + (justSlot === slot.key ? ' just' : '');
+      d.className = 'eq-slot' + (it ? ' filled' : '') + (just.indexOf(slot.key) >= 0 ? ' just' : '');
       if (it) {
         d.style.setProperty('--c', it.c);
         d.title = it.name + ' Lv.' + it.level + ' · ' + rarOf(it.rarity).name + '\n' + itemDescText(it);

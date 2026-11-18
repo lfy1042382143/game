@@ -1,20 +1,31 @@
 /* ============================================================
    系统层 · loot.js
-   战利品：击杀后从怪物装备中掉落 1 件，由玩家决定装备 / 吸收 / 替换 / 放弃
+   战利品：击杀后怪物身上的每件装备都会掉落，逐件决定
+   装备 / 吸收强化 / 吸收升华 / 替换 / 放弃
    ============================================================ */
 (function (G) {
   'use strict';
 
-  const { SLOTS, state, el, pick, fmt, rarOf, cloneItem, upgradePath, itemAt, itemDesc, refresh, render, tone } = G;
+  const { SLOTS, state, el, rarOf, cloneItem, upgradePath, itemAt, itemDesc, refresh, render, tone } = G;
 
   /* =========================================================
      掉落与决策
      ========================================================= */
 
-  /** 击杀怪物后取它身上一件装备作为战利品（复制为独立实例） */
+  /** 击杀后取怪物全部装备作为战利品（逐件复制为独立实例） */
   function rollLoot(monster) {
-    if (!monster || !monster.items || !monster.items.length) return null;
-    return cloneItem(pick(monster.items));
+    if (!monster || !monster.items || !monster.items.length) return [];
+    return monster.items.map(it => ({
+      item: cloneItem(it),
+      done: false,
+      result: '',
+      slot: it.slot
+    }));
+  }
+
+  /** 还有几件没处理 */
+  function lootPending() {
+    return state.loots.reduce((n, e) => n + (e.done ? 0 : 1), 0);
   }
 
   /** 判断这件战利品落到当前槽位会发生什么 */
@@ -36,7 +47,6 @@
   };
 
   function planLabel(plan) {
-    const p = state.player;
     switch (plan.mode) {
       case 'new': return PLAN_TEXT.new;
       case 'upgrade': return '与现有装备同款 · 吸收强化 <b>Lv.' + plan.cur.level + ' → Lv.' + plan.next.level + '</b>';
@@ -60,9 +70,9 @@
      ========================================================= */
   function syncStats() {
     const p = state.player;
-    if (el.curHp) el.curHp.textContent = fmt(p.maxHp);
-    if (el.curAtk) el.curAtk.textContent = fmt(p.atk);
-    if (el.curDef) el.curDef.textContent = fmt(p.def);
+    if (el.curHp) el.curHp.textContent = G.fmt(p.maxHp);
+    if (el.curAtk) el.curAtk.textContent = G.fmt(p.atk);
+    if (el.curDef) el.curDef.textContent = G.fmt(p.def);
   }
 
   function slotNameOf(key) {
@@ -70,86 +80,97 @@
     return s ? s.name : '';
   }
 
+  function rowHtml(entry, idx) {
+    const it = entry.item;
+    const rar = rarOf(it.rarity);
+    const plan = planFor(it);
+
+    let actions;
+    if (entry.done) {
+      actions = '<div class="loot-done' + (entry.skipped ? ' muted' : '') + '">' +
+        (entry.result || '已处理') + '</div>';
+    } else {
+      actions =
+        '<button class="loot-btn primary" data-act="take" data-i="' + idx + '"' +
+          (plan.mode === 'max' ? ' disabled' : '') + '>' + actionLabel(plan) + '</button>' +
+        '<button class="loot-btn" data-act="skip" data-i="' + idx + '">放 弃</button>';
+    }
+
+    return '<div class="loot-card' + (entry.done ? ' resolved' : '') +
+        (it.rarity === 4 ? ' gold' : '') + '" style="--c:' + rar.c + '">' +
+      '<div class="loot-ic">' + it.icon + '</div>' +
+      '<div class="loot-info">' +
+        '<div class="loot-name">' +
+          '<span class="loot-nm">' + it.name + '</span>' +
+          '<span class="loot-lv">Lv.' + it.level + '</span>' +
+          '<span class="loot-rar">' + rar.name + '</span>' +
+          '<span class="loot-slot">' + slotNameOf(it.slot) + '位</span>' +
+        '</div>' +
+        '<div class="loot-eff">' + itemDesc(it) + '</div>' +
+        (entry.done || plan.mode === 'new'
+          ? ''
+          : '<div class="loot-cmp">' + planLabel(plan) + '</div>') +
+      '</div>' +
+      '<div class="loot-btns">' + actions + '</div>' +
+    '</div>';
+  }
+
   function renderLoot() {
     const box = el.lootBox;
     if (!box) return;
 
-    const loot = state.loot;
+    const loots = state.loots;
     box.innerHTML = '';
 
-    if (!loot) {
+    if (!loots.length) {
       box.classList.remove('show');
+      box.className = 'loot';
       el.cards.classList.remove('locked');
       return;
     }
 
-    box.classList.add('show');
-
-    const plan = planFor(loot);
-    const rar = rarOf(loot.rarity);
-    box.style.setProperty('--c', rar.c);
-    box.className = 'loot show' + (loot.rarity === 4 ? ' gold' : '');
-
-    const done = state.lootDone;
+    const pending = lootPending();
+    const allDone = pending === 0;
 
     const head =
       '<div class="loot-head">' +
         '<span class="loot-title">战利品</span>' +
         '<span class="loot-from">来自「' + (state.monster ? state.monster.name : '敌人') + '」' +
-          (state.monster && state.monster.items.length > 1 ? ' · 身上共 ' + state.monster.items.length + ' 件' : '') +
+          (loots.length > 1 ? ' · 共 ' + loots.length + ' 件' : '') +
         '</span>' +
-        (done ? '' : '<span class="loot-hint">处理后可选属性</span>') +
+        (allDone
+          ? ''
+          : '<span class="loot-hint">' + (pending > 1 ? '还有 ' + pending + ' 件待处理' : '处理后可选属性') + '</span>') +
+        (pending > 1 ? '<button class="loot-skipall" data-act="skipall">全部放弃</button>' : '') +
       '</div>';
 
-    let actions;
-    if (done) {
-      const skipped = !state.lootSlot;
-      actions = '<div class="loot-done' + (skipped ? ' muted' : '') + '">' +
-        (state.lootResultText || '已处理') + '</div>';
-    } else {
-      actions =
-        '<button class="loot-btn primary" data-act="take"' + (plan.mode === 'max' ? ' disabled' : '') + '>' +
-          actionLabel(plan) +
-        '</button>' +
-        '<button class="loot-btn" data-act="skip">放 弃</button>';
-    }
-
+    box.className = 'loot show' + (loots.some(e => e.item.rarity === 4) ? ' gold' : '');
     box.innerHTML = head +
-      '<div class="loot-card' + (done ? ' resolved' : '') + '">' +
-        '<div class="loot-ic">' + loot.icon + '</div>' +
-        '<div class="loot-info">' +
-          '<div class="loot-name">' +
-            '<span class="loot-nm">' + loot.name + '</span>' +
-            '<span class="loot-lv">Lv.' + loot.level + '</span>' +
-            '<span class="loot-rar">' + rar.name + '</span>' +
-            '<span class="loot-slot">' + slotNameOf(loot.slot) + '位</span>' +
-          '</div>' +
-          '<div class="loot-eff">' + itemDesc(loot) + '</div>' +
-          (done ? '' : '<div class="loot-cmp">' + planLabel(plan) + '</div>') +
-        '</div>' +
-        '<div class="loot-btns">' + actions + '</div>' +
-      '</div>';
+      '<div class="loot-list">' + loots.map(rowHtml).join('') + '</div>';
 
-    if (done) {
-      el.cards.classList.remove('locked');
-    } else {
-      el.cards.classList.add('locked');
-      box.querySelectorAll('.loot-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          if (btn.dataset.act === 'take') takeLoot();
-          else skipLoot();
-        });
+    // 未处理完则锁定属性卡
+    el.cards.classList.toggle('locked', !allDone);
+
+    box.querySelectorAll('[data-act]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const act = btn.dataset.act;
+        if (act === 'skipall') { skipAll(); return; }
+        const i = Number(btn.dataset.i);
+        if (act === 'take') takeLoot(i);
+        else skipLoot(i);
       });
-    }
+    });
   }
 
   /* =========================================================
      结算
      ========================================================= */
-  function takeLoot() {
-    if (!state.loot || state.lootDone) return;
+  function takeLoot(idx) {
+    const entry = state.loots[idx];
+    if (!entry || entry.done) return;
+
     const p = state.player;
-    const loot = state.loot;
+    const loot = entry.item;
     const plan = planFor(loot);
     if (plan.mode === 'max') return;
 
@@ -159,21 +180,22 @@
       p.items.push(loot);
       text = '已装备 <b>' + loot.name + '</b> Lv.' + loot.level;
     } else if (plan.mode === 'upgrade' || plan.mode === 'ascend') {
-      const idx = p.items.indexOf(plan.cur);
-      p.items[idx] = plan.next;
+      const i = p.items.indexOf(plan.cur);
+      p.items[i] = plan.next;
       text = plan.mode === 'upgrade'
         ? '<b>' + plan.next.name + '</b> 强化至 Lv.' + plan.next.level
         : '<b>' + plan.next.name + '</b> 升华至 ' + rarOf(plan.next.rarity).name + ' · Lv.1';
     } else {
-      const idx = p.items.indexOf(plan.cur);
-      p.items[idx] = loot;
+      const i = p.items.indexOf(plan.cur);
+      p.items[i] = loot;
       text = '已替换为 <b>' + loot.name + '</b> Lv.' + loot.level;
     }
 
     refresh(p);
-    state.lootSlot = loot.slot;
-    state.lootDone = true;
-    state.lootResultText = text;
+    entry.done = true;
+    entry.result = text;
+    entry.slot = loot.slot;
+    state.lootSlots.push(loot.slot);
 
     tone({ freq: 720, type: 'sine', dur: 0.16, vol: 0.09 });
 
@@ -182,27 +204,43 @@
     renderLoot();
   }
 
-  function skipLoot() {
-    if (!state.loot || state.lootDone) return;
-    state.lootDone = true;
-    state.lootSlot = null;
-    state.lootResultText = '已放弃这件战利品';
+  function skipLoot(idx) {
+    const entry = state.loots[idx];
+    if (!entry || entry.done) return;
+    entry.done = true;
+    entry.skipped = true;
+    entry.result = '已放弃';
+    tone({ freq: 300, type: 'sine', dur: 0.12, vol: 0.06 });
+    renderLoot();
+  }
+
+  function skipAll() {
+    let n = 0;
+    state.loots.forEach(e => {
+      if (e.done) return;
+      e.done = true;
+      e.skipped = true;
+      e.result = '已放弃';
+      n++;
+    });
+    if (!n) return;
     tone({ freq: 300, type: 'sine', dur: 0.12, vol: 0.06 });
     renderLoot();
   }
 
   /** 进入下一波前清空战利品状态 */
   function clearLoot() {
-    state.loot = null;
-    state.lootDone = false;
-    state.lootSlot = null;
-    state.lootResultText = '';
+    state.loots = [];
+    state.lootSlots = [];
     if (el.lootBox) {
       el.lootBox.innerHTML = '';
-      el.lootBox.classList.remove('show');
+      el.lootBox.className = 'loot';
     }
     if (el.cards) el.cards.classList.remove('locked');
   }
 
-  Object.assign(G, { rollLoot, planFor, renderLoot, takeLoot, skipLoot, clearLoot, syncStats });
+  Object.assign(G, {
+    rollLoot, lootPending, planFor, renderLoot,
+    takeLoot, skipLoot, skipAll, clearLoot, syncStats
+  });
 })(window.ABYSS = window.ABYSS || {});

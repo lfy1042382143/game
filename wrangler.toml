@@ -1,5 +1,13 @@
-name = "abyss-trial"
-compatibility_date = "2026-01-01"
+name = "game"
+compatibility_date = "2025-09-01"
+account_id = "1e12f89381353c790bd841d89aad10ef"
 
-# 纯静态站点：构建产物目录（由 scripts/deploy.sh 生成）
-pages_build_output_dir = "./dist"
+# 与 mailhub / book 同类型：Worker 脚本（此处为「静态资源 Worker」，不需要 main 入口）
+# 构建产物由 scripts/deploy.sh 生成到 ./dist，再 wrangler deploy 上传
+[assets]
+directory = "./dist"
+
+# 自定义域名由下面这条 routes 绑定（Workers 会托管 DNS 记录与证书）
+[[routes]]
+pattern = "game.cat21432961.online"
+custom_domain = true

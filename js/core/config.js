@@ -20,8 +20,8 @@
 
     // 怪物成长曲线
     mon: {
-      hp0: 24, hpK: 9, hpQ: 0.15,
-      atk0: 8, atkK: 1.3, atkQ: 0.05,
+      hp0: 24, hpK: 12.5, hpQ: 0.15,
+      atk0: 8, atkK: 1.55, atkQ: 0.05,
       def0: 1, defK: 0.55,
       bossHp: 1.45, bossAtk: 1.05,
       eqBase: 1,         // 第 1 波起就带 1 件装备（同时是玩家的首件战利品）
@@ -32,8 +32,7 @@
       bleedMul: 0.8      // 怪物流血强度系数
     },
 
-    // 战利品：击杀后从怪物身上随机取 1 件装备掉落
-    loot: { perKill: 1 },
+    // 战利品：怪物身上有几件就掉几件，逐件由玩家决定去留（见 systems/loot.js）
 
     heal: { min: 12, pct: 0.24, base: 18, perWave: 2.6 },
     defend: { base: 8, defMul: 2.4, capPct: 0.5, decay: 0.7 },
