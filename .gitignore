@@ -14,3 +14,6 @@ _*.png
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Chrome CDP 调试临时目录
+scripts/.chrome-tmp*
