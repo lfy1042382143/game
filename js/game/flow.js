@@ -90,13 +90,17 @@
     const minute = state.wave;
     const enemyIdx = state.kills;   // 词缀轮换用
 
-    // 普通敌人：存活数低于上限时按间隔刷新
+    // 普通敌人：存活数低于上限时按间隔刷新（缺口大时一次补 2 只，快速填场）
     const alive = state.foes.filter(f => !f.dead).length;
     state.spawnT += dt;
     if (state.spawnT >= G.spawnInterval(minute)) {
       state.spawnT = 0;
-      if (alive < G.aliveCap(minute)) {
-        state.foes.push(G.makeEnemy(minute, enemyIdx));
+      const deficit = G.aliveCap(minute) - alive;
+      if (deficit > 0) {
+        const batch = deficit >= 3 ? 2 : 1;
+        for (let i = 0; i < batch && i < deficit; i++) {
+          state.foes.push(G.makeEnemy(minute, enemyIdx + i));
+        }
       }
     }
 
