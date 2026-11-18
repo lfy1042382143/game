@@ -73,6 +73,111 @@
   }
 
   /* =========================================================
+     地图陷阱：持久区域（泥潭/裂隙）+ 临时灾害（预警/爆发）
+     ========================================================= */
+  const PI2 = Math.PI * 2;
+
+  function drawZones() {
+    for (const z of state.zones) {
+      if (z.kind === 'swamp') {
+        // 减速泥潭：绿色半透明 + 虚线边 + 冒泡
+        ctx.beginPath();
+        ctx.arc(z.x, z.y, z.r, 0, PI2);
+        ctx.fillStyle = 'rgba(74,222,128,0.10)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(74,222,128,0.42)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([10, 6]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        for (let i = 0; i < 3; i++) {
+          const ph = (state.time * 0.6 + i * 1.3) % 1;
+          const ba = i * 2.1 + z.x;
+          ctx.globalAlpha = 0.5 * (1 - ph);
+          ctx.beginPath();
+          ctx.arc(z.x + Math.cos(ba) * z.r * 0.5, z.y + Math.sin(ba) * z.r * 0.5, 3 + ph * 3, 0, PI2);
+          ctx.strokeStyle = 'rgba(134,239,172,0.8)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      } else if (z.kind === 'vortex') {
+        // 引力裂隙：紫色旋转虚线环 + 暗心
+        ctx.beginPath();
+        ctx.arc(z.x, z.y, z.r, 0, PI2);
+        ctx.fillStyle = 'rgba(88,28,135,0.18)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(167,139,250,0.55)';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([14, 9]);
+        ctx.lineDashOffset = -state.time * 30;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineDashOffset = 0;
+        // 内圈漩涡
+        ctx.beginPath();
+        ctx.arc(z.x, z.y, z.r * 0.45, state.time * 2.2, state.time * 2.2 + PI2 * 0.6);
+        ctx.strokeStyle = 'rgba(196,181,253,0.5)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(z.x, z.y, 5 + Math.sin(state.time * 4) * 2, 0, PI2);
+        ctx.fillStyle = 'rgba(196,181,253,0.8)';
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawHazards() {
+    for (const h of state.hazards) {
+      const isFire = h.kind === 'fire';
+      const cMain = isFire ? '#fb923c' : '#e7e5e4';
+      const cFill = isFire ? 'rgba(249,115,22,0.10)' : 'rgba(226,232,240,0.08)';
+      if (!h.hit) {
+        const prog = clamp(h.t / h.warn, 0, 1);
+        // 预警圈：底色 + 虚线边
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r, 0, PI2);
+        ctx.fillStyle = cFill;
+        ctx.fill();
+        ctx.strokeStyle = cMain;
+        ctx.globalAlpha = 0.8;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 5]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // 施法进度环
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r * 0.55, -Math.PI / 2, -Math.PI / 2 + prog * PI2);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = cMain;
+        ctx.stroke();
+        // 火球：从空中坠落（影子随进度逼近落点）
+        if (isFire) {
+          const sr = 4 + 11 * (1 - prog);
+          ctx.beginPath();
+          ctx.arc(h.x, h.y - 140 * (1 - prog), sr, 0, PI2);
+          ctx.fillStyle = '#f97316';
+          ctx.shadowColor = '#fb923c';
+          ctx.shadowBlur = 10;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+        ctx.globalAlpha = 1;
+      } else {
+        // 爆发闪光
+        const k = clamp(h.boomT / 0.35, 0, 1);
+        ctx.globalAlpha = k;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r * (1.15 - 0.3 * k), 0, PI2);
+        ctx.fillStyle = isFire ? 'rgba(251,146,60,0.55)' : 'rgba(231,229,228,0.5)';
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  /* =========================================================
      实体（世界坐标）
      ========================================================= */
   function drawUnit(u, isPlayer) {
@@ -327,6 +432,8 @@
     ctx.save();
     ctx.translate(-cam.x, -cam.y);
     drawArena();
+    drawZones();
+    drawHazards();
     drawSites();
     drawChests();
     drawOrbitBlades();

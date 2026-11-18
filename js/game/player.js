@@ -20,7 +20,9 @@
     const mv = G.engine.moveVec();
     if (mv.dx || mv.dy) {
       const n = G.norm(mv.dx, mv.dy);
-      const spd = p.speed * (1 + clamp(p.agg.swiftstep, 0, 40) / 100);
+      // 减速泥潭（沼泽地图陷阱）：在泥潭中移动变慢
+      const zslow = G.zoneSlowMul ? G.zoneSlowMul(p.x, p.y) : 1;
+      const spd = p.speed * (1 + clamp(p.agg.swiftstep, 0, 40) / 100) * zslow;
       p.x += n.x * spd * dt;
       p.y += n.y * spd * dt;
     }

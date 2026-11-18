@@ -41,7 +41,7 @@
       e.slowT -= dt;
       mul *= (e.slowMul !== undefined ? e.slowMul : 1);
     }
-    const spd = e.speed * (mul || 1);
+    const spd = e.speed * (mul || 1) * (G.zoneSlowMul ? G.zoneSlowMul(e.x, e.y) : 1);
     e.x += n.x * spd * dt;
     e.y += n.y * spd * dt;
     e.x = clamp(e.x, e.r, A.w - e.r);

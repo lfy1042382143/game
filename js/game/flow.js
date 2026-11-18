@@ -40,7 +40,8 @@
     state.player = G.makePlayer();
     state.obstacles = [];
     state.foes = [];
-    G.spawnObstaclesRandom(6);     // 初始障碍布局
+    G.spawnObstaclesRandom(4);     // 初始障碍布局
+    G.setupHazards();              // 初始地图无陷阱（布置空陷阱）
     G.spawnChest();                // 开局引导宝箱
     G.spawnSite();                 // 开局一个事件地点
     state.player.shield = G.startShield(state.player);
@@ -62,11 +63,14 @@
     const map = G.MAPS[idx];
     // 重新随机障碍布局
     state.obstacles = [];
-    G.spawnObstaclesRandom(6);
+    G.spawnObstaclesRandom(4);
+    // 布置该地图的特色陷阱
+    G.setupHazards();
+    const hz = map.hazard && G.HAZ_INFO[map.hazard];
     state.banner = {
       text: '🗺 ' + map.name,
-      sub: '新地图解锁 · 敌人更强',
-      t: 2.4
+      sub: hz ? hz.icon + ' 地图陷阱：' + hz.name + ' · ' + hz.desc : '安全的初始地带 · 敌人更强',
+      t: 2.8
     };
     G.sfxUpgrade();
   }
@@ -152,6 +156,7 @@
     G.updateBullets(dt);
     G.tickBleeds(state.player, dt);
     updateObstacles(dt);
+    G.updateHazards(dt);
     updateSpawns(dt);
     G.updateSites(dt);
 

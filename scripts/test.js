@@ -84,7 +84,7 @@ const SCRIPTS = [
   'js/core/config.js', 'js/core/utils.js', 'js/core/audio.js', 'js/core/engine.js',
   'js/game/equipment.js', 'js/game/state.js', 'js/game/combat.js',
   'js/game/bullets.js', 'js/game/player.js', 'js/game/enemies.js', 'js/game/waves.js',
-  'js/game/loot.js', 'js/game/cards.js', 'js/game/events.js', 'js/game/flow.js',
+  'js/game/loot.js', 'js/game/cards.js', 'js/game/events.js', 'js/game/hazards.js', 'js/game/flow.js',
   'js/ui/ui.js', 'js/render/render.js', 'js/main.js'
 ];
 
@@ -471,6 +471,69 @@ function featureTests() {
   G.state.bullets.push({ x: p14.x, y: p14.y, vx: 250, vy: 0, r: 5, dmg: 5, crit: false, side: 'p', life: 2, owner: p14, pierceLeft: 1, hit: [] });
   run(1);
   assert(fa.hp < fahp0, 'T14 贯穿箭命中敌人', { fahp0, fh1: fa.hp });
+
+  // T15 地图陷阱系统
+  // T15a 初始地图无陷阱
+  reset();
+  assert(G.state.zones.length === 0 && G.state.hazards.length === 0 && G.hazardKind() === null,
+    'T15a 初始地图（深渊洞窟）无陷阱', { zones: G.state.zones.length, kind: G.hazardKind() });
+  // T15a2 掩体数量下调
+  assert(G.state.obstacles.length <= 4 && G.CFG.obstacles.cap === 8,
+    'T15a2 掩体数量下调（初始 ≤4 / 上限 8）', { n: G.state.obstacles.length, cap: G.CFG.obstacles.cap });
+
+  // T15b 熔岩裂隙：火球预警 → 爆发伤害
+  reset();
+  G.switchMap(2);
+  assert(G.hazardKind() === 'fire', 'T15b 熔岩裂隙陷阱种类为 fire');
+  const f15 = G.makeEnemy(1, 0);
+  G.state.foes.push(f15);
+  const hp15 = f15.hp;
+  G.spawnBurst('fire', 1);
+  const hz = G.state.hazards[0];
+  hz.x = f15.x; hz.y = f15.y; hz.t = hz.warn - 0.05;   // 即将爆发
+  run(0.3);
+  assert(hz.hit && (f15.hp < hp15 || f15.dead), 'T15b 火球爆发命中范围内敌人', { hp15, hp2: f15.hp, hit: hz.hit });
+
+  // T15c 腐雾沼泽：减速泥潭同时影响玩家与敌人
+  reset();
+  G.switchMap(4);
+  assert(G.hazardKind() === 'swamp', 'T15c 腐雾沼泽陷阱种类为 swamp');
+  assert(G.state.zones.length > 0, 'T15c 泥潭区域已布置', G.state.zones.length);
+  const psw = G.state.player;
+  G.state.zones = [{ kind: 'swamp', x: psw.x, y: psw.y, r: 92 }];   // 单一泥潭，排除随机相邻区域干扰
+  assert(G.zoneSlowMul(psw.x, psw.y) === G.CFG.hazards.swamp.slowMul, 'T15c 泥潭中的单位被减速');
+  assert(G.zoneSlowMul(psw.x + 500, psw.y) === 1, 'T15c 泥潭外不受影响');
+
+  // T15d 虚空回廊：引力裂隙拉拽单位
+  reset();
+  G.switchMap(3);
+  assert(G.hazardKind() === 'vortex', 'T15d 虚空回廊陷阱种类为 vortex');
+  G.state.zones = [{ kind: 'vortex', x: 400, y: 400, r: 200 }];
+  const vf = G.makeEnemy(1, 0);
+  vf.type = 'melee';
+  vf.speed = 0;          // 静止敌人：排除追击 AI 干扰，只验证引力
+  vf.x = 480; vf.y = 400;
+  G.state.foes = [vf];
+  const dv0 = G.dist(vf.x, vf.y, 400, 400);
+  run(0.5);
+  const dv1 = G.dist(vf.x, vf.y, 400, 400);
+  assert(dv1 < dv0 - 20, 'T15d 裂隙把敌人拉向中心', { d0: dv0.toFixed(1), d1: dv1.toFixed(1) });
+  // 玩家同样被拉拽
+  const pvx = G.state.player;
+  G.state.foes = [];
+  pvx.x = 480; pvx.y = 400;
+  const dp0 = G.dist(pvx.x, pvx.y, 400, 400);
+  run(0.5);
+  const dp1 = G.dist(pvx.x, pvx.y, 400, 400);
+  assert(dp1 < dp0 - 20, 'T15d 裂隙把玩家拉向中心', { d0: dp0.toFixed(1), d1: dp1.toFixed(1) });
+
+  // T15e 荒芜骨林：骨刺周期生成
+  reset();
+  G.switchMap(1);
+  assert(G.hazardKind() === 'spikes', 'T15e 荒芜骨林陷阱种类为 spikes');
+  G.state.hazT = G.CFG.hazards.spikes.every - 0.01;
+  run(0.2);
+  assert(G.state.hazards.length > 0, 'T15e 骨刺预警圈按周期出现', G.state.hazards.length);
 
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;
