@@ -35,7 +35,7 @@
      移动公共步骤
      ========================================================= */
   function moveEnemy(e, n, dt, mul) {
-    const A = CFG.arena;
+    const A = CFG.world;
     const spd = e.speed * (mul || 1);
     e.x += n.x * spd * dt;
     e.y += n.y * spd * dt;
@@ -77,9 +77,12 @@
     const mul = e.affix && e.affix.key === 'swift' ? 1.45 : 1;
 
     let n;
-    if (d > C.keepMax) {
-      n = G.norm(p.x - e.x, p.y - e.y);          // 太远：靠近
-      moveEnemy(e, n, dt, mul);
+    if (d > C.keepMax + 140) {
+      n = G.norm(p.x - e.x, p.y - e.y);          // 太远：冲刺追击（打破风筝死锁）
+      moveEnemy(e, n, dt, mul * 2.6);
+    } else if (d > C.keepMax) {
+      n = G.norm(p.x - e.x, p.y - e.y);          // 距离带外：加速靠近
+      moveEnemy(e, n, dt, mul * 1.7);
     } else if (d < C.keepMin) {
       n = G.norm(e.x - p.x, e.y - p.y);          // 太近：后撤
       moveEnemy(e, n, dt, mul * 1.25);
@@ -128,6 +131,9 @@
     if (!alive.length) return;
 
     for (const e of alive) {
+      // 记录本帧移动前的位置（供玩家预判瞄准用）
+      e.lx = e.x; e.ly = e.y;
+
       // 再生词缀：每 3 秒回复 8% 生命
       if (e.affix && e.affix.key === 'regen') {
         e.regenT = (e.regenT || 0) + dt;
@@ -142,6 +148,10 @@
       if (e.type === 'melee') updateMelee(e, dt);
       else if (e.type === 'ranged') updateRanged(e, dt);
       else if (e.type === 'boss') updateBoss(e, dt);
+
+      // 帧末速度（供玩家预判瞄准）
+      e.vx = (e.x - e.lx) / dt;
+      e.vy = (e.y - e.ly) / dt;
     }
 
     separate(alive);

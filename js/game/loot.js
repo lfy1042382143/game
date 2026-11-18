@@ -141,7 +141,7 @@
           (loots.length > 1 ? ' · 共 ' + loots.length + ' 件' : '') + '</span>' +
         (allDone
           ? ''
-          : '<span class="loot-hint">' + (pending > 1 ? '还有 ' + pending + ' 件待处理' : '处理后可选属性') + '</span>') +
+          : '<span class="loot-hint">' + (pending > 1 ? '还有 ' + pending + ' 件待处理' : '处理后继续') + '</span>') +
         (pending > 1 ? '<button class="loot-skipall" data-act="skipall">全部放弃</button>' : '') +
       '</div>';
 
@@ -149,8 +149,15 @@
     box.innerHTML = head +
       '<div class="loot-list">' + loots.map(rowHtml).join('') + '</div>';
 
-    // 未处理完则锁定属性卡
-    G.el.cards.classList.toggle('locked', !allDone);
+    // 全部处理完 → 显示「继续探索」按钮
+    G.el.cards.innerHTML = '';
+    if (allDone) {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-again';
+      btn.textContent = '继续探索';
+      btn.addEventListener('click', () => continueLoot());
+      G.el.cards.appendChild(btn);
+    }
 
     box.querySelectorAll('[data-act]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -161,6 +168,26 @@
         else skipLoot(i);
       });
     });
+  }
+
+  /** 打开波次战利品弹窗（升级选项处理完后调用） */
+  function showLoot() {
+    state.phase = 'loot';
+    G.el.upSub.textContent = '第 ' + state.wave + ' 波已征服 · 处理战利品';
+    G.el.curHp.textContent = G.fmt(state.player.maxHp);
+    G.el.curAtk.textContent = G.fmt(state.player.atk);
+    G.el.curDef.textContent = G.fmt(state.player.def);
+    G.renderEqPanel();
+    G.renderLoot();
+    G.el.upgradeOverlay.classList.add('show');
+  }
+
+  /** 处理完战利品 → 下一波（事件在 advanceWave 内判定） */
+  function continueLoot() {
+    if (state.phase !== 'loot' || lootPending() > 0) return;
+    G.el.upgradeOverlay.classList.remove('show');
+    G.clearLoot();
+    G.advanceWave();
   }
 
   /* =========================================================
@@ -241,6 +268,7 @@
 
   Object.assign(G, {
     rollLoot, lootPending, planFor, renderLoot,
-    takeLoot, skipLoot, skipAll, clearLoot
+    takeLoot, skipLoot, skipAll, clearLoot,
+    showLoot, continueLoot
   });
 })(window.ABYSS = window.ABYSS || {});

@@ -11,7 +11,7 @@
 
   function initDom() {
     [
-      'canvas', 'waveNum', 'recordNum', 'soundBtn', 'restartBtn',
+      'canvas', 'waveNum', 'lvNum', 'xpFill', 'mapName', 'recordNum', 'soundBtn', 'restartBtn',
       'statHp', 'statAtk', 'statDef', 'eqRow', 'hintBar',
       'upgradeOverlay', 'upSub', 'lootBox', 'cards', 'curHp', 'curAtk', 'curDef', 'eqPanel',
       'eventOverlay', 'eventIcon', 'eventTitle', 'eventText', 'eventOpts',
@@ -29,14 +29,19 @@
   function syncTopbar() {
     const p = state.player;
     if (!p) return;
+    const need = G.xpNeed(p.level);
     const snap = [
       state.wave, Math.round(p.hp), Math.round(p.maxHp),
-      Math.round(p.atk), Math.round(p.def), p.items.length
+      Math.round(p.atk), Math.round(p.def), p.items.length,
+      p.level, Math.round(p.xp), state.mapIdx
     ].join('|');
     if (snap === lastSnap) return;
     lastSnap = snap;
 
     el.waveNum.textContent = String(state.wave).padStart(2, '0');
+    el.lvNum.textContent = p.level;
+    el.xpFill.style.width = Math.min(100, p.xp / need * 100) + '%';
+    if (el.mapName) el.mapName.textContent = G.MAPS[state.mapIdx].name;
     el.statHp.textContent = Math.max(0, Math.round(p.hp)) + '/' + Math.round(p.maxHp);
     el.statAtk.textContent = Math.round(p.atk);
     el.statDef.textContent = Math.round(p.def);

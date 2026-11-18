@@ -9,49 +9,64 @@
      数值配置（实时战斗：全部按「秒」计）
      ========================================================= */
   const CFG = {
-    arena: { w: 960, h: 600 },
+    // 大世界 + 视口（相机跟随玩家）
+    world: { w: 2000, h: 1400 },
+    viewport: { w: 960, h: 600 },
 
     // 玩家：WASD 移动，自动向最近的敌人射击
     player: {
       hp: 120, atk: 14, def: 4,
-      r: 14,               // 碰撞半径
-      speed: 190,          // 移动速度 px/s
-      atkCd: 0.7,          // 射击间隔（秒）
-      range: 300,          // 射程
-      bulletSpeed: 430,
-      iframes: 0.7         // 受击后的无敌时间（秒），躲避窗口
+      r: 13,
+      speed: 140,          // 全局降速后的移速
+      atkCd: 0.7,          // 基础射击间隔（升级卡「攻速提升」在此基础上乘算）
+      range: 320,
+      bulletSpeed: 250,    // 弹幕整体降速
+      iframes: 0.8
     },
 
-    // 怪物成长曲线（沿用旧平衡曲线）
+    // 经验与升级
+    xp: { base: 15, perLevel: 9 },                      // 升到下一级所需 = base + (lv-1)*perLevel
+    growth: { hp: 14, atk: 3, def: 1, healPct: 0.3 },   // 每级自动成长 + 回复 30% 生命
+    maps: { milestoneEvery: 4 },                        // 每 N 级解锁一张新地图
+
+    // 动态障碍物：随主角移动随机生成/移除
+    obstacles: {
+      cap: 16, spawnEvery: 3,
+      minDist: 350, maxDist: 720, cullDist: 1150,
+      sizeMin: 46, sizeMax: 88
+    },
+
+    // 怪物成长曲线（整体增强）
     mon: {
-      hp0: 24, hpK: 14, hpQ: 0.15,
-      atk0: 8, atkK: 1.7, atkQ: 0.05,
+      hp0: 30, hpK: 16, hpQ: 0.18,
+      atk0: 9, atkK: 1.9, atkQ: 0.06,
       def0: 1, defK: 0.55,
       bossHp: 1.45, bossAtk: 1.05,
       eqBase: 1, eqEvery: 4, eqMax: 4, eqLvEvery: 6,
       rarK: 0.2, rarUpEvery: 3,
-      bossEvery: 5        // 每 N 波一个 BOSS
+      bossEvery: 5,
+      mapBoost: 0.12       // 每张新地图敌人 hp/atk +12%
     },
 
-    // 多敌人小队：总强度 ≈ 单怪的强度
+    // 多敌人小队（大地图容得下更多）
     squad: {
-      base: 1, every: 4, max: 4,
+      base: 1, every: 3, max: 5,
       hpShare: 0.92, atkShare: 1.0,
       eliteMul: 1.35
     },
 
-    // 近战敌人：追击玩家，接触后近身攻击
-    melee: { r: 15, speed: 152, atkCd: 1.15, reach: 3 },
+    // 近战敌人：全局限速下相对更快，逼玩家近身缠斗
+    melee: { r: 15, speed: 136, atkCd: 1.3, reach: 3 },
 
     // 远程敌人：与玩家保持距离带，朝玩家发射弹幕
     ranged: {
-      r: 13, speed: 105,
-      shootCd: 2.2, bulletSpeed: 315,
-      keepMin: 190, keepMax: 280
+      r: 13, speed: 82,
+      shootCd: 2.6, bulletSpeed: 160,
+      keepMin: 200, keepMax: 320
     },
 
     // BOSS：缓慢追击 + 扇形弹幕
-    boss: { r: 24, speed: 92, shootCd: 2.6, bulletSpeed: 300, spread: 3 },
+    boss: { r: 24, speed: 74, shootCd: 2.6, bulletSpeed: 170, spread: 3 },
 
     // 场景事件节奏
     events: { firstAt: 3, every: 3 },
@@ -61,6 +76,15 @@
 
     forge: { maxLevel: 5 }
   };
+
+  /* ---------- 地图主题：按等级里程碑解锁 ---------- */
+  const MAPS = [
+    { name: '深渊洞窟', floor: '#12121c', grid: 'rgba(255,255,255,0.035)', wall: 'rgba(126,138,180,0.55)', ob: '#1d1e2e', obEdge: 'rgba(126,138,180,0.4)', obInner: 'rgba(126,138,180,0.12)' },
+    { name: '荒芜骨林', floor: '#16120e', grid: 'rgba(255,235,205,0.04)',  wall: 'rgba(196,164,120,0.5)',  ob: '#241d15', obEdge: 'rgba(196,164,120,0.4)', obInner: 'rgba(196,164,120,0.1)' },
+    { name: '熔岩裂隙', floor: '#190e0c', grid: 'rgba(255,150,100,0.045)', wall: 'rgba(240,120,90,0.5)',   ob: '#2a1612', obEdge: 'rgba(240,120,90,0.4)',  obInner: 'rgba(240,120,90,0.1)' },
+    { name: '虚空回廊', floor: '#0d1018', grid: 'rgba(140,160,255,0.04)',  wall: 'rgba(140,160,255,0.45)', ob: '#161a28', obEdge: 'rgba(140,160,255,0.35)', obInner: 'rgba(140,160,255,0.08)' },
+    { name: '腐雾沼泽', floor: '#0f1712', grid: 'rgba(140,230,170,0.04)',  wall: 'rgba(120,220,160,0.45)', ob: '#16241b', obEdge: 'rgba(120,220,160,0.35)', obInner: 'rgba(120,220,160,0.08)' }
+  ];
 
   const RARITY = [
     { key: 'white',  name: '普通', c: '#c9d1e0', w: w => Math.max(10, 44 - 1.5 * w) },
@@ -223,5 +247,5 @@
     }
   ];
 
-  Object.assign(G, { CFG, RARITY, SLOTS, ITEM_DEFS, MONSTER_POOL, BOSS_POOL, PREFIX, AFFIXES });
+  Object.assign(G, { CFG, MAPS, RARITY, SLOTS, ITEM_DEFS, MONSTER_POOL, BOSS_POOL, PREFIX, AFFIXES });
 })(window.ABYSS = window.ABYSS || {});

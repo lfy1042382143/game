@@ -1,7 +1,7 @@
 /* ============================================================
-   游戏层 · state.js（实时版）
+   游戏层 · state.js（实时版 · 经验升级 + 大地图）
    全局状态与实体工厂
-   phase: boot | play | busy | upgrade | event | over
+   phase: boot | play | busy | levelup | loot | event | over
    ============================================================ */
 (function (G) {
   'use strict';
@@ -13,26 +13,28 @@
      ========================================================= */
   const state = {
     wave: 1,
-    phase: 'boot',     // boot | play | busy | upgrade | event | over
-    paused: false,     // 弹窗期间挂起 update
+    phase: 'boot',     // boot | play | busy | levelup | loot | event | over
+    paused: false,
     time: 0,           // 本局累计游戏时间（秒）
 
     player: null,
-    foes: [],          // 本波敌人（实时实体）
-    bullets: [],       // 双方弹幕
-    floaters: [],      // 飘字（伤害/治疗数字）
+    foes: [],
+    bullets: [],
+    floaters: [],
 
-    // 竞技场障碍物（柱子，阻挡移动与弹幕）
-    obstacles: [],
+    mapIdx: 0,             // 当前地图主题下标（按等级里程碑推进）
+    obstacles: [],         // 动态障碍物（随玩家移动随机生成/移除）
+    obsT: 0,               // 障碍物生成计时
 
-    loots: [],         // 本波掉落装备 { item, done, result, slot }
+    loots: [],
     lootSlots: [],
     kills: 0,
+    pendingLevelUps: 0,    // 待处理的升级选项数（每级一张三选一）
 
-    pendingElite: false,  // 岔路事件：下波精英增强
-    pendingRage: false,   // 泉水事件：下波敌人攻击提升
+    pendingElite: false,
+    pendingRage: false,
 
-    banner: null,      // { text, sub, t } 开波提示
+    banner: null,
 
     best: 0
   };
@@ -40,33 +42,32 @@
   try { state.best = Number(localStorage.getItem('abyss_best') || 0); } catch (e) { state.best = 0; }
 
   function saveBest() {
-    try { localStorage.setItem('abyss_best', String(state.best)); } catch (e) { /* 无痕模式忽略 */ }
+    try { localStorage.setItem('abyss_best', String(state.best)); } catch (e) { /* 忽略 */ }
   }
 
   /* =========================================================
      实体工厂
      ========================================================= */
-  /** 基础战斗单位（玩家与敌人通用） */
   function makeUnit(base) {
     const u = {
       baseHp: base.hp, baseAtk: base.atk, baseDef: base.def,
       items: [], shield: 0, bleed: null,
-      strikes: 0,          // 出手计数（固定节拍暴击）
+      strikes: 0,
       maxHp: 0, hp: 0, atk: 0, def: 0, agg: null, isMon: !!base.isMon,
-      // 实体字段
       x: base.x || 0, y: base.y || 0,
-      r: base.r || 14,
+      r: base.r || 13,
       speed: base.speed || 0,
-      atkCd: 0,            // 攻击冷却（秒）
-      flashT: 0,           // 受击闪白
-      iframes: 0,          // 无敌时间（玩家用）
-      // 敌人字段
-      type: base.type || null,        // melee | ranged | boss
+      atkCd: 0,
+      flashT: 0,
+      iframes: 0,
+      type: base.type || null,
       name: base.name || '',
       emoji: base.emoji || '',
       elite: false,
-      affix: null,         // { key, name, icon, ... }
-      strafeDir: 1,        // 远程敌人环绕方向（确定性）
+      affix: null,
+      strafeDir: 1,
+      xp: base.xp || 0,     // 击杀提供的经验
+      orbitCd: 0,           // 被环绕飞刃命中的冷却
       dead: false
     };
     u.agg = aggregate(u.items);
@@ -78,26 +79,98 @@
     const C = CFG.player;
     const p = makeUnit({
       hp: C.hp, atk: C.atk, def: C.def,
-      x: CFG.arena.w / 2, y: CFG.arena.h / 2,
+      x: CFG.world.w / 2, y: CFG.world.h / 2,
       r: C.r, speed: C.speed,
       name: '冒险者', emoji: '⚔️'
     });
     p.iframes = 0;
-    p.atkT = C.atkCd * 0.5;   // 开局很快打出第一箭
+    p.atkT = C.atkCd * 0.5;
+    // 等级与攻击方式
+    p.level = 1;
+    p.xp = 0;
+    p.atkCdMul = 1;    // 攻速乘算系数（攻速提升卡）
+    p.shots = 1;       // 每次射击的箭矢数（散射箭）
+    p.pierce = 0;      // 箭矢贯穿数（贯穿箭）
+    p.homing = 0;      // 追踪强度（追踪箭）
+    p.orbits = 0;      // 环绕飞刃数量
     return p;
   }
 
-  /** 竞技场障碍物：4 根对称柱子 */
-  function makeObstacles() {
-    const A = CFG.arena;
-    const s = 56;
-    return [
-      { x: A.w * 0.5 - 230 - s / 2, y: A.h * 0.5 - 120 - s / 2, w: s, h: s },
-      { x: A.w * 0.5 + 230 - s / 2, y: A.h * 0.5 - 120 - s / 2, w: s, h: s },
-      { x: A.w * 0.5 - 230 - s / 2, y: A.h * 0.5 + 120 - s / 2, w: s, h: s },
-      { x: A.w * 0.5 + 230 - s / 2, y: A.h * 0.5 + 120 - s / 2, w: s, h: s }
-    ];
+  /* =========================================================
+     动态障碍物
+     ========================================================= */
+  function rectsOverlap(a, b, gap) {
+    gap = gap || 0;
+    return a.x - gap < b.x + b.w && a.x + a.w + gap > b.x &&
+           a.y - gap < b.y + b.h && a.y + a.h + gap > b.y;
   }
 
-  Object.assign(G, { state, saveBest, makeUnit, makePlayer, makeObstacles });
+  function conflictsObstacles(rect) {
+    return state.obstacles.some(o => rectsOverlap(rect, o, 40));
+  }
+
+  /** 在世界内随机生成 n 个障碍物（避开玩家与现有障碍） */
+  function spawnObstaclesRandom(n) {
+    const W = CFG.world;
+    const C = CFG.obstacles;
+    const p = state.player;
+    let made = 0, tries = 0;
+    while (made < n && tries++ < 200) {
+      const size = C.sizeMin + Math.random() * (C.sizeMax - C.sizeMin);
+      const rect = {
+        x: 60 + Math.random() * (W.w - 120 - size),
+        y: 60 + Math.random() * (W.h - 120 - size),
+        w: size, h: size
+      };
+      if (p && G.circleRect(p.x, p.y, 250, rect)) continue;
+      if (conflictsObstacles(rect)) continue;
+      state.obstacles.push(rect);
+      made++;
+    }
+    return made;
+  }
+
+  /** 玩家移动后：在附近随机生成一个障碍物（失败返回 false） */
+  function spawnObstacleNearPlayer() {
+    const W = CFG.world;
+    const C = CFG.obstacles;
+    const p = state.player;
+    if (!p || state.obstacles.length >= C.cap) return false;
+
+    for (let tries = 0; tries < 12; tries++) {
+      const size = C.sizeMin + Math.random() * (C.sizeMax - C.sizeMin);
+      const a = Math.random() * Math.PI * 2;
+      const d = C.minDist + Math.random() * (C.maxDist - C.minDist);
+      const cx = p.x + Math.cos(a) * d;
+      const cy = p.y + Math.sin(a) * d;
+      const rect = {
+        x: Math.max(60, Math.min(W.w - 60 - size, cx - size / 2)),
+        y: Math.max(60, Math.min(W.h - 60 - size, cy - size / 2)),
+        w: size, h: size
+      };
+      if (G.circleRect(p.x, p.y, C.minDist * 0.7, rect)) continue;
+      if (state.foes.some(f => !f.dead && G.circleRect(f.x, f.y, f.r + 50, rect))) continue;
+      if (conflictsObstacles(rect)) continue;
+      state.obstacles.push(rect);
+      return true;
+    }
+    return false;
+  }
+
+  /** 移除离玩家太远的障碍物 */
+  function cullObstacles() {
+    const p = state.player;
+    if (!p) return;
+    const C = CFG.obstacles;
+    for (let i = state.obstacles.length - 1; i >= 0; i--) {
+      const o = state.obstacles[i];
+      const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+      if (G.dist(p.x, p.y, cx, cy) > C.cullDist) state.obstacles.splice(i, 1);
+    }
+  }
+
+  Object.assign(G, {
+    state, saveBest, makeUnit, makePlayer,
+    spawnObstaclesRandom, spawnObstacleNearPlayer, cullObstacles, rectsOverlap
+  });
 })(window.ABYSS = window.ABYSS || {});

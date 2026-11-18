@@ -6,7 +6,7 @@
 (function (G) {
   'use strict';
 
-  const { state, clamp } = G;
+  const { state, clamp, CFG } = G;
 
   /* =========================================================
      飘字
@@ -106,6 +106,7 @@
       if (tgt !== state.player) {
         state.kills++;
         floatText(tgt, '✦', '#fbbf24', true);
+        gainXp(tgt.xp);
       }
     }
 
@@ -139,6 +140,45 @@
   }
 
   /* =========================================================
+     经验与升级：击杀获得经验，满值自动升级
+     - 三维属性自动成长（CFG.growth）
+     - 立即回复部分生命
+     - 每级累积一个待处理的升级选项（三选一，见 cards.js）
+     - 跨过等级里程碑时解锁新地图（见 flow.switchMap）
+     ========================================================= */
+  function xpNeed(level) {
+    return CFG.xp.base + (level - 1) * CFG.xp.perLevel;
+  }
+
+  function gainXp(amount) {
+    const p = state.player;
+    if (!p || !amount) return;
+    p.xp += amount;
+    floatText(p, '+' + amount + ' XP', '#c4b5fd');
+    while (p.xp >= xpNeed(p.level)) {
+      p.xp -= xpNeed(p.level);
+      p.level++;
+      levelUp(p);
+    }
+    G.ui.syncTopbar();
+  }
+
+  function levelUp(p) {
+    const g = CFG.growth;
+    p.baseHp += g.hp;
+    p.baseAtk += g.atk;
+    p.baseDef += g.def;
+    G.refresh(p);
+    G.healUnit(p, Math.round(p.maxHp * g.healPct));
+    floatText(p, 'Lv.' + p.level + ' ↑', '#fbbf24', true);
+    state.pendingLevelUps++;
+
+    // 等级里程碑 → 解锁新地图
+    const target = Math.min(G.MAPS.length - 1, Math.floor((p.level - 1) / CFG.maps.milestoneEvery));
+    if (target > state.mapIdx && G.switchMap) G.switchMap(target);
+  }
+
+  /* =========================================================
      狂怒词缀：血量越低攻击越高（最高 +80%）
      ========================================================= */
   function frenzyMul(u) {
@@ -146,5 +186,5 @@
     return 1 + 0.8 * (1 - u.hp / Math.max(1, u.maxHp));
   }
 
-  Object.assign(G, { floatText, healUnit, dealDamage, damagePlayer, applyBleed, tickBleeds, frenzyMul });
+  Object.assign(G, { floatText, healUnit, dealDamage, damagePlayer, applyBleed, tickBleeds, frenzyMul, xpNeed, gainXp, levelUp });
 })(window.ABYSS = window.ABYSS || {});

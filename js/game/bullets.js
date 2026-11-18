@@ -1,6 +1,6 @@
 /* ============================================================
    游戏层 · bullets.js
-   弹幕：玩家箭矢（命中触发流血/吸血/反伤结算）与敌人弹幕
+   弹幕：玩家箭矢（散射/贯穿/追踪，命中触发流血/吸血/反伤）与敌人弹幕
    ============================================================ */
 (function (G) {
   'use strict';
@@ -10,24 +10,6 @@
   /* =========================================================
      发射
      ========================================================= */
-
-  /** 玩家箭矢：出手时结算固定节拍暴击，命中时附加流血 */
-  function firePlayerBullet(p, tx, ty) {
-    p.strikes++;
-    let dmg = p.atk;
-    let crit = false;
-    if (p.agg.crit > 0 && p.strikes % p.agg.crit === 0) {
-      dmg *= p.agg.critMult;
-      crit = true;
-    }
-    const v = G.norm(tx - p.x, ty - p.y);
-    state.bullets.push({
-      x: p.x + v.x * (p.r + 4), y: p.y + v.y * (p.r + 4),
-      vx: v.x * CFG.player.bulletSpeed, vy: v.y * CFG.player.bulletSpeed,
-      r: 5, dmg, crit, side: 'p', life: 2, owner: p
-    });
-    G.sfxTick();
-  }
 
   /** 敌人弹幕 */
   function fireEnemyBullet(e, tx, ty, speed) {
@@ -49,34 +31,65 @@
     return false;
   }
 
+  /** 追踪箭：朝最近的存活敌人缓慢转向 */
+  function steerHoming(b, dt) {
+    if (!b.homing || b.side !== 'p') return;
+    let best = null, bd = CFG.player.range * 1.4;
+    for (const f of state.foes) {
+      if (f.dead) continue;
+      const d = G.dist(b.x, b.y, f.x, f.y);
+      if (d < bd) { bd = d; best = f; }
+    }
+    if (!best) return;
+    const cur = Math.atan2(b.vy, b.vx);
+    const want = Math.atan2(best.y - b.y, best.x - b.x);
+    let diff = want - cur;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    const rate = 2.2 * b.homing * dt;
+    const turn = clamp(diff, -rate, rate);
+    const spd = Math.hypot(b.vx, b.vy);
+    const na = cur + turn;
+    b.vx = Math.cos(na) * spd;
+    b.vy = Math.sin(na) * spd;
+  }
+
   function updateBullets(dt) {
     const p = state.player;
-    const A = CFG.arena;
+    const W = CFG.world;
 
     for (let i = state.bullets.length - 1; i >= 0; i--) {
       const b = state.bullets[i];
+
+      steerHoming(b, dt);
+
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       b.life -= dt;
 
       let dead = b.life <= 0
-        || b.x < 0 || b.x > A.w || b.y < 0 || b.y > A.h
+        || b.x < 0 || b.x > W.w || b.y < 0 || b.y > W.h
         || hitObstacle(b);
 
       if (!dead && b.side === 'p') {
-        // 命中敌人
         for (const f of state.foes) {
-          if (f.dead) continue;
+          if (f.dead || b.hit.indexOf(f) >= 0) continue;
           if (G.dist(b.x, b.y, f.x, f.y) < b.r + f.r) {
             const dealt = dealDamage(p, f, b.dmg, { crit: b.crit });
             // 血刃：命中附加流血（多件只取最强，聚合时已处理）
             if (dealt > 0 && p.agg.bleed) applyBleed(f, p.agg.bleed);
-            dead = true;
+
+            if (b.pierceLeft > 0) {
+              // 贯穿：穿过这个敌人继续飞
+              b.pierceLeft--;
+              b.hit.push(f);
+            } else {
+              dead = true;
+            }
             break;
           }
         }
       } else if (!dead && b.side === 'e') {
-        // 命中玩家
         if (p && !p.dead && G.dist(b.x, b.y, p.x, p.y) < b.r + p.r) {
           dealDamage(b.owner, p, b.dmg);
           dead = true;
@@ -87,5 +100,5 @@
     }
   }
 
-  Object.assign(G, { firePlayerBullet, fireEnemyBullet, updateBullets });
+  Object.assign(G, { fireEnemyBullet, updateBullets });
 })(window.ABYSS = window.ABYSS || {});

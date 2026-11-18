@@ -1,8 +1,10 @@
 /* ============================================================
    游戏层 · flow.js
-   实时流程状态机：
-   play（实时战斗）→ 全灭 → busy（结算）→ upgrade（选卡+战利品）
-   → event（场景事件）→ 下一波；玩家死亡 → over
+   实时流程状态机（经验升级版）：
+   - 战斗中击杀获得经验，满级自动升级 → 弹三选一（暂停），连升依次处理
+   - 全灭 → 结算战利品弹窗 → 事件 → 下一波
+   - 等级里程碑 → 解锁新地图（换主题 + 重新随机障碍布局）
+   - 动态障碍物随玩家移动周期性生成/移除
    ============================================================ */
 (function (G) {
   'use strict';
@@ -20,12 +22,16 @@
     state.kills = 0;
     state.loots = [];
     state.lootSlots = [];
+    state.pendingLevelUps = 0;
     state.pendingElite = false;
     state.pendingRage = false;
     state.floaters = [];
     state.bullets = [];
-    state.obstacles = G.makeObstacles();
+    state.mapIdx = 0;
+    state.obsT = 0;
     state.player = G.makePlayer();
+    state.obstacles = [];
+    G.spawnObstaclesRandom(6);     // 初始障碍布局
     startWave();
   }
 
@@ -42,14 +48,45 @@
     state.pendingRage = false;
 
     const boss = G.isBossWave(state.wave);
+    const mapName = G.MAPS[state.mapIdx].name;
     state.banner = {
       text: '第 ' + state.wave + ' 波',
-      sub: boss ? '⚠ BOSS 来袭 · ' + state.foes[0].name : state.foes.map(f => f.name).join('、'),
+      sub: (boss ? '⚠ BOSS 来袭 · ' + state.foes[0].name : state.foes.map(f => f.name).join('、')) +
+        ' · ' + mapName,
       t: 1.6
     };
     if (boss) G.sfxBoss();
 
     G.ui.syncTopbar();
+  }
+
+  /* =========================================================
+     地图切换：等级里程碑解锁
+     ========================================================= */
+  function switchMap(idx) {
+    state.mapIdx = idx;
+    const map = G.MAPS[idx];
+    // 重新随机障碍布局
+    state.obstacles = [];
+    G.spawnObstaclesRandom(6);
+    state.banner = {
+      text: '🗺 ' + map.name,
+      sub: '新地图解锁 · 敌人更强',
+      t: 2.2
+    };
+    G.sfxUpgrade();
+  }
+
+  /* =========================================================
+     动态障碍物：随玩家移动周期生成/移除
+     ========================================================= */
+  function updateObstacles(dt) {
+    state.obsT += dt;
+    if (state.obsT >= CFG.obstacles.spawnEvery) {
+      state.obsT = 0;
+      G.spawnObstacleNearPlayer();
+      G.cullObstacles();
+    }
   }
 
   /* =========================================================
@@ -64,6 +101,7 @@
     G.updateEnemies(dt);
     G.updateBullets(dt);
     G.tickBleeds(state.player, dt);
+    updateObstacles(dt);
 
     // 飘字
     for (let i = state.floaters.length - 1; i >= 0; i--) {
@@ -84,23 +122,34 @@
       if (state.banner.t <= 0) state.banner = null;
     }
 
-    // 胜利判定：敌人全灭
+    // 胜利判定：敌人全灭（优先于升级弹窗，保证战利品数据就绪）
     if (state.foes.length && state.foes.every(f => f.dead)) {
       onVictory();
+      return;
+    }
+
+    // 升级弹窗：战斗中攒够经验立即处理
+    if (state.pendingLevelUps > 0) {
+      G.showLevelUp();
     }
   }
 
   /* =========================================================
-     胜利 → 战利品 + 属性卡（弹窗期间游戏暂停）
+     胜利 → 升级选项（若有）→ 战利品
      ========================================================= */
   function onVictory() {
     state.phase = 'busy';
     G.sfxWin();
     G.rollLoot();
-    G.showUpgrade();
+
+    if (state.pendingLevelUps > 0) {
+      G.showLevelUp();          // 升级处理完后由 chooseLevelCard 转 showLoot
+    } else {
+      G.showLoot();
+    }
   }
 
-  /** 选卡后进入下一波（cards.chooseUpgrade 调用） */
+  /** 战利品处理完 → 下一波（loot.continueLoot 调用） */
   function advanceWave() {
     state.wave += 1;
     if (state.wave > state.best) {
@@ -121,5 +170,5 @@
     G.ui.showGameOver();
   }
 
-  Object.assign(G, { startRun, startWave, update, advanceWave, gameOver, onVictory });
+  Object.assign(G, { startRun, startWave, switchMap, update, advanceWave, gameOver, onVictory, updateObstacles });
 })(window.ABYSS = window.ABYSS || {});
