@@ -12,17 +12,13 @@
      ========================================================= */
   const el = {
     waveNum: $('waveNum'), recordNum: $('recordNum'),
-    ally: $('ally'), foe: $('foe'),
-    allyAvatar: $('allyAvatar'), foeAvatar: $('foeAvatar'),
+    ally: $('ally'), foesBox: $('foes'),
+    allyAvatar: $('allyAvatar'),
     allyFill: $('allyFill'), allyGhost: $('allyGhost'), allyBarTxt: $('allyBarTxt'), allyBar: $('allyBar'),
-    foeFill: $('foeFill'), foeGhost: $('foeGhost'), foeBarTxt: $('foeBarTxt'), foeBar: $('foeBar'),
     allyShieldBar: $('allyShieldBar'), allyShieldFill: $('allyShieldFill'),
-    foeShieldBar: $('foeShieldBar'), foeShieldFill: $('foeShieldFill'),
     allyAtk: $('allyAtk'), allyDef: $('allyDef'),
-    foeAtk: $('foeAtk'), foeDef: $('foeDef'),
-    allyEq: $('allyEq'), foeEq: $('foeEq'),
-    allyStatus: $('allyStatus'), foeStatus: $('foeStatus'),
-    foeName: $('foeName'), foeCrown: $('foeCrown'),
+    allyEq: $('allyEq'),
+    allyStatus: $('allyStatus'),
     turnTip: $('turnTip'), impact: $('impact'),
     attackBtn: $('attackBtn'), defendBtn: $('defendBtn'), defendSub: $('defendSub'),
     upOverlay: $('upgradeOverlay'), cards: $('cards'), upSub: $('upSub'), lootBox: $('lootBox'),
@@ -32,8 +28,15 @@
     overKiller: $('overKiller'), overKills: $('overKills'), overBest: $('overBest'),
     banner: $('banner'),
     trackPips: $('trackPips'), trackLabel: $('trackLabel'),
-    soundBtn: $('soundBtn'), restartBtn: $('restartBtn'), againBtn: $('againBtn')
+    soundBtn: $('soundBtn'), restartBtn: $('restartBtn'), againBtn: $('againBtn'),
+    eventOverlay: $('eventOverlay'), eventBox: $('eventOverlay'),
+    eventIcon: $('eventIcon'), eventTitle: $('eventTitle'), eventText: $('eventText'), eventOpts: $('eventOpts')
   };
+
+  // 敌人卡片索引：单位对象 → 其 DOM 卡片（WeakMap 避免泄漏）
+  const foeCards = new WeakMap();
+  el.foeCard = (u) => foeCards.get(u) || null;
+  el.setFoeCard = (u, node) => { if (u && node) foeCards.set(u, node); };
 
   Object.assign(G, { el });
 })(window.ABYSS = window.ABYSS || {});

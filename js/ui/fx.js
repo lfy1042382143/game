@@ -42,7 +42,14 @@
   }
 
   const allyHost = () => el.ally.querySelector('.avatar-wrap');
-  const foeHost = () => el.foe.querySelector('.avatar-wrap');
+  // 敌人飘字容器：按具体敌人单位定位对应卡片；兜底用第一个
+  const foeHost = (u) => {
+    const card = u ? el.foeCard(u) : null;
+    if (card) return card.querySelector('.avatar-wrap') || card;
+    const box = el.foesBox;
+    const first = box ? box.querySelector('.avatar-wrap') : null;
+    return first || el.ally.querySelector('.avatar-wrap');
+  };
 
   Object.assign(G, { floatNum, impact, showBanner, allyHost, foeHost });
 })(window.ABYSS = window.ABYSS || {});

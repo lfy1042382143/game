@@ -42,6 +42,14 @@
       doRound('defend');
     } else if (e.key === 'r' || e.key === 'R') {
       if (state.phase !== 'busy') resetGame();
+    } else if (e.key >= '1' && e.key <= '4') {
+      // 数字键切换攻击目标
+      const idx = Number(e.key) - 1;
+      if (state.phase === 'battle' && state.foes[idx] && state.foes[idx].hp > 0) {
+        state.target = idx;
+        G.renderBars();
+        G.setTip('攻击 ' + state.foes[idx].name);
+      }
     }
   });
 

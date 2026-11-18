@@ -73,9 +73,77 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(16px, 9vw, 210px);
+  gap: clamp(16px, 5vw, 140px);
   position: relative;
   min-height: 0;
+}
+
+/* 敌人小队容器：多个敌人横向排列 */
+.foes {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 1.6vw, 22px);
+  max-width: 62vw;
+  min-height: 0;
+  flex-wrap: nowrap;
+}
+
+/* 敌人数量多时整体缩小，保证不溢出 */
+.foes[data-count="3"] .fighter,
+.foes[data-count="4"] .fighter {
+  width: clamp(120px, 15vw, 200px);
+  min-height: clamp(200px, 34vh, 320px);
+  padding: clamp(10px, 1.8vh, 18px) clamp(8px, 1vw, 12px);
+  gap: clamp(4px, .9vh, 9px);
+}
+.foes[data-count="4"] .fighter {
+  width: clamp(104px, 12.5vw, 170px);
+}
+.foes[data-count="3"] .fighter .avatar,
+.foes[data-count="4"] .fighter .avatar {
+  width: clamp(54px, 6vw, 86px);
+  height: clamp(54px, 6vw, 86px);
+  font-size: clamp(28px, 3.4vw, 46px);
+}
+.foes[data-count="3"] .fighter .avatar,
+.foes[data-count="4"] .fighter .avatar {
+  font-size: clamp(26px, 3vw, 42px);
+}
+
+/* 敌人卡片：可选中目标、死亡淡化 */
+.fighter.foe {
+  cursor: pointer;
+  transition: transform .16s, box-shadow .16s, opacity .35s, border-color .16s;
+}
+.fighter.foe:hover { transform: translateY(-3px); }
+.fighter.foe.target {
+  border-color: rgba(255, 214, 90, .75);
+  box-shadow: 0 0 0 2px rgba(255, 214, 90, .55), 0 0 30px -4px rgba(255, 200, 60, .5), 0 24px 60px -26px rgba(220, 40, 80, .5);
+}
+.fighter.foe.dead {
+  opacity: .25;
+  filter: grayscale(.8);
+  pointer-events: none;
+  transform: scale(.92);
+}
+.fighter.foe.elite {
+  border-color: rgba(167, 139, 250, .4);
+}
+.fighter.foe.elite::after {
+  content: '精英';
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, .18);
+  border: 1px solid rgba(167, 139, 250, .4);
+  padding: 1px 6px;
+  border-radius: 5px;
 }
 
 .fighter {

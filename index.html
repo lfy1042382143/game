@@ -74,29 +74,7 @@
       <div class="impact" id="impact"></div>
     </div>
 
-    <section class="fighter foe" id="foe">
-      <div class="name-row">
-        <span class="crown" id="foeCrown" style="display:none">👑</span>
-        <span class="name" id="foeName">哥布林</span>
-        <button class="info-btn" data-inspect="foe" title="查看敌方属性与装备详情">ⓘ</button>
-      </div>
-      <div class="avatar-wrap">
-        <div class="aura"></div>
-        <div class="avatar" id="foeAvatar">👺</div>
-      </div>
-      <div class="bar" id="foeBar">
-        <div class="bar-ghost" id="foeGhost"></div>
-        <div class="fill" id="foeFill"></div>
-        <span class="bar-txt" id="foeBarTxt">24 / 24</span>
-      </div>
-      <div class="shield-bar" id="foeShieldBar"><div class="shield-fill" id="foeShieldFill"></div></div>
-      <div class="stats">
-        <span class="stat atk"><i>⚔</i><b id="foeAtk">8</b></span>
-        <span class="stat def"><i>🛡</i><b id="foeDef">1</b></span>
-      </div>
-      <div class="eq-row" id="foeEq" data-inspect="foe" title="点击查看装备详情"></div>
-      <div class="status-row" id="foeStatus"></div>
-    </section>
+    <section class="foes" id="foes"></section>
   </main>
 
   <div class="track" id="track">
@@ -150,6 +128,19 @@
   </div>
 </div>
 
+<!-- 场景事件弹窗 -->
+<div class="overlay" id="eventOverlay">
+  <div class="panel event-panel">
+    <div class="event-head">
+      <div class="event-icon" id="eventIcon">🕯️</div>
+      <div class="event-kicker">事件 · Event</div>
+      <h1 class="event-title" id="eventTitle">幽暗祭坛</h1>
+    </div>
+    <div class="event-text" id="eventText">一座泛着幽光的祭坛……</div>
+    <div class="event-opts" id="eventOpts"></div>
+  </div>
+</div>
+
 <!-- 属性 / 装备详情 -->
 <div class="overlay ins-overlay" id="inspectOverlay">
   <div class="panel ins-panel" id="inspectPanel" role="dialog" aria-modal="true" aria-labelledby="insName">
@@ -200,6 +191,7 @@
 <script src="js/systems/monster.js"></script>
 <script src="js/systems/loot.js"></script>
 <script src="js/systems/cards.js"></script>
+<script src="js/systems/events.js"></script>
 <script src="js/systems/flow.js"></script>
 
 <script src="js/ui/inspector.js"></script>

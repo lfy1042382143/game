@@ -145,7 +145,10 @@
     const head =
       '<div class="loot-head">' +
         '<span class="loot-title">战利品</span>' +
-        '<span class="loot-from">来自「' + (state.monster ? state.monster.name : '敌人') + '」' +
+        '<span class="loot-from">来自' +
+          (state.foes && state.foes.length > 1
+            ? '「' + state.foes.length + ' 个敌人」'
+            : '「' + (state.monster ? state.monster.name : '敌人') + '」') +
           (loots.length > 1 ? ' · 共 ' + loots.length + ' 件' : '') +
         '</span>' +
         (allDone

@@ -48,7 +48,7 @@
   }
 
   function renderBars() {
-    const p = state.player, m = state.monster;
+    const p = state.player;
     const pPct = clamp(p.hp / p.maxHp, 0, 1) * 100;
     el.allyFill.style.width = pPct + '%';
     el.allyGhost.style.width = pPct + '%';
@@ -59,20 +59,30 @@
     el.allyShieldFill.style.width = pShieldPct + '%';
     el.allyShieldBar.classList.toggle('on', p.shield > 0);
 
-    if (m) {
-      const mPct = clamp(m.hp / m.maxHp, 0, 1) * 100;
-      el.foeFill.style.width = mPct + '%';
-      el.foeGhost.style.width = mPct + '%';
-      el.foeBarTxt.textContent = fmt(m.hp) + ' / ' + fmt(m.maxHp);
-      el.foeBar.classList.toggle('low', mPct < 30);
-      const mShieldPct = clamp(m.shield / (m.maxHp * CFG.defend.capPct), 0, 1) * 100;
-      el.foeShieldFill.style.width = mShieldPct + '%';
-      el.foeShieldBar.classList.toggle('on', m.shield > 0);
-    }
+    state.foes.forEach(foe => {
+      const card = el.foeCard(foe);
+      if (!card) return;
+      const fill = card.querySelector('.fill');
+      const ghost = card.querySelector('.bar-ghost');
+      const txt = card.querySelector('.bar-txt');
+      const bar = card.querySelector('.bar');
+      const sBar = card.querySelector('.shield-bar');
+      const sFill = card.querySelector('.shield-fill');
+      const pct = clamp(foe.hp / foe.maxHp, 0, 1) * 100;
+      fill.style.width = pct + '%';
+      ghost.style.width = pct + '%';
+      txt.textContent = fmt(foe.hp) + ' / ' + fmt(foe.maxHp);
+      bar.classList.toggle('low', pct < 30);
+      const sPct = clamp(foe.shield / (foe.maxHp * CFG.defend.capPct), 0, 1) * 100;
+      sFill.style.width = sPct + '%';
+      sBar.classList.toggle('on', foe.shield > 0);
+      card.classList.toggle('dead', foe.hp <= 0);
+      card.classList.toggle('target', foe.idx === state.target && foe.hp > 0);
+    });
   }
 
   function renderStats(pop) {
-    const p = state.player, m = state.monster;
+    const p = state.player;
     el.allyAtk.textContent = fmt(p.atk);
     el.allyDef.textContent = fmt(p.def);
     if (pop) {
@@ -82,10 +92,12 @@
       el.allyAtk.parentElement.classList.add('up');
       el.allyDef.parentElement.classList.add('up');
     }
-    if (m) {
-      el.foeAtk.textContent = fmt(m.atk);
-      el.foeDef.textContent = fmt(m.def);
-    }
+    state.foes.forEach(foe => {
+      const card = el.foeCard(foe);
+      if (!card) return;
+      card.querySelector('.stat.atk b').textContent = fmt(foe.atk);
+      card.querySelector('.stat.def b').textContent = fmt(foe.def);
+    });
   }
 
   function renderEquip(host, unit, justSlot) {
@@ -125,6 +137,85 @@
     }
   }
 
+  /** 生成/刷新敌人卡片 DOM（结构变化时重建，数值变化走 renderBars） */
+  function renderFoes() {
+    const box = el.foesBox;
+    if (!box) return;
+
+    box.setAttribute('data-count', String(state.foes.length));
+
+    // 若敌人数量变化，重建所有卡片；否则复用现有 DOM
+    const cards = box.querySelectorAll('.fighter.foe');
+    const needRebuild = cards.length !== state.foes.length;
+
+    if (needRebuild) {
+      box.innerHTML = '';
+      state.foes.forEach(foe => {
+        const card = buildFoeCard(foe);
+        box.appendChild(card);
+        el.setFoeCard(foe, card);
+      });
+    } else {
+      // 复用：更新名称、头像、皇冠（波次变化时可能变）
+      state.foes.forEach((foe, i) => {
+        const card = cards[i];
+        el.setFoeCard(foe, card);
+        card.querySelector('.name').textContent = foe.name;
+        card.querySelector('.avatar').textContent = foe.emoji;
+        card.querySelector('.crown').style.display = foe.boss ? '' : 'none';
+        card.classList.toggle('boss', !!foe.boss);
+        card.classList.toggle('elite', !!foe.elite && !foe.boss);
+        renderEquip(card.querySelector('.eq-row'), foe);
+        renderStatus(card.querySelector('.status-row'), foe);
+      });
+    }
+  }
+
+  function buildFoeCard(foe) {
+    const card = document.createElement('section');
+    card.className = 'fighter foe';
+    if (foe.boss) card.classList.add('boss');
+    if (foe.elite && !foe.boss) card.classList.add('elite');
+
+    card.innerHTML =
+      '<div class="name-row">' +
+        '<span class="crown" style="display:' + (foe.boss ? '' : 'none') + '">👑</span>' +
+        '<span class="name">' + foe.name + '</span>' +
+        '<button class="info-btn" data-inspect="foe" title="查看敌方属性与装备详情">ⓘ</button>' +
+      '</div>' +
+      '<div class="avatar-wrap">' +
+        '<div class="aura"></div>' +
+        '<div class="avatar">' + foe.emoji + '</div>' +
+      '</div>' +
+      '<div class="bar">' +
+        '<div class="bar-ghost"></div>' +
+        '<div class="fill"></div>' +
+        '<span class="bar-txt">' + fmt(foe.hp) + ' / ' + fmt(foe.maxHp) + '</span>' +
+      '</div>' +
+      '<div class="shield-bar"><div class="shield-fill"></div></div>' +
+      '<div class="stats">' +
+        '<span class="stat atk"><i>⚔</i><b>' + fmt(foe.atk) + '</b></span>' +
+        '<span class="stat def"><i>🛡</i><b>' + fmt(foe.def) + '</b></span>' +
+      '</div>' +
+      '<div class="eq-row" data-inspect="foe" title="点击查看装备详情"></div>' +
+      '<div class="status-row"></div>';
+
+    renderEquip(card.querySelector('.eq-row'), foe);
+    renderStatus(card.querySelector('.status-row'), foe);
+
+    // 点击卡片选择目标
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.info-btn') || e.target.closest('[data-inspect]')) return;
+      if (state.phase !== 'battle') return;
+      if (foe.hp <= 0) return;
+      state.target = foe.idx;
+      renderBars();
+      setTip('攻击 ' + foe.name);
+    });
+
+    return card;
+  }
+
   function renderButtons() {
     const fighting = state.phase === 'battle' && !state.paused;
     el.attackBtn.disabled = !fighting;
@@ -139,10 +230,7 @@
     renderStats(pop);
     renderButtons();
     if (state.player) renderEquip(el.allyEq, state.player);
-    if (state.monster) {
-      renderEquip(el.foeEq, state.monster);
-      renderStatus(el.foeStatus, state.monster);
-    }
+    if (state.foes.length) renderFoes();
     if (state.player) renderStatus(el.allyStatus, state.player);
   }
 
@@ -151,5 +239,5 @@
     el.turnTip.classList.toggle('warn', !!warn);
   }
 
-  Object.assign(G, { buildTrack, renderTrack, renderWave, renderBars, renderStats, renderEquip, renderStatus, renderButtons, render, setTip });
+  Object.assign(G, { buildTrack, renderTrack, renderWave, renderBars, renderStats, renderEquip, renderStatus, renderFoes, buildFoeCard, renderButtons, render, setTip });
 })(window.ABYSS = window.ABYSS || {});

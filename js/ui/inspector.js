@@ -23,13 +23,17 @@
     count: $('insEqCount')
   };
 
-  let current = null;      // 'ally' | 'foe'
+  let current = null;      // 'ally' | 'foe' | { foe: unit }
   let timer = null;
   let lastSig = '';
+  let currentFoe = null;   // 当前查看的敌人单位（foe 面板用）
 
   /* ---------- 取单位 ---------- */
   function unitOf(key) {
-    return key === 'foe' ? state.monster : state.player;
+    if (key === 'ally') return state.player;
+    if (key === 'foe') return currentFoe || state.foes[state.target] || state.foes[0];
+    if (key && typeof key === 'object' && key.foe) return key.foe;
+    return state.player;
   }
 
   /* ---------- 单次攻击伤害（无随机浮动；暴击按节拍折算成精确均值） ---------- */
@@ -99,7 +103,8 @@
 
   /* ---------- 对抗预估（始终以玩家视角，便于判断该不该换装） ---------- */
   function renderDuel() {
-    const me = state.player, other = state.monster;
+    const me = state.player;
+    const other = currentFoe || state.foes[state.target] || state.foes[0];
     if (!me || !other) { iv.duel.innerHTML = ''; return; }
 
     const toOther = hitDamage(me, other);
@@ -190,9 +195,13 @@
   }
 
   /* ---------- 开关 ---------- */
-  function open(key) {
+  function open(key, foeUnit) {
     if (!unitOf(key)) return;
     current = key;
+    currentFoe = foeUnit || null;
+    if (key === 'foe' && !currentFoe) {
+      currentFoe = state.foes[state.target] || state.foes[0];
+    }
     render();
     iv.overlay.classList.add('show');
     state.paused = true;
@@ -218,12 +227,27 @@
   function isOpen() { return !!current; }
 
   /* ---------- 事件 ---------- */
-  document.querySelectorAll('[data-inspect]').forEach(node => {
+  // 静态的 ally 查看按钮
+  document.querySelectorAll('[data-inspect="ally"]').forEach(node => {
     node.addEventListener('click', e => {
       e.stopPropagation();
-      open(node.getAttribute('data-inspect'));
+      open('ally');
     });
   });
+
+  // 敌人卡片里的查看按钮是动态生成的，用事件委托
+  const foesBox = $('foes');
+  if (foesBox) {
+    foesBox.addEventListener('click', e => {
+      const btn = e.target.closest('[data-inspect="foe"]');
+      if (!btn) return;
+      e.stopPropagation();
+      // 找到所属卡片对应的敌人单位
+      const card = e.target.closest('.fighter.foe');
+      const foe = card ? state.foes.find(f => el.foeCard(f) === card) : null;
+      open('foe', foe);
+    });
+  }
 
   // 升级界面里的装备一览也可以点开
   const eqPanel = $('eqPanel');

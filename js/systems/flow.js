@@ -5,21 +5,22 @@
 (function (G) {
   'use strict';
 
-  const { CFG, state, el, fmt, sleep, renderWave, renderMonster, render, renderEquip, renderButtons, setTip, floatNum, impact, showBanner, allyHost, foeHost, strike, doDefend, tickBleed, healUnit, makeUnit, makeMonster, showUpgrade, sfxHit, sfxHurt, sfxGuard, sfxWin, sfxLose, sfxBoss, sfxTick, startShield } = G;
+  const { CFG, state, el, fmt, sleep, renderWave, renderMonster, render, renderEquip, renderButtons, setTip, floatNum, impact, showBanner, allyHost, foeHost, strike, doDefend, tickBleed, healUnit, makeUnit, makeMonster, makeSquad, showUpgrade, sfxHit, sfxHurt, sfxGuard, sfxWin, sfxLose, sfxBoss, sfxTick, startShield } = G;
 
   /* =========================================================
      流程
      ========================================================= */
   function startWave(justSlot) {
-    state.monster = makeMonster(state.wave);
+    state.foes = makeSquad(state.wave);
+    state.monster = state.foes[0];
+    state.target = 0;
     state.round = 0;
     state.phase = 'battle';
 
     const p = state.player;
-    const m = state.monster;
 
-    // 双方共用同一套开局结算：清状态、重置出手节拍、施加「开局护盾」词条
-    [p, m].forEach(u => {
+    // 玩家与所有敌人共用同一套开局结算
+    [p].concat(state.foes).forEach(u => {
       u.bleed = null;
       u.defended = false;
       u.strikes = 0;
@@ -32,15 +33,24 @@
     renderMonster();
     render();
     if (justSlot) renderEquip(el.allyEq, p, justSlot);
-    setTip('你的回合');
+    setTip('选择目标 · 你的回合');
 
     if (p.shield > 0) floatNum(allyHost(), '+' + p.shield + ' 护盾', 'shield');
-    if (m.shield > 0) floatNum(foeHost(), '+' + m.shield + ' 护盾', 'shield');
+    state.foes.forEach(m => {
+      if (m.shield > 0) floatNum(foeHost(m), '+' + m.shield + ' 护盾', 'shield');
+    });
 
     if (state.monster.boss) {
       showBanner('BOSS 来袭');
       sfxBoss();
+    } else if (state.foes.length > 1) {
+      showBanner('敌群来袭 × ' + state.foes.length);
     }
+  }
+
+  /** 存活敌人列表 */
+  function aliveFoes() {
+    return state.foes.filter(m => m.hp > 0);
   }
 
   /** 回合结束护盾衰减：不会低于开局护盾（守望头盔的护盾整波有效） */
@@ -51,8 +61,7 @@
   }
 
   /** 怪物 AI（无随机）：血量跌破血线就举盾；带壁垒甲的敌人多一次举盾机会 */
-  function monsterChooseAction() {
-    const m = state.monster;
+  function monsterChooseAction(m) {
     if (m.lastAct === 'defend') return 'attack';
     const triggers = m.agg.guard > 0 ? [0.62, 0.38, 0.15] : [0.5, 0.25];
     if (m.guardUsed >= triggers.length) return 'attack';
@@ -69,25 +78,35 @@
     renderButtons();
 
     const p = state.player;
-    const m = state.monster;
     state.round += 1;
 
-    /* ---- 玩家行动 ---- */
+    /* ---- 玩家行动：攻击当前选中的目标 ---- */
+    const m = state.foes[state.target];
+    if (!m || m.hp <= 0) {
+      // 目标已死，自动切到第一个存活敌人
+      const next = aliveFoes()[0];
+      state.target = next ? next.idx : 0;
+      state.phase = 'battle';
+      renderButtons();
+      return;
+    }
+
     if (action === 'attack') {
       el.ally.classList.add('lunge');
-      setTip('攻击');
+      setTip('攻击 ' + m.name);
       sfxHit(false);
       await sleep(180);
       el.ally.classList.remove('lunge');
 
       const res = strike(p, m);
       if (res.crit) sfxHit(true);
-      el.foe.classList.add('hit', 'flash-dmg');
-      floatNum(foeHost(), (res.absorbed ? '格挡 ' : '') + '-' + res.dmg, res.absorbed ? 'block' : (res.crit ? 'crit' : 'dmg'));
+      const host = foeHost(m);
+      host.classList.add('hit', 'flash-dmg');
+      floatNum(host, (res.absorbed ? '格挡 ' : '') + '-' + res.dmg, res.absorbed ? 'block' : (res.crit ? 'crit' : 'dmg'));
       impact(false);
       render();
       await sleep(280);
-      el.foe.classList.remove('hit', 'flash-dmg');
+      host.classList.remove('hit', 'flash-dmg');
     } else {
       const gain = doDefend(p);
       el.ally.classList.add('guard');
@@ -99,51 +118,73 @@
       el.ally.classList.remove('guard');
     }
 
-    if (m.hp <= 0) { await onVictory(); return; }
-    if (p.hp <= 0) { gameOver(); return; }   // 荆棘甲反伤可能同归于尽
+    if (aliveFoes().length === 0) { await onVictory(); return; }
+    if (p.hp <= 0) { gameOver(); return; }
 
-    /* ---- 怪物行动 ---- */
+    /* ---- 敌方行动：多敌人时轮流攻击（每回合部分敌人行动），避免 1vN 输出碾压 ---- */
     setTip('敌方回合');
     await sleep(140);
 
-    const mAct = monsterChooseAction();
-    m.lastAct = mAct;
-    if (mAct === 'defend') {
-      const gain = doDefend(m);
-      el.foe.classList.add('guard');
-      floatNum(foeHost(), gain > 0 ? '+' + gain + ' 护盾' : '护盾已满', 'shield');
-      render();
-      await sleep(320);
-      el.foe.classList.remove('guard');
-    } else {
-      el.foe.classList.add('lunge');
-      await sleep(170);
-      el.foe.classList.remove('lunge');
+    const alive = aliveFoes();
+    const actCount = Math.max(1, Math.ceil(alive.length / 2));
+    // 确定本回合行动的下标集合（轮转：按上一回合记录的指针顺延）
+    state.actPtr = (state.actPtr || 0) % alive.length;
+    const acting = [];
+    for (let k = 0; k < actCount; k++) {
+      acting.push(alive[(state.actPtr + k) % alive.length]);
+    }
+    state.actPtr = (state.actPtr + actCount) % alive.length;
 
-      const res = strike(m, p);
-      el.ally.classList.add('hit', 'flash-dmg');
-      floatNum(allyHost(), (res.absorbed ? '格挡 ' : '') + '-' + res.dmg, res.absorbed ? 'block' : 'hurt');
-      impact(true);
-      sfxHurt();
-      render();
-      await sleep(300);
-      el.ally.classList.remove('hit', 'flash-dmg');
+    for (const foe of acting) {
+      if (foe.hp <= 0) continue;
+      if (p.hp <= 0) break;
+
+      const mAct = monsterChooseAction(foe);
+      foe.lastAct = mAct;
+      const host = foeHost(foe);
+
+      if (mAct === 'defend') {
+        const gain = doDefend(foe);
+        host.classList.add('guard');
+        floatNum(host, gain > 0 ? '+' + gain + ' 护盾' : '护盾已满', 'shield');
+        render();
+        await sleep(320);
+        host.classList.remove('guard');
+      } else {
+        host.classList.add('lunge');
+        await sleep(170);
+        host.classList.remove('lunge');
+
+        const res = strike(foe, p);
+        el.ally.classList.add('hit', 'flash-dmg');
+        floatNum(allyHost(), (res.absorbed ? '格挡 ' : '') + '-' + res.dmg, res.absorbed ? 'block' : 'hurt');
+        impact(true);
+        sfxHurt();
+        render();
+        await sleep(300);
+        el.ally.classList.remove('hit', 'flash-dmg');
+      }
+
+      if (p.hp <= 0) break;
     }
 
-    if (m.hp <= 0) { await onVictory(); return; }   // 反伤击杀
+    if (aliveFoes().length === 0) { await onVictory(); return; }   // 反伤击杀
     if (p.hp <= 0) { gameOver(); return; }
 
     /* ---- 回合结束：流血 / 护盾衰减 ---- */
     await sleep(120);
 
-    const bm = tickBleed(m);
-    if (bm > 0) {
-      floatNum(foeHost(), '-' + bm + ' 流血', 'dot');
-      sfxTick();
-      render();
-      await sleep(240);
+    for (const foe of state.foes) {
+      if (foe.hp <= 0) continue;
+      const bm = tickBleed(foe);
+      if (bm > 0) {
+        floatNum(foeHost(foe), '-' + bm + ' 流血', 'dot');
+        sfxTick();
+        render();
+        await sleep(240);
+      }
     }
-    if (m.hp <= 0) { await onVictory(); return; }
+    if (aliveFoes().length === 0) { await onVictory(); return; }
 
     const bp = tickBleed(p);
     if (bp > 0) {
@@ -155,13 +196,15 @@
     if (p.hp <= 0) { gameOver(); return; }
 
     if (!p.defended && p.shield > 0) decayShield(p);
-    if (!m.defended && m.shield > 0) decayShield(m);
+    state.foes.forEach(foe => {
+      if (!foe.defended && foe.shield > 0) decayShield(foe);
+      foe.defended = false;
+    });
     p.defended = false;
-    m.defended = false;
 
     render();
     state.phase = 'battle';
-    setTip(state.round >= CFG.rage.start ? '第 ' + state.round + ' 回合 · 敌方狂暴' : '你的回合', state.round >= CFG.rage.start);
+    setTip(state.round >= CFG.rage.start ? '第 ' + state.round + ' 回合 · 敌方狂暴' : '选择目标 · 你的回合', state.round >= CFG.rage.start);
     renderButtons();
   }
 
@@ -169,7 +212,7 @@
     state.phase = 'busy';
     renderButtons();
 
-    el.foe.classList.add('dying');
+    state.foes.forEach(f => el.foeCard(f) && el.foeCard(f).classList.add('dying'));
     sfxWin();
     setTip('胜利');
     render();
@@ -181,15 +224,24 @@
     ));
 
     await sleep(620);
-    el.foe.classList.remove('dying');
+    state.foes.forEach(f => el.foeCard(f) && el.foeCard(f).classList.remove('dying'));
 
     const gained = healUnit(p, healAmt);
     if (gained > 0) floatNum(allyHost(), '+' + gained, 'heal');
     render();
 
     await sleep(500);
-    state.loots = G.rollLoot(state.monster);
+    // 掉落 = 所有敌人身上的装备合并
+    state.loots = [];
+    state.foes.forEach(foe => {
+      state.loots = state.loots.concat(G.rollLoot(foe));
+    });
     state.lootSlots = [];
+
+    // 先结算场景事件（若有），否则直接进入升级
+    if (G.triggerEvent && G.triggerEvent()) {
+      return;   // 事件选择完成后会调用 advanceWave
+    }
     showUpgrade();
   }
 
@@ -213,7 +265,7 @@
       el.overAtk.textContent = fmt(p.atk);
       el.overDef.textContent = fmt(p.def);
       el.overEq.textContent = p.items.length + ' / 4';
-      el.overKills.textContent = '击败 ' + Math.max(0, state.wave - 1) + ' 个敌人';
+      el.overKills.textContent = '击败 ' + Math.max(0, state.wave - 1) + ' 波敌人';
       el.overBest.innerHTML = '最佳纪录：第 <b>' + state.best + '</b> 波';
       el.overOverlay.classList.add('show');
     }, 420);
@@ -224,8 +276,8 @@
     state.paused = false;
     el.upOverlay.classList.remove('show');
     el.overOverlay.classList.remove('show');
+    el.eventOverlay.classList.remove('show');
     el.ally.classList.remove('hit', 'flash-dmg', 'lunge', 'guard');
-    el.foe.classList.remove('hit', 'flash-dmg', 'lunge', 'dying', 'guard');
 
     G.clearLoot();
 
@@ -233,12 +285,25 @@
     state.round = 0;
     state.player = makeUnit(CFG.player);
     state.monster = null;
+    state.foes = [];
+    state.target = 0;
+    state.actPtr = 0;
     state.phase = 'battle';
+    state.pendingElite = false;
+    state.pendingRage = false;
+    state.eventLoot = null;
 
     el.recordNum.textContent = state.best;
     el.allyAvatar.textContent = '⚔️';
     startWave();
   }
 
-  Object.assign(G, { startWave, doRound, onVictory, gameOver, resetGame, monsterChooseAction });
+  /** 从事件阶段推进到下一波（事件选择完成后调用） */
+  function advanceWave() {
+    G.clearLoot();
+    state.wave += 1;
+    startWave();
+  }
+
+  Object.assign(G, { startWave, doRound, onVictory, gameOver, resetGame, advanceWave, monsterChooseAction, aliveFoes });
 })(window.ABYSS = window.ABYSS || {});
