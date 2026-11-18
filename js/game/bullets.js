@@ -1,6 +1,6 @@
 /* ============================================================
    游戏层 · bullets.js
-   弹幕：玩家箭矢（散射/贯穿/追踪，命中触发流血/吸血/反伤）与敌人弹幕
+   弹幕：玩家箭矢（散射/贯穿，命中触发流血/吸血/反伤）与敌人弹幕
    ============================================================ */
 (function (G) {
   'use strict';
@@ -31,37 +31,12 @@
     return false;
   }
 
-  /** 追踪箭：朝最近的存活敌人快速转向（转向足够快才有战术价值） */
-  function steerHoming(b, dt) {
-    if (!b.homing || b.side !== 'p') return;
-    let best = null, bd = 520;
-    for (const f of state.foes) {
-      if (f.dead) continue;
-      const d = G.dist(b.x, b.y, f.x, f.y);
-      if (d < bd) { bd = d; best = f; }
-    }
-    if (!best) return;
-    const cur = Math.atan2(b.vy, b.vx);
-    const want = Math.atan2(best.y - b.y, best.x - b.x);
-    let diff = want - cur;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    const rate = 4.8 * b.homing * dt;
-    const turn = clamp(diff, -rate, rate);
-    const spd = Math.hypot(b.vx, b.vy);
-    const na = cur + turn;
-    b.vx = Math.cos(na) * spd;
-    b.vy = Math.sin(na) * spd;
-  }
-
   function updateBullets(dt) {
     const p = state.player;
     const W = CFG.world;
 
     for (let i = state.bullets.length - 1; i >= 0; i--) {
       const b = state.bullets[i];
-
-      steerHoming(b, dt);
 
       b.x += b.vx * dt;
       b.y += b.vy * dt;

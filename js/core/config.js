@@ -27,21 +27,39 @@
     // 经验与升级（需求逐层递增：二次曲线，升级节奏明显放缓）
     xp: { base: 20, perLevel: 14, accel: 8 },           // 需求 = base + (lv-1)*perLevel + (lv-1)^2*accel
     growth: { hp: 14, atk: 3, def: 1, healPct: 0.3 },   // 每级自动成长 + 回复 30% 生命
-    maps: { milestoneEvery: 4 },                        // 每 N 级解锁一张新地图
+    maps: { milestoneEvery: 3 },                        // 每 N 级解锁一张新地图（4 级即解锁第二张）
 
-    // 宝箱：地图上随机刷新，走近开启获得装备（装备唯一来源）
+    // 源源不断刷怪（无波次）：按时间间隔持续刷新，存活上限随分钟增长
+    spawn: {
+      interval0: 3.4,     // 第 1 分钟的刷怪间隔（秒）
+      intervalMin: 1.5,   // 间隔下限
+      intervalK: 0.1,     // 每分钟缩短量
+      capBase: 2,         // 第 1 分钟的场上存活上限
+      capMax: 10,         // 存活上限
+      capK: 0.55          // 每分钟上限增量
+    },
+
+    // 精英怪：每分钟整点出现一只；每 bossEvery 分钟为 BOSS
+    elite: {
+      every: 60,          // 精英出现间隔（秒）
+      hpMul: 2.8,         // 精英生命倍率
+      atkMul: 1.4,        // 精英攻击倍率
+      xpMul: 4,           // 精英经验倍率
+      bossEvery: 5        // 每 N 分钟出现 BOSS（代替精英）
+    },
+
+    // 宝箱：精英击杀后原地掉落（装备唯一来源），开局送一个引导宝箱
     chests: {
-      cap: 3,            // 场上最多同时存在的宝箱数
-      spawnEvery: 13,    // 刷新间隔（秒）
-      minDist: 260, maxDist: 640,   // 相对玩家的刷新环带
+      minDist: 260, maxDist: 640,   // 开局宝箱相对玩家的刷新环带
       pickupR: 34,       // 拾取半径
-      itemsMin: 1, itemsMax: 2      // 每个宝箱的装备件数
+      itemsMin: 1, itemsMax: 2,     // 每个宝箱的装备件数
+      rarBonus: 1        // 精英宝箱稀有度加成
     },
 
     // 场景事件：地图上的特定地点，走近触发（一次性）
     events: {
-      cap: 3,            // 场上最多同时存在的地点数
-      spawnEvery: 16,    // 刷新间隔（秒）
+      cap: 2,            // 场上最多同时存在的地点数
+      spawnEvery: 40,    // 刷新间隔（秒）
       minDist: 300, maxDist: 700,
       triggerR: 44       // 触发半径
     },
@@ -53,23 +71,14 @@
       sizeMin: 46, sizeMax: 88
     },
 
-    // 怪物成长曲线（血量再增强；装备不再挂在敌人身上，强度直接给到面板）
+    // 怪物成长曲线（按「分钟」缩放：minute = floor(存活时间/60)+1）
     mon: {
-      hp0: 36, hpK: 22, hpQ: 0.22,
+      hp0: 30, hpK: 22, hpQ: 0.22,
       atk0: 9, atkK: 1.9, atkQ: 0.06,
       def0: 1, defK: 0.55,
-      bossHp: 1.45, bossAtk: 1.05,
-      eqBase: 1, eqEvery: 4, eqMax: 4, eqLvEvery: 6,
-      rarK: 0.2, rarUpEvery: 3,
-      bossEvery: 5,
+      eqLvEvery: 6,
+      rarK: 0.2,
       mapBoost: 0.12       // 每张新地图敌人 hp/atk +12%
-    },
-
-    // 多敌人小队（大地图容得下更多）
-    squad: {
-      base: 1, every: 3, max: 5,
-      hpShare: 0.92, atkShare: 1.0,
-      eliteMul: 1.35
     },
 
     // 近战敌人：全局限速下相对更快，逼玩家近身缠斗
@@ -78,14 +87,14 @@
     // 远程敌人：与玩家保持距离带，朝玩家发射弹幕
     ranged: {
       r: 13, speed: 82,
-      shootCd: 2.6, bulletSpeed: 160,
+      shootCd: 3.0, bulletSpeed: 150,
       keepMin: 200, keepMax: 320
     },
 
     // BOSS：缓慢追击 + 扇形弹幕
     boss: { r: 24, speed: 74, shootCd: 2.6, bulletSpeed: 170, spread: 3 },
 
-    // 敌人词缀出现节奏
+    // 敌人词缀出现节奏（普通敌人按分钟）
     affixes: { firstAt: 3, every: 2 },
 
     forge: { maxLevel: 5 }

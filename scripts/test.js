@@ -1,5 +1,5 @@
 /* ============================================================
-   无头测试 harness（实时版 · 经验升级 + 大地图）
+   无头测试 harness（实时版 · 时间驱动 endless）
    Node vm + DOM stub，验证战斗逻辑与流程状态机
    用法：
      node scripts/test.js          功能测试
@@ -113,6 +113,31 @@ function run(seconds, bot) {
   }
 }
 
+/** 长时间运行：自动处理升级/战利品/事件弹窗（不移动玩家） */
+function runFull(seconds) {
+  const steps = Math.round(seconds / STEP);
+  for (let i = 0; i < steps; i++) {
+    const ph = G.state.phase;
+    if (ph === 'play') G.update(STEP);
+    else if (ph === 'levelup') G.chooseLevelCard({ kind: 'attr', attr: 'atk', val: 5 });
+    else if (ph === 'loot') {
+      let g = 0;
+      while (G.lootPending() > 0 && g++ < 5) {
+        const i2 = G.state.loots.findIndex(e => !e.done);
+        if (i2 < 0) break;
+        G.takeLoot(i2);
+      }
+      G.continueLoot();
+    }
+    else if (ph === 'event') {
+      const site = G.state.activeSite;
+      const opts = (site && site.evt ? site.evt : G.EVENTS[0]).options;
+      G.chooseEventOption(opts[opts.length - 1]);
+    }
+    else break;
+  }
+}
+
 function reset() { G.startRun(); }
 
 /* ============================================================
@@ -121,21 +146,26 @@ function reset() { G.startRun(); }
 function featureTests() {
   console.log('\n=== 功能测试 ===');
 
-  // T1 开局
+  // T1 开局：无波次，敌人按时间源源刷新
   reset();
   assert(G.state.phase === 'play', 'T1 开局进入 play 阶段');
-  assert(G.state.foes.length === 1, 'T1 第 1 波只有 1 个敌人', G.state.foes.length);
-  const boost1 = G.state.mapIdx === 0 ? 1 : 1 + G.CFG.mon.mapBoost * G.state.mapIdx;
-  assert(Math.abs(G.state.foes[0].hp - Math.round(G.curveHp(1) * boost1)) <= 1, 'T1 敌人血量符合曲线（含地图增幅）', G.state.foes[0].hp);
+  assert(G.state.foes.length === 0, 'T1 开局没有预置敌人（时间驱动刷怪）', G.state.foes.length);
+  assert(G.state.chests.length === 1, 'T1 开局有一个引导宝箱', G.state.chests.length);
+  assert(G.state.sites.length === 1, 'T1 开局只有一个事件地点', G.state.sites.length);
   assert(G.state.obstacles.length >= 4, 'T1 初始世界有随机障碍物', G.state.obstacles.length);
   assert(G.CFG.world.w === 2000 && G.CFG.world.h === 1400, 'T1 大世界尺寸 2000×1400');
+  const alive0 = G.state.foes.length;
+  run(10);
+  assert(G.state.foes.length > alive0, 'T1 敌人源源不断刷新', { t0: alive0, t10s: G.state.foes.length });
+  assert(G.state.foes.length <= G.aliveCap(1), 'T1 存活数不超过上限', { n: G.state.foes.length, cap: G.aliveCap(1) });
 
   // T2 WASD 移动 + 世界边界
+  reset();
   const y0 = G.state.player.y;
   engineKeys.add('w');
   run(1);
   engineKeys.delete('w');
-  assert(G.state.player.y < y0 - 80, 'T2 W 键向上移动（移速已全局降低）', { y0, y1: G.state.player.y });
+  assert(G.state.player.y < y0 - 80, 'T2 W 键向上移动', { y0, y1: G.state.player.y });
   engineKeys.add('d');
   run(3);
   engineKeys.delete('d');
@@ -143,7 +173,8 @@ function featureTests() {
 
   // T3 近战敌人追击
   reset();
-  const foe = G.state.foes[0];
+  const foe = G.makeEnemy(1, 0);
+  G.state.foes.push(foe);
   foe.x = G.state.player.x - 400; foe.y = G.state.player.y;
   const d0 = G.dist(foe.x, foe.y, G.state.player.x, G.state.player.y);
   run(1.5);
@@ -153,8 +184,8 @@ function featureTests() {
 
   // T4 远程敌人发射弹幕（弹幕已降速）
   reset();
-  const rf = G.state.foes[0];
-  rf.type = 'ranged';
+  const rf = G.makeEnemy(1, 2);   // idx 2 → ranged
+  G.state.foes.push(rf);
   rf.x = G.state.player.x; rf.y = G.state.player.y - 260;
   rf.atkCd = 0;
   const b0 = G.state.bullets.length;
@@ -174,7 +205,8 @@ function featureTests() {
 
   // T6 玩家自动射击命中敌人
   reset();
-  const tf = G.state.foes[0];
+  const tf = G.makeEnemy(1, 0);
+  G.state.foes.push(tf);
   tf.x = G.state.player.x + 150; tf.y = G.state.player.y;
   const fh0 = tf.hp;
   run(3);
@@ -190,8 +222,9 @@ function featureTests() {
   assert(p15.baseHp === G.CFG.player.hp + G.CFG.growth.hp, 'T15 升级自动加生命', p15.baseHp);
   assert(G.state.pendingLevelUps === 1, 'T15 升级累积待处理选项', G.state.pendingLevelUps);
 
-  // T16 升级卡效果：攻速 / 散射 / 环绕飞刃 / 射程
+  // T16 升级卡效果：攻速 / 散射 / 环绕飞刃 / 射程；追踪已删除
   const poolByKey = k => G.LEVEL_POOL.find(c => c.key === k);
+  assert(!poolByKey('homing'), 'T16 追踪箭已从卡池删除');
   const haste = poolByKey('haste'), multi = poolByKey('multi'), orbit = poolByKey('orbit'), rangeC = poolByKey('range');
   haste.apply(p15);
   multi.apply(p15);
@@ -203,19 +236,21 @@ function featureTests() {
   assert(p15.orbits === 2, 'T16 环绕飞刃卡生效', p15.orbits);
   assert(p15.range > rng0, 'T16 射程提升卡生效', { rng0, rng1: p15.range });
   // 散射：一次 volley 生成 2 支箭，箭矢寿命 = 射程/弹速
-  G.state.foes[0].x = p15.x + 200; G.state.foes[0].y = p15.y;
+  const vtarget = G.makeEnemy(1, 0);
+  G.state.foes.push(vtarget);
+  vtarget.x = p15.x + 200; vtarget.y = p15.y;
   const nb0 = G.state.bullets.length;
-  G.fireVolley(p15, G.state.foes[0]);
+  G.fireVolley(p15, vtarget);
   assert(G.state.bullets.length - nb0 === 2, 'T16 散射 volley 发射 2 支箭', G.state.bullets.length - nb0);
   const nb = G.state.bullets[G.state.bullets.length - 1];
   assert(Math.abs(nb.life - p15.range / G.CFG.player.bulletSpeed) < 0.01, 'T16 箭矢寿命与射程绑定', nb.life);
 
-  // T17 等级里程碑解锁新地图（每 4 级一档：5/9/13 级解锁）
+  // T17 等级里程碑解锁新地图（每 3 级一档：4/7/10 级解锁）
   reset();
-  G.state.player.level = 4;
-  G.gainXp(G.xpNeed(4));
-  assert(G.state.player.level === 5, 'T17 升到 5 级', G.state.player.level);
-  assert(G.state.mapIdx === 1, 'T17 5 级解锁第二张地图', G.state.mapIdx);
+  G.state.player.level = 3;
+  G.gainXp(G.xpNeed(3));
+  assert(G.state.player.level === 4, 'T17 升到 4 级', G.state.player.level);
+  assert(G.state.mapIdx === 1, 'T17 4 级即解锁第二张地图（降档修复）', G.state.mapIdx);
   assert(G.MAPS[G.state.mapIdx].name === '荒芜骨林', 'T17 新地图主题生效', G.MAPS[G.state.mapIdx].name);
 
   // T18 动态障碍物：随移动生成与移除
@@ -232,32 +267,49 @@ function featureTests() {
 
   // T19 敌人随机出现在玩家附近
   reset();
-  const f19 = G.state.foes[0];
+  const f19 = G.makeEnemy(1, 0);
   const d19 = G.dist(f19.x, f19.y, G.state.player.x, G.state.player.y);
   assert(d19 >= 300 && d19 <= 750, 'T19 敌人刷新在玩家周围环带', Math.round(d19));
 
-  // T19b 追踪箭强化：垂直偏差的箭矢也能命中目标
+  // T-E1 分钟整点出现精英怪
   reset();
-  const p19b = G.state.player;
-  const hf = G.state.foes[0];
-  hf.x = p19b.x + 170; hf.y = p19b.y - 40;   // 目标在斜上方
-  hf.def = 0;
-  const hh0 = hf.hp;
-  // 先朝正右方射一支带追踪的箭（偏差约 76°），追踪应把它拉回目标
-  p19b.homing = 2;
-  G.state.bullets.push({ x: p19b.x, y: p19b.y, vx: 250, vy: 0, r: 5, dmg: 5, crit: false, side: 'p', life: 2, owner: p19b, pierceLeft: 0, homing: 2, hit: [] });
-  run(1.2);
-  assert(hf.hp < hh0, 'T19b 追踪箭大偏差角仍命中', { hh0, hh1: hf.hp });
+  G.state.eliteT = 59.5;
+  run(1);
+  const elites = G.state.foes.filter(f => f.elite);
+  assert(elites.length === 1, 'T-E1 每分钟整点出现一只精英', { elites: elites.length });
+  assert(elites[0].hp > G.curveHp(1) * 2, 'T-E1 精英血量显著高于普通怪', Math.round(elites[0].hp));
+  assert(!!elites[0].affix, 'T-E1 精英必带词缀');
 
-  // T19c 宝箱/地点刷新上限
-  reset();
-  for (let i = 0; i < 6; i++) { G.spawnChest(); G.spawnSite(); }
-  assert(G.state.chests.length <= G.CFG.chests.cap, 'T19c 宝箱数量有上限', G.state.chests.length);
-  assert(G.state.sites.length <= G.CFG.events.cap, 'T19c 事件地点数量有上限', G.state.sites.length);
+  // T-E2 精英死亡原地掉落装备宝箱
+  const chestN0 = G.state.chests.length;
+  G.dealDamage(G.state.player, elites[0], 99999);
+  assert(G.state.chests.length === chestN0 + 1, 'T-E2 精英击杀原地掉落宝箱', { chestN0, chestN1: G.state.chests.length });
+  const dropped = G.state.chests[G.state.chests.length - 1];
+  assert(G.dist(dropped.x, dropped.y, elites[0].x, elites[0].y) < 30, 'T-E2 宝箱掉落在精英原地', { ex: Math.round(elites[0].x), cx: Math.round(dropped.x) });
 
-  // T7 宝箱：走近开启 → 装备战利品 → 继续战斗（波次不变）
+  // T-E3 每 5 分钟为 BOSS（不带词缀）
+  const boss = G.makeElite(5);
+  assert(boss.type === 'boss' && !boss.affix, 'T-E3 第 5 分钟精英为 BOSS 且不带词缀', { type: boss.type, affix: boss.affix && boss.affix.key });
+  assert(G.isBossMinute(5) && !G.isBossMinute(4), 'T-E3 isBossMinute 判定正确');
+
+  // T-M 分钟推进与最佳纪录（临时提高玩家生命上限，避免挂机被围殴致死中断计时）
   reset();
-  G.state.chests.push({ x: G.state.player.x, y: G.state.player.y, opened: false, t: 0 });
+  G.state.player.baseHp = 99999;
+  G.refresh(G.state.player);
+  runFull(61.5);
+  assert(G.state.wave === 2, 'T-M 60 秒后进入第 2 分钟阶段', { wave: G.state.wave, time: Math.round(G.state.time) });
+  assert(G.state.best === 2, 'T-M 最佳纪录按分钟记录', G.state.best);
+
+  // T-S1 宝箱无周期刷新（只有精英掉落 + 开局引导）
+  reset();
+  runFull(30);
+  assert(G.state.chests.length <= 1, 'T-S1 地图不再周期刷新宝箱（30 秒内无新宝箱）', G.state.chests.length);
+  assert(G.CFG.events.spawnEvery >= 40, 'T-S1 事件刷新间隔已放宽', G.CFG.events.spawnEvery);
+  assert(G.CFG.events.cap === 2, 'T-S1 事件地点上限降为 2', G.CFG.events.cap);
+
+  // T7 宝箱：走近开启 → 装备战利品 → 继续战斗
+  reset();
+  G.state.chests.push({ x: G.state.player.x, y: G.state.player.y, opened: false, rarBonus: 0, t: 0 });
   run(0.4);
   assert(G.state.phase === 'loot', 'T7 走近宝箱自动开启进入战利品', G.state.phase);
   assert(G.state.loots.length >= 1, 'T7 宝箱开出装备', G.state.loots.length);
@@ -265,15 +317,7 @@ function featureTests() {
   while (G.lootPending() > 0 && g7++ < 5) G.takeLoot(G.state.loots.findIndex(e => !e.done));
   assert(G.state.player.items.length >= 1, 'T7 宝箱装备到玩家');
   G.continueLoot();
-  assert(G.state.phase === 'play' && G.state.wave === 1, 'T7 处理完战利品回战斗（波次不变）', { phase: G.state.phase, wave: G.state.wave });
-
-  // T8 波次全灭 → 直接推进下一波（无波次战利品）
-  reset();
-  G.state.foes.forEach(f => { f.hp = 0.5; });
-  run(6);
-  assert(G.state.wave === 2 && G.state.phase === 'play', 'T8 全灭后直接进入第 2 波', { wave: G.state.wave, phase: G.state.phase });
-  assert(G.state.loots.length === 0, 'T8 击杀不再掉落装备', G.state.loots.length);
-  assert(G.state.foes.every(f => !f.items || f.items.length === 0), 'T8 敌人不再携带装备');
+  assert(G.state.phase === 'play', 'T7 处理完战利品回战斗', G.state.phase);
 
   // T9 事件地点：走近触发 → 选择 → 地点消失
   reset();
@@ -297,12 +341,6 @@ function featureTests() {
   for (let round = 0; round < 2; round++) {
     const cards = G.makeLevelCards(G.state.player);
     assert(cards.length === 3, 'T9b 卡池抽出 3 张', cards.length);
-    cards.forEach(c => {
-      if (c.kind === 'attr') {
-        assert(typeof c.apply !== 'function' || true, '');   // 属性卡本就无 apply
-        assert(typeof c.val === 'number' && c.val > 0, 'T9b 属性卡带数值', c.key);
-      }
-    });
     const before = G.state.player.baseAtk + G.state.player.baseHp + G.state.player.baseDef;
     G.chooseLevelCard(cards[0]);                          // 无论哪张（含属性卡）都必须安全
     assert(G.state.phase !== 'busy', 'T9b 选卡后不卡在 busy', G.state.phase);
@@ -313,25 +351,23 @@ function featureTests() {
   }
   assert(G.state.pendingLevelUps === 0, 'T9b 连升全部处理完', G.state.pendingLevelUps);
 
-  // T10 词缀确定性 + BOSS 不带词缀 + 数量曲线
-  const w3 = G.composeWave(3);
-  assert(w3.length === 1, 'T10 第 3 波仍 1 个敌人', w3.length);
-  assert(w3[0].affix && w3[0].affix.key === G.AFFIXES[0].key, 'T10 第 3 波首个敌人带「重甲」词缀', w3[0].affix && w3[0].affix.key);
-  assert(G.composeWave(4).length === 2, 'T10 第 4 波起每 3 波+1', G.composeWave(4).length);
-  const w5 = G.composeWave(5);
-  assert(G.isBossWave(5), 'T10 第 5 波是 BOSS 波');
-  assert(w5[0].type === 'boss' && !w5[0].affix, 'T10 BOSS 不带词缀');
-  assert(w5[0].xp >= 40, 'T10 BOSS 提供大量经验', w5[0].xp);
-  const w13 = G.composeWave(13);
-  assert(w13.length === 5, 'T10 第 13 波 5 个敌人（上限）', w13.length);
+  // T10 词缀确定性 + 精英/BOSS 强度
+  const e3 = G.makeEnemy(3, 0);
+  assert(e3.affix && e3.affix.key === G.AFFIXES[0].key, 'T10 第 3 分钟首个敌人带「重甲」词缀', e3.affix && e3.affix.key);
+  const e1 = G.makeEnemy(1, 0);
+  const e1hp = e1.hp;
+  const e4 = G.makeEnemy(4, 0);
+  assert(e4.hp > e1hp, 'T10 敌人强度随分钟增长', { m1: e1hp, m4: e4.hp });
+  const elite1 = G.makeElite(1);
+  assert(elite1.elite === true && elite1.hp > e1hp * 2, 'T10 精英强度显著高于普通怪', { elite: elite1.hp, normal: e1hp });
+  assert(elite1.xp >= 25, 'T10 精英提供大量经验', elite1.xp);
 
   // T11 BOSS 扇形弹幕
   reset();
-  G.state.wave = 5;
-  G.state.foes = G.composeWave(5);
-  const boss = G.state.foes[0];
-  boss.x = G.state.player.x; boss.y = G.state.player.y - 200;
-  boss.atkCd = 0;
+  const boss2 = G.makeElite(5);
+  G.state.foes.push(boss2);
+  boss2.x = G.state.player.x; boss2.y = G.state.player.y - 200;
+  boss2.atkCd = 0;
   run(0.5);
   assert(G.state.bullets.filter(b => b.side === 'e').length >= 3, 'T11 BOSS 发射 3 向扇形弹幕', G.state.bullets.length);
 
@@ -339,7 +375,8 @@ function featureTests() {
   reset();
   G.state.player.shield = 0;
   G.state.player.iframes = 0;
-  const sf = G.state.foes[0];
+  const sf = G.makeEnemy(1, 0);
+  G.state.foes.push(sf);
   sf.affix = G.AFFIXES[4];
   const php0 = G.state.player.hp;
   G.dealDamage(G.state.player, sf, 10);
@@ -347,30 +384,31 @@ function featureTests() {
 
   // T13 血刃流血 DoT
   reset();
-  const bf = G.state.foes[0];
+  const bf = G.makeEnemy(1, 0);
+  G.state.foes.push(bf);
   G.applyBleed(bf, { dmg: 5, turns: 3 });
   const bhp0 = bf.hp;
   run(3.5);
   assert(bf.hp < bhp0 || bf.dead, 'T13 流血每秒跳伤害', { bhp0, bhp1: bf.hp });
 
-  // T14 贯穿箭穿透两个敌人
+  // T14 贯穿箭穿透敌人
   reset();
   const p14 = G.state.player;
   p14.pierce = 1;
-  const fa = G.state.foes[0];
+  const fa = G.makeEnemy(1, 0);
+  G.state.foes.push(fa);
   fa.x = p14.x + 100; fa.y = p14.y;
   const fahp0 = fa.hp;
-  // 造一支贯穿箭
-  G.state.bullets.push({ x: p14.x, y: p14.y, vx: 250, vy: 0, r: 5, dmg: 5, crit: false, side: 'p', life: 2, owner: p14, pierceLeft: 1, homing: 0, hit: [] });
+  G.state.bullets.push({ x: p14.x, y: p14.y, vx: 250, vy: 0, r: 5, dmg: 5, crit: false, side: 'p', life: 2, owner: p14, pierceLeft: 1, hit: [] });
   run(1);
-  assert(fa.hp < fahp0, 'T14 贯穿箭命中第一个敌人', { fahp0, fh1: fa.hp });
+  assert(fa.hp < fahp0, 'T14 贯穿箭命中敌人', { fahp0, fh1: fa.hp });
 
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;
 }
 
 /* ============================================================
-   平衡模拟：人类化走位 bot，统计到达波次分布
+   平衡模拟：人类化走位 bot，统计存活分钟分布
    ============================================================ */
 function simulate(runs) {
   console.log('\n=== 平衡模拟（' + runs + ' 局，人类化 bot） ===');
@@ -379,8 +417,6 @@ function simulate(runs) {
   function autoAdvance() {
     const st = G.state;
     if (st.phase === 'levelup') {
-      // 升级卡：优先攻击方式（散射 > 攻速 > 环绕 > 贯穿 > 追踪），否则选攻击
-      const modeCards = st.player.shots < 4 ? ['multi'] : [];
       const card = { kind: 'mode', key: 'multi', apply(pp) { pp.shots++; } };
       if (st.player.shots >= 4) card.key = 'haste', card.apply = pp => { pp.atkCdMul = Math.max(0.35, pp.atkCdMul * 0.82); };
       G.chooseLevelCard(card);
@@ -399,14 +435,13 @@ function simulate(runs) {
     if (st.phase === 'event') {
       const overlay = sandbox.document._els.eventOverlay;
       if (overlay.classList.contains('show')) {
-        // 选当前地点事件的最后一个选项（通常是安全项）
         const opts = (st.activeSite && st.activeSite.evt ? st.activeSite.evt : G.EVENTS[0]).options;
         G.chooseEventOption(opts[opts.length - 1]);
       }
     }
   }
 
-  /** 人类化走位 bot：0.28s 反应延迟 + 6% 失误 */
+  /** 人类化走位 bot：0.28s 反应延迟 + 4% 失误 */
   let botTimer = 0;
   function botControl(dt) {
     const st = G.state;
@@ -435,8 +470,26 @@ function simulate(runs) {
       return;
     }
 
+    // 附近无近战威胁时，主动靠近远程怪打（真人会优先清理射手）
+    const meleeThreat = alive.some(f => f.type === 'melee' && G.dist(p.x, p.y, f.x, f.y) < 220);
+    let hunted = null;
+    if (!meleeThreat) {
+      let hd = Infinity;
+      for (const f of alive) {
+        if (f.type !== 'ranged' && f.type !== 'boss') continue;
+        const d = G.dist(p.x, p.y, f.x, f.y);
+        if (d < hd) { hd = d; hunted = f; }
+      }
+    }
+
     let dx, dy;
-    if (Math.random() < 0.04) {
+    if (hunted) {
+      // 朝远程怪走到自己的射程边缘（射程 × 0.8）
+      const want = p.range * 0.8;
+      const hd2 = G.dist(p.x, p.y, hunted.x, hunted.y);
+      if (hd2 > want) { dx = hunted.x - p.x; dy = hunted.y - p.y; }
+      else { dx = (p.x - hunted.x) + (p.y - hunted.y); dy = (p.y - hunted.y) - (p.x - hunted.x); }   // 切向环绕
+    } else if (Math.random() < 0.04) {
       dx = near.x - p.x; dy = near.y - p.y;
     } else if (nd > 360) {
       dx = near.x - p.x; dy = near.y - p.y;
@@ -449,26 +502,29 @@ function simulate(runs) {
     if (Math.abs(dy) > 8) engineKeys.add(dy > 0 ? 's' : 'w');
   }
 
-  const wavesReached = [];
+  const minutesReached = [];
   const levelsReached = [];
   const mapsReached = [];
+  const killsReached = [];
   const start = Date.now();
+
+  const MAX_STEPS = 60 * 60 * 30;   // 单局上限 30 分钟游戏时间
 
   for (let r = 0; r < runs; r++) {
     reset();
     let guard = 0;
-    while (G.state.phase !== 'over' && guard++ < 300000) {
+    while (G.state.phase !== 'over' && guard++ < MAX_STEPS) {
       botControl(STEP);
       if (G.state.phase === 'play') {
         G.update(STEP);
       } else {
         autoAdvance();
       }
-      if (guard % 50000 === 0) autoAdvance();
     }
-    wavesReached.push(G.state.wave);
+    minutesReached.push(G.state.wave);
     levelsReached.push(G.state.player.level);
     mapsReached.push(G.state.mapIdx + 1);
+    killsReached.push(G.state.kills);
   }
 
   function stats(arr) {
@@ -480,12 +536,13 @@ function simulate(runs) {
       avg: (s.reduce((a, b) => a + b, 0) / s.length).toFixed(1)
     };
   }
-  const w = stats(wavesReached), l = stats(levelsReached), m = stats(mapsReached);
+  const w = stats(minutesReached), l = stats(levelsReached), m = stats(mapsReached), k = stats(killsReached);
 
-  console.log('  波次   中位: ' + w.med + ' | p10: ' + w.p10 + ' | p90: ' + w.p90 + ' | 平均: ' + w.avg);
-  console.log('  等级   中位: ' + l.med + ' | p10: ' + l.p10 + ' | p90: ' + l.p90 + ' | 平均: ' + l.avg);
-  console.log('  地图   中位: ' + m.med + ' | 最多: ' + Math.max(...mapsReached));
-  console.log('  波次分布: ' + wavesReached.join(', '));
+  console.log('  存活分钟 中位: ' + w.med + ' | p10: ' + w.p10 + ' | p90: ' + w.p90 + ' | 平均: ' + w.avg);
+  console.log('  等级     中位: ' + l.med + ' | p10: ' + l.p10 + ' | p90: ' + l.p90 + ' | 平均: ' + l.avg);
+  console.log('  击杀     中位: ' + k.med + ' | 平均: ' + k.avg);
+  console.log('  地图     中位: ' + m.med + ' | 最多: ' + Math.max(...mapsReached));
+  console.log('  存活分钟分布: ' + minutesReached.join(', '));
   console.log('  耗时: ' + ((Date.now() - start) / 1000).toFixed(1) + 's');
 }
 

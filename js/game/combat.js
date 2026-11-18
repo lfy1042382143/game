@@ -107,6 +107,7 @@
         state.kills++;
         floatText(tgt, '✦', '#fbbf24', true);
         gainXp(tgt.xp);
+        if (tgt.elite && G.dropEliteLoot) G.dropEliteLoot(tgt);   // 精英原地掉宝箱
       }
     }
 

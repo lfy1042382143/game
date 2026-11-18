@@ -12,7 +12,7 @@
      状态
      ========================================================= */
   const state = {
-    wave: 1,
+    wave: 1,           // 分钟阶段 = floor(存活时间/60)+1（沿用字段名以兼容缩放公式）
     phase: 'boot',     // boot | play | busy | levelup | loot | event | over
     paused: false,
     time: 0,           // 本局累计游戏时间（秒）
@@ -31,15 +31,16 @@
     kills: 0,
     pendingLevelUps: 0,    // 待处理的升级选项数（每级一张三选一）
 
-    chests: [],            // 地图宝箱（走近开启 → 装备战利品）
-    chestT: 0,             // 宝箱刷新计时
+    chests: [],            // 精英掉落的宝箱（走近开启 → 装备战利品）
     sites: [],             // 事件地点（走近触发，一次性）
     siteT: 0,              // 地点刷新计时
     siteSeq: 0,            // 地点事件种类轮换序号
     activeSite: null,      // 正在交互的事件地点
 
-    pendingElite: false,
-    pendingRage: false,
+    spawnT: 0,             // 普通敌人刷怪计时
+    eliteT: 0,             // 精英怪计时（每分钟整点一只）
+
+    pendingRage: false,    // 泉水事件副作用：下一只精英攻击 +30%
 
     banner: null,
 
@@ -98,7 +99,6 @@
     p.atkCdMul = 1;    // 攻速乘算系数（攻速提升卡）
     p.shots = 1;       // 每次射击的箭矢数（散射箭）
     p.pierce = 0;      // 箭矢贯穿数（贯穿箭）
-    p.homing = 0;      // 追踪强度（追踪箭）
     p.orbits = 0;      // 环绕飞刃数量
     p.rangeMul = 1;    // 射程乘算系数（射程提升卡）
     p.range = C.range; // 当前射程（nearestFoe 与箭矢寿命都用它）

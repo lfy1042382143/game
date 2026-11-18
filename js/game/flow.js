@@ -1,9 +1,8 @@
 /* ============================================================
-   游戏层 · flow.js
-   实时流程状态机（经验升级版）：
-   - 战斗中击杀获得经验，满级自动升级 → 弹三选一（暂停），连升依次处理
-   - 全灭 → 结算战利品弹窗 → 事件 → 下一波
-   - 等级里程碑 → 解锁新地图（换主题 + 重新随机障碍布局）
+   游戏层 · flow.js（时间驱动版）
+   - 敌人按时间间隔源源不断刷新（存活上限随分钟增长）
+   - 每分钟整点出现一只精英怪（每 5 分钟为 BOSS），击杀原地掉宝箱
+   - 强度按分钟阶段缩放；等级里程碑 → 解锁新地图
    - 动态障碍物随玩家移动周期性生成/移除
    ============================================================ */
 (function (G) {
@@ -12,7 +11,7 @@
   const { state, CFG } = G;
 
   /* =========================================================
-     开局 / 开波
+     开局
      ========================================================= */
   function startRun() {
     state.wave = 1;
@@ -23,48 +22,31 @@
     state.loots = [];
     state.lootSlots = [];
     state.pendingLevelUps = 0;
-    state.pendingElite = false;
     state.pendingRage = false;
     state.floaters = [];
     state.bullets = [];
     state.chests = [];
-    state.chestT = 0;
     state.sites = [];
     state.siteT = 0;
     state.siteSeq = 0;
     state.activeSite = null;
+    state.spawnT = 0;
+    state.eliteT = 0;
     state.mapIdx = 0;
     state.obsT = 0;
     state.player = G.makePlayer();
     state.obstacles = [];
+    state.foes = [];
     G.spawnObstaclesRandom(6);     // 初始障碍布局
-    G.spawnChest();                // 开局宝箱与事件地点
-    G.spawnSite();
-    G.spawnSite();
-    startWave();
-  }
-
-  function startWave() {
-    state.foes = G.composeWave(state.wave);
-    state.bullets = [];
-    state.phase = 'play';
-
-    // 每波开始：玩家获得壁垒甲开局护盾
+    G.spawnChest();                // 开局引导宝箱
+    G.spawnSite();                 // 开局一个事件地点
     state.player.shield = G.startShield(state.player);
 
-    // 事件副作用已生效，清除标记
-    state.pendingElite = false;
-    state.pendingRage = false;
-
-    const boss = G.isBossWave(state.wave);
-    const mapName = G.MAPS[state.mapIdx].name;
     state.banner = {
-      text: '第 ' + state.wave + ' 波',
-      sub: (boss ? '⚠ BOSS 来袭 · ' + state.foes[0].name : state.foes.map(f => f.name).join('、')) +
-        ' · ' + mapName,
-      t: 1.6
+      text: '生存',
+      sub: '敌人会源源不断涌来 · 每分钟出现一只精英 · ' + G.MAPS[state.mapIdx].name,
+      t: 2.4
     };
-    if (boss) G.sfxBoss();
 
     G.ui.syncTopbar();
   }
@@ -78,12 +60,10 @@
     // 重新随机障碍布局
     state.obstacles = [];
     G.spawnObstaclesRandom(6);
-    G.spawnChest();               // 新地图自带一个宝箱与一个事件地点
-    G.spawnSite();
     state.banner = {
       text: '🗺 ' + map.name,
       sub: '新地图解锁 · 敌人更强',
-      t: 2.2
+      t: 2.4
     };
     G.sfxUpgrade();
   }
@@ -101,10 +81,62 @@
   }
 
   /* =========================================================
+     敌人生成：普通敌人按间隔刷 + 分钟整点精英
+     ========================================================= */
+  function updateSpawns(dt) {
+    const minute = state.wave;
+    const enemyIdx = state.kills;   // 词缀轮换用
+
+    // 普通敌人：存活数低于上限时按间隔刷新
+    const alive = state.foes.filter(f => !f.dead).length;
+    state.spawnT += dt;
+    if (state.spawnT >= G.spawnInterval(minute)) {
+      state.spawnT = 0;
+      if (alive < G.aliveCap(minute)) {
+        state.foes.push(G.makeEnemy(minute, enemyIdx));
+      }
+    }
+
+    // 精英怪：每分钟整点一只
+    state.eliteT += dt;
+    if (state.eliteT >= CFG.elite.every) {
+      state.eliteT -= CFG.elite.every;
+      const boss = G.isBossMinute(minute);
+      const e = G.makeElite(minute);
+      state.foes.push(e);
+      state.banner = {
+        text: boss ? '⚠ 首领来袭' : '⚠ 精英来袭',
+        sub: e.name + ' · 击杀掉落装备宝箱',
+        t: 2
+      };
+      G.sfxBoss();
+    }
+  }
+
+  /** 分钟推进（state.time 跨过 60s 边界） */
+  function tickMinute() {
+    const m = Math.floor(state.time / 60) + 1;
+    if (m > state.wave) {
+      state.wave = m;
+      if (m > state.best) {
+        state.best = m;
+        G.saveBest();
+      }
+      state.banner = {
+        text: '第 ' + m + ' 分钟',
+        sub: G.isBossMinute(m) ? '⚠ 首领即将出现' : '敌人越来越强了',
+        t: 1.6
+      };
+      G.ui.syncTopbar();
+    }
+  }
+
+  /* =========================================================
      实时主更新（由引擎以固定步长调用）
      ========================================================= */
   function update(dt) {
     state.time += dt;
+    tickMinute();
 
     G.updatePlayer(dt);
     if (state.player.dead) { gameOver(); return; }
@@ -113,8 +145,13 @@
     G.updateBullets(dt);
     G.tickBleeds(state.player, dt);
     updateObstacles(dt);
-    G.updateChests(dt);
+    updateSpawns(dt);
     G.updateSites(dt);
+
+    // 清理尸体（精英尸体由掉落逻辑在死亡时处理）
+    if (state.foes.some(f => f.dead)) {
+      state.foes = state.foes.filter(f => !f.dead);
+    }
 
     // 宝箱拾取与事件地点触发（都在 play 阶段内判定）
     G.checkChests();
@@ -133,46 +170,16 @@
     decay(state.player);
     state.foes.forEach(decay);
 
-    // 开波横幅计时
+    // 横幅计时
     if (state.banner) {
       state.banner.t -= dt;
       if (state.banner.t <= 0) state.banner = null;
-    }
-
-    // 胜利判定：敌人全灭（优先于升级弹窗，保证战利品数据就绪）
-    if (state.foes.length && state.foes.every(f => f.dead)) {
-      onVictory();
-      return;
     }
 
     // 升级弹窗：战斗中攒够经验立即处理
     if (state.pendingLevelUps > 0) {
       G.showLevelUp();
     }
-  }
-
-  /* =========================================================
-     胜利 → 直接推进下一波（装备走宝箱，不再有波次战利品）
-     ========================================================= */
-  function onVictory() {
-    state.phase = 'busy';
-    G.sfxWin();
-
-    if (state.pendingLevelUps > 0) {
-      G.showLevelUp();          // 升级处理完后由 chooseLevelCard 推进下一波
-    } else {
-      advanceWave();
-    }
-  }
-
-  /** 下一波 */
-  function advanceWave() {
-    state.wave += 1;
-    if (state.wave > state.best) {
-      state.best = state.wave;
-      G.saveBest();
-    }
-    startWave();
   }
 
   /* =========================================================
@@ -185,5 +192,5 @@
     G.ui.showGameOver();
   }
 
-  Object.assign(G, { startRun, startWave, switchMap, update, advanceWave, gameOver, onVictory, updateObstacles });
+  Object.assign(G, { startRun, switchMap, update, gameOver, updateObstacles, updateSpawns, tickMinute });
 })(window.ABYSS = window.ABYSS || {});

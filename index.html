@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>深渊试炼 · Abyss Trial</title>
-<meta name="description" content="实时 2D 俯视角 Roguelike：WASD 走位躲避弹幕，击杀近战与远程敌人，收集装备，挑战更深的波次。">
+<meta name="description" content="实时 2D 俯视角 Roguelike：WASD 走位躲避弹幕，在源源不断的敌人中生存，击杀精英获取装备宝箱。">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
 
@@ -23,7 +23,7 @@
 <div id="app">
   <header class="topbar">
     <div class="wave-block">
-      <span class="wave-label">Wave</span>
+      <span class="wave-label">Time</span>
       <span class="wave-num" id="waveNum">01</span>
     </div>
 
@@ -51,7 +51,7 @@
 
   <div id="stage">
     <canvas id="canvas" width="960" height="600"></canvas>
-    <div class="hint" id="hintBar">WASD / 方向键移动 · 自动攻击 · 📦 宝箱出装备 · 紫色光圈是一次性事件地点 · 击杀得经验升级</div>
+    <div class="hint" id="hintBar">WASD / 方向键移动 · 自动攻击 · 敌人源源不断 · 每分钟一只精英 · 精英掉落 📦 宝箱 · 紫色光圈是一次性事件地点</div>
   </div>
 </div>
 
@@ -63,7 +63,7 @@
     <div class="up-head">
       <div class="up-kicker">Wave Cleared</div>
       <h1 class="up-title">选择一项强化</h1>
-      <div class="up-sub" id="upSub">第 1 波已征服 · 提升一项属性</div>
+      <div class="up-sub" id="upSub">升级成功 · 提升一项属性</div>
     </div>
     <div class="loot" id="lootBox"></div>
     <div class="cards" id="cards"></div>
@@ -81,7 +81,7 @@
   <div class="panel over-panel">
     <div class="over-kicker">Trial Ended</div>
     <h1 class="over-title">试炼终结</h1>
-    <div class="over-wave">你抵达了第 <b id="overWave">1</b> 波</div>
+    <div class="over-wave">你存活到了第 <b id="overWave">1</b> 分钟</div>
     <div class="over-killer" id="overKiller">被「哥布林」击败</div>
     <div class="over-stats">
       <span class="over-chip">生命<b id="overHp">120</b></span>
@@ -90,7 +90,7 @@
       <span class="over-chip">装备<b id="overEq">0</b></span>
     </div>
     <div class="over-kills" id="overKills">击败 0 个敌人</div>
-    <div class="over-best" id="overBest">最佳纪录：第 0 波</div>
+    <div class="over-best" id="overBest">最佳纪录：存活 0 分钟</div>
     <button class="btn btn-again" id="againBtn">再次挑战</button>
   </div>
 </div>

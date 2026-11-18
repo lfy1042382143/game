@@ -79,7 +79,7 @@
     el.overDef.textContent = Math.round(p ? p.def : 0);
     el.overEq.textContent = p ? p.items.length : 0;
     el.overKills.textContent = '击败 ' + state.kills + ' 个敌人';
-    el.overBest.textContent = '最佳纪录：第 ' + state.best + ' 波';
+    el.overBest.textContent = '最佳纪录：存活 ' + state.best + ' 分钟';
     el.overOverlay.classList.add('show');
   }
 

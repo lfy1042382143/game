@@ -1,7 +1,7 @@
 /* ============================================================
    游戏层 · cards.js
    升级三选一：经验满自动升级后弹出，选项含
-   攻速提升 / 攻击方式（散射·贯穿·追踪·环绕飞刃）/ 三维属性
+   攻速提升 / 攻击方式（散射·贯穿·射程·环绕飞刃）/ 三维属性
    弹窗期间游戏暂停（phase = 'levelup'）
    ============================================================ */
 (function (G) {
@@ -50,12 +50,6 @@
       max: p => p.pierce >= 3,
       desc: '箭矢可穿透 1 个额外的敌人',
       apply(p) { p.pierce++; }
-    },
-    {
-      key: 'homing', name: '追踪箭', icon: '🧲', kind: 'mode',
-      max: p => p.homing >= 3,
-      desc: '箭矢自动弯向最近的敌人（转向更快，可绕过障碍）',
-      apply(p) { p.homing++; }
     },
     {
       key: 'range', name: '射程提升', icon: '📡', kind: 'mode',
@@ -191,11 +185,9 @@
 
     state.pendingLevelUps = Math.max(0, state.pendingLevelUps - 1);
 
-    // 还有未处理的升级 → 继续弹；若全灭（胜利升级）→ 推进下一波；否则回到战斗
+    // 还有未处理的升级 → 继续弹；否则回到战斗
     if (state.pendingLevelUps > 0) {
       G.showLevelUp();
-    } else if (state.foes.length && state.foes.every(f => f.dead)) {
-      G.advanceWave();
     } else {
       state.phase = 'play';
     }

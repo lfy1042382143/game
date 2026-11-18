@@ -55,10 +55,14 @@
       text: '道路在此分岔，前方隐约传来不同的气息。',
       options: [
         {
-          label: '挑战精英',
-          desc: '下一波出现更强精英（生命 +50%）',
+          label: '呼唤精英',
+          desc: '立即引来一只更强的精英怪（生命 +50%，掉落宝箱）',
           apply() {
-            state.pendingElite = true;
+            if (state.phase === 'play' || state.phase === 'busy') {
+              const e = G.makeElite(state.wave, { hpMul: 1.5 });
+              state.foes.push(e);
+              state.banner = { text: '⚠ 精英来袭', sub: e.name + ' · 击杀掉落装备宝箱', t: 2 };
+            }
           }
         },
         {
@@ -107,7 +111,7 @@
       options: [
         {
           label: '畅饮泉水',
-          desc: '回满生命，但下一波敌人攻击提升',
+          desc: '回满生命，但下一只精英怪攻击提升',
           apply(p) {
             G.healUnit(p, p.maxHp);
             state.pendingRage = true;
