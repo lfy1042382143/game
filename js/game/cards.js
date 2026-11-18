@@ -1,8 +1,10 @@
 /* ============================================================
    游戏层 · cards.js
-   升级三选一：经验满自动升级后弹出，选项含
-   攻速提升 / 攻击方式（散射·贯穿·射程·环绕飞刃）/ 三维属性
-   弹窗期间游戏暂停（phase = 'levelup'）
+   升级三选一：经验满自动升级后弹出（弹窗期间暂停）。
+   - 每 modeEvery 级（默认 10）→「攻击方式」升级：攻速/散射/贯穿/
+     射程/环绕飞刃/暴击节奏/弹速/吸血箭/减速箭/护盾生成
+   - 其余等级 → 三维属性三选一（生命/攻击/防御，带稀有度）
+   属性不再自动成长：三维提升只来自这里的选卡与装备。
    ============================================================ */
 (function (G) {
   'use strict';
@@ -24,15 +26,21 @@
   }
 
   const ATTR_META = {
-    hp:  { label: '生命', icon: '❤', vals: [19, 36, 59, 90, 138], note: '提升生命上限，并立即恢复等量生命' },
-    atk: { label: '攻击', icon: '⚔', vals: [6, 9, 13, 20, 29],    note: '每支箭矢造成更高伤害' },
-    def: { label: '防御', icon: '🛡', vals: [2, 3, 4, 6, 9],      note: '减免受到的伤害' }
+    hp:  { label: '生命', icon: '❤', vals: [28, 52, 85, 130, 198], note: '提升生命上限，并立即恢复等量生命' },
+    atk: { label: '攻击', icon: '⚔', vals: [9, 14, 20, 30, 44],    note: '每支箭矢造成更高伤害' },
+    def: { label: '防御', icon: '🛡', vals: [3, 5, 7, 10, 14],     note: '减免受到的伤害' }
   };
 
+  const ATTR_POOL = [
+    { key: 'hp',  name: '生命', icon: '❤', kind: 'attr', attr: 'hp' },
+    { key: 'atk', name: '攻击', icon: '⚔', kind: 'attr', attr: 'atk' },
+    { key: 'def', name: '防御', icon: '🛡', kind: 'attr', attr: 'def' }
+  ];
+
   /* =========================================================
-     升级卡池：攻击方式类（有上限）+ 属性类（无限）
+     攻击方式卡池（每 modeEvery 级出现一次；全部有上限）
      ========================================================= */
-  const LEVEL_POOL = [
+  const MODE_POOL = [
     {
       key: 'haste', name: '攻速提升', icon: '⚡', kind: 'mode',
       max: p => p.atkCdMul <= 0.36,
@@ -66,16 +74,61 @@
       desc: '增加 2 枚绕身飞刃，持续切割靠近的敌人',
       apply(p) { p.orbits += 2; }
     },
-    { key: 'hp',  name: '生命', icon: '❤', kind: 'attr', attr: 'hp' },
-    { key: 'atk', name: '攻击', icon: '⚔', kind: 'attr', attr: 'atk' },
-    { key: 'def', name: '防御', icon: '🛡', kind: 'attr', attr: 'def' }
+    {
+      key: 'crit', name: '暴击节奏', icon: '💥', kind: 'mode',
+      max: p => p.critEvery <= 2,
+      desc: p => p.critEvery
+        ? '暴击节拍提前 1 发（当前每 ' + p.critEvery + ' 发必暴 ×' + p.critMult.toFixed(1) + '）'
+        : '每第 4 发箭矢必定暴击，造成 2.2 倍伤害',
+      apply(p) {
+        if (!p.critEvery) { p.critEvery = 4; p.critMult = 2.2; }
+        else { p.critEvery = Math.max(2, p.critEvery - 1); p.critMult += 0.1; }
+      }
+    },
+    {
+      key: 'velocity', name: '弹速提升', icon: '💨', kind: 'mode',
+      max: p => p.bulletSpeedMul >= 1.8,
+      desc: '箭矢飞行速度 +18%（命中更快，预判更稳）',
+      apply(p) { p.bulletSpeedMul = Math.min(1.8, p.bulletSpeedMul * 1.18); }
+    },
+    {
+      key: 'leech', name: '吸血箭', icon: '🩸', kind: 'mode',
+      max: p => p.cardLeech >= 24,
+      desc: p => p.cardLeech
+        ? '吸血再 +6%（当前 ' + p.cardLeech + '%）'
+        : '箭矢伤害的 6% 转化为自身治疗',
+      apply(p) { p.cardLeech = Math.min(24, p.cardLeech + 6); }
+    },
+    {
+      key: 'slow', name: '减速箭', icon: '🕸️', kind: 'mode',
+      max: p => p.cardSlow >= 3,
+      desc: p => p.cardSlow
+        ? '减速效果再 +18%（当前 −' + Math.round(p.cardSlow * 18) + '%）'
+        : '命中使敌人移动速度降低 18%，持续 1.6 秒',
+      apply(p) { p.cardSlow++; }
+    },
+    {
+      key: 'aegis', name: '护盾生成', icon: '🔵', kind: 'mode',
+      max: p => p.shieldEvery >= 3,
+      desc: p => p.shieldEvery
+        ? '护盾节拍提前（当前每 ' + p.shieldEvery + ' 秒 +' + p.shieldVal + ' 点）'
+        : '每 8 秒自动获得 10 点护盾（上限 30）',
+      apply(p) {
+        if (!p.shieldEvery) { p.shieldEvery = 8; p.shieldVal = 10; }
+        else { p.shieldEvery = Math.max(3, p.shieldEvery - 2); p.shieldVal += 4; }
+      }
+    }
   ];
 
-  /** 从卡池抽 3 张不重复（已达上限的攻击方式卡排除） */
+  /** 抽 3 张不重复：10 级里程碑抽攻击方式，其余等级抽三维属性 */
   function makeLevelCards(p) {
-    const avail = LEVEL_POOL.filter(c => c.kind === 'attr' || !c.max(p));
+    const isModeLevel = p.level % CFG.levelup.modeEvery === 0;
+    const pool = isModeLevel
+      ? MODE_POOL.filter(c => !c.max(p))
+      : ATTR_POOL.slice();
+
     const out = [];
-    const bag = avail.slice();
+    const bag = pool.slice();
     while (out.length < 3 && bag.length) {
       const i = Math.floor(Math.random() * bag.length);
       const card = bag.splice(i, 1)[0];
@@ -100,8 +153,8 @@
       icon = meta.icon; label = meta.label; val = '+' + card.val; note = meta.note;
     } else {
       icon = card.icon; label = card.name;
-      val = card.key === 'orbit' ? '+2' : (card.key === 'range' ? '+15%' : '+1');
-      note = card.desc;
+      note = typeof card.desc === 'function' ? card.desc(state.player) : card.desc;
+      val = { orbit: '+2', range: '+15%', velocity: '+18%', leech: '+6%', slow: '−18%', aegis: '10/8s', crit: '×2.2' }[card.key] || '+1';
     }
     const node = document.createElement('div');
     node.className = 'up-card' + (card.kind === 'attr' && card.ri === 4 ? ' gold' : '');
@@ -144,12 +197,14 @@
     });
   }
 
-  /** 弹出升级三选一（每级一次；连升多级会依次弹出） */
+  /** 弹出升级三选一（连升多级依次弹出） */
   function showLevelUp() {
     state.phase = 'levelup';
     const p = state.player;
-    G.el.upSub.textContent = 'Lv.' + p.level + ' · 三维已自动成长（+' +
-      CFG.growth.hp + ' 生命 +' + CFG.growth.atk + ' 攻击 +' + CFG.growth.def + ' 防御）';
+    const isMode = p.level % CFG.levelup.modeEvery === 0;
+    G.el.upSub.textContent = isMode
+      ? 'Lv.' + p.level + ' · ⚡ 攻击方式强化 · 选择一项新能力'
+      : 'Lv.' + p.level + ' · 提升一项属性';
     G.el.curHp.textContent = G.fmt(p.maxHp);
     G.el.curAtk.textContent = G.fmt(p.atk);
     G.el.curDef.textContent = G.fmt(p.def);
@@ -196,7 +251,7 @@
   function applyCard(card) {
     const p = state.player;
     if (card.kind === 'attr') {
-      // 属性卡：加到基础三维（与升级自动成长同路），经 refresh 与装备聚合后生效
+      // 属性卡：加到基础三维，经 refresh 与装备聚合后生效
       if (card.attr === 'hp') p.baseHp += card.val;
       else if (card.attr === 'atk') p.baseAtk += card.val;
       else p.baseDef += card.val;
@@ -208,5 +263,5 @@
     }
   }
 
-  Object.assign(G, { rollRarity, makeLevelCards, renderCard, renderEqPanel, showLevelUp, chooseLevelCard, LEVEL_POOL, ATTR_META });
+  Object.assign(G, { rollRarity, makeLevelCards, renderCard, renderEqPanel, showLevelUp, chooseLevelCard, MODE_POOL, ATTR_POOL, ATTR_META });
 })(window.ABYSS = window.ABYSS || {});

@@ -13,36 +13,39 @@
     world: { w: 2000, h: 1400 },
     viewport: { w: 960, h: 600 },
 
-    // 玩家：WASD 移动，自动向最近的敌人射击
+    // 玩家：WASD 移动，自动向最近的敌人射击（初始属性克制，成长全靠升级选卡与装备）
     player: {
-      hp: 120, atk: 14, def: 4,
+      hp: 100, atk: 10, def: 3,
       r: 13,
       speed: 140,          // 全局降速后的移速
-      atkCd: 0.7,          // 基础射击间隔（升级卡「攻速提升」在此基础上乘算）
+      atkCd: 0.8,          // 基础射击间隔（升级卡「攻速提升」在此基础上乘算）
       range: 320,
       bulletSpeed: 250,    // 弹幕整体降速
       iframes: 0.8
     },
 
-    // 经验与升级（需求逐层递增：二次曲线，升级节奏明显放缓）
+    // 经验与升级（需求逐层递增：二次曲线）
     xp: { base: 20, perLevel: 14, accel: 8 },           // 需求 = base + (lv-1)*perLevel + (lv-1)^2*accel
-    growth: { hp: 14, atk: 3, def: 1, healPct: 0.3 },   // 每级自动成长 + 回复 30% 生命
+    levelup: {
+      healPct: 0.12,          // 升级时回复 12% 生命（不再自动成长三维，属性全靠选卡）
+      modeEvery: 10           // 每 N 级弹出一次「攻击方式」升级（攻速/散射/暴击等），其余等级为属性三选一
+    },
     maps: { milestoneEvery: 3 },                        // 每 N 级解锁一张新地图（4 级即解锁第二张）
 
     // 源源不断刷怪（无波次）：按时间间隔持续刷新，存活上限随分钟增长
     spawn: {
-      interval0: 3.4,     // 第 1 分钟的刷怪间隔（秒）
+      interval0: 3.9,     // 第 1 分钟的刷怪间隔（秒）
       intervalMin: 1.5,   // 间隔下限
-      intervalK: 0.1,     // 每分钟缩短量
+      intervalK: 0.09,    // 每分钟缩短量
       capBase: 2,         // 第 1 分钟的场上存活上限
       capMax: 10,         // 存活上限
-      capK: 0.55          // 每分钟上限增量
+      capK: 0.45          // 每分钟上限增量
     },
 
     // 精英怪：每分钟整点出现一只；每 bossEvery 分钟为 BOSS
     elite: {
       every: 60,          // 精英出现间隔（秒）
-      hpMul: 2.8,         // 精英生命倍率
+      hpMul: 2.4,         // 精英生命倍率
       atkMul: 1.4,        // 精英攻击倍率
       xpMul: 4,           // 精英经验倍率
       bossEvery: 5        // 每 N 分钟出现 BOSS（代替精英）
@@ -61,7 +64,16 @@
       cap: 2,            // 场上最多同时存在的地点数
       spawnEvery: 40,    // 刷新间隔（秒）
       minDist: 300, maxDist: 700,
-      triggerR: 44       // 触发半径
+      triggerR: 44,      // 触发半径
+      trapChance: 0.35   // 选择事件选项后触发陷阱的概率
+    },
+
+    // 陷阱：事件选择后概率触发（持续 effectDur 秒，影响之后刷新的敌人）
+    traps: {
+      effectDur: 45,       // 效果持续时间（秒）
+      foeHpMul: 2.0,       // 血肉盛宴：敌人生命倍率
+      foeAtkMul: 1.25,     // 狂怒低语：敌人攻击倍率
+      ambushCount: 3       // 伏击：立即召唤的敌人数
     },
 
     // 动态障碍物：随主角移动随机生成/移除
@@ -73,7 +85,7 @@
 
     // 怪物成长曲线（按「分钟」缩放：minute = floor(存活时间/60)+1）
     mon: {
-      hp0: 30, hpK: 22, hpQ: 0.22,
+      hp0: 26, hpK: 24, hpQ: 0.24,
       atk0: 9, atkK: 1.9, atkQ: 0.06,
       def0: 1, defK: 0.55,
       eqLvEvery: 6,

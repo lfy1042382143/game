@@ -58,18 +58,29 @@
   }
 
   /* =========================================================
+     陷阱倍率（事件陷阱期间刷新的敌人更强）
+     ========================================================= */
+  function trapMul() {
+    if (state.time < state.trapUntil) {
+      return { hp: state.trapFoeHpMul, atk: state.trapFoeAtkMul };
+    }
+    return { hp: 1, atk: 1 };
+  }
+
+  /* =========================================================
      生成一只普通敌人（minute = 当前分钟阶段）
      ========================================================= */
   function makeEnemy(minute, idx) {
     const pool = pick(G.MONSTER_POOL);
     const boost = 1 + CFG.mon.mapBoost * state.mapIdx;   // 每张新地图敌人更强
+    const trap = trapMul();
 
     const type = idx % 3 === 2 ? 'ranged' : 'melee';
     const cfgT = CFG[type];
     const pos = spawnNearPlayer();
 
-    let hp = curveHp(minute) * boost;
-    let atk = curveAtk(minute) * boost;
+    let hp = curveHp(minute) * boost * trap.hp;
+    let atk = curveAtk(minute) * boost * trap.atk;
     if (state.pendingRage && type === 'melee') atk *= 1.3;   // 泉水事件副作用
 
     const u = G.makeUnit({
@@ -110,12 +121,13 @@
     const boss = isBossMinute(minute);
     const boost = 1 + CFG.mon.mapBoost * state.mapIdx;
     const E = CFG.elite;
+    const trap = trapMul();
 
     const type = boss ? 'boss' : (minute % 2 === 1 ? 'melee' : 'ranged');
     const cfgT = CFG[type];
 
-    let hp = curveHp(minute) * E.hpMul * boost * (opts.hpMul || 1);
-    let atk = curveAtk(minute) * E.atkMul * boost * (opts.atkMul || 1);
+    let hp = curveHp(minute) * E.hpMul * boost * (opts.hpMul || 1) * trap.hp;
+    let atk = curveAtk(minute) * E.atkMul * boost * (opts.atkMul || 1) * trap.atk;
     if (state.pendingRage) atk *= 1.3;
     if (boss) { hp *= 1.2; }
 

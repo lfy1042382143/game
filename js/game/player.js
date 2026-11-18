@@ -35,6 +35,18 @@
     /* ---------- 无敌帧 ---------- */
     if (p.iframes > 0) p.iframes -= dt;
 
+    /* ---------- 护盾生成（护盾生成卡）：每 shieldEvery 秒获得护盾 ---------- */
+    if (p.shieldEvery > 0) {
+      p.shieldT += dt;
+      if (p.shieldT >= p.shieldEvery) {
+        p.shieldT -= p.shieldEvery;
+        if (p.shield < p.SHIELD_CAP) {
+          p.shield = Math.min(p.SHIELD_CAP, p.shield + p.shieldVal);
+          G.floatText(p, '盾+' + p.shieldVal, '#7dd3fc');
+        }
+      }
+    }
+
     /* ---------- 自动射击 ---------- */
     p.atkT -= dt;
     if (p.atkT <= 0) {
@@ -67,28 +79,36 @@
     p.strikes++;
     let crit = false;
     let mult = 1;
+    // 装备暴击节拍（裂风刃）
     if (p.agg.crit > 0 && p.strikes % p.agg.crit === 0) {
       crit = true;
       mult = p.agg.critMult;
     }
+    // 卡片暴击节拍（暴击节奏）：与装备节拍独立判定，倍率取更高
+    if (p.critEvery > 0 && p.strikes % p.critEvery === 0) {
+      crit = true;
+      mult = Math.max(mult, p.critMult);
+    }
+
+    const bSpd = CFG.player.bulletSpeed * p.bulletSpeedMul;
 
     // 预判：两次迭代求提前量（飞行时间 × 目标速度）
     let ax = target.x, ay = target.y;
     for (let k = 0; k < 2; k++) {
-      const tof = G.dist(p.x, p.y, ax, ay) / CFG.player.bulletSpeed;
+      const tof = G.dist(p.x, p.y, ax, ay) / bSpd;
       ax = target.x + (target.vx || 0) * tof;
       ay = target.y + (target.vy || 0) * tof;
     }
 
     const baseA = Math.atan2(ay - p.y, ax - p.x);
     const n = p.shots;
-    const life = p.range / CFG.player.bulletSpeed;   // 箭矢飞满射程即消失
+    const life = p.range / bSpd;   // 箭矢飞满射程即消失
     for (let i = 0; i < n; i++) {
       const a = baseA + (i - (n - 1) / 2) * 0.16;
       const v = { x: Math.cos(a), y: Math.sin(a) };
       state.bullets.push({
         x: p.x + v.x * (p.r + 4), y: p.y + v.y * (p.r + 4),
-        vx: v.x * CFG.player.bulletSpeed, vy: v.y * CFG.player.bulletSpeed,
+        vx: v.x * bSpd, vy: v.y * bSpd,
         r: 5, dmg: p.atk * mult, crit,
         side: 'p', life, owner: p,
         pierceLeft: p.pierce,

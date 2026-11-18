@@ -23,6 +23,9 @@
     state.lootSlots = [];
     state.pendingLevelUps = 0;
     state.pendingRage = false;
+    state.trapFoeHpMul = 1;
+    state.trapFoeAtkMul = 1;
+    state.trapUntil = 0;
     state.floaters = [];
     state.bullets = [];
     state.chests = [];

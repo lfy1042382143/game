@@ -53,6 +53,13 @@
             const dealt = dealDamage(p, f, b.dmg, { crit: b.crit });
             // 血刃：命中附加流血（多件只取最强，聚合时已处理）
             if (dealt > 0 && p.agg.bleed) applyBleed(f, p.agg.bleed);
+            // 吸血箭：命中按伤害比例回血
+            if (dealt > 0 && p.cardLeech > 0) G.healUnit(p, Math.max(1, Math.round(dealt * p.cardLeech / 100)));
+            // 减速箭：命中减速
+            if (dealt > 0 && p.cardSlow > 0) {
+              f.slowT = 1.6;
+              f.slowMul = 1 - p.cardSlow * 0.18;
+            }
 
             if (b.pierceLeft > 0) {
               // 贯穿：穿过这个敌人继续飞

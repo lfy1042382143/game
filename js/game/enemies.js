@@ -36,6 +36,11 @@
      ========================================================= */
   function moveEnemy(e, n, dt, mul) {
     const A = CFG.world;
+    // 减速箭：slowT 期间移动速度乘算 slowMul
+    if (e.slowT > 0) {
+      e.slowT -= dt;
+      mul *= (e.slowMul !== undefined ? e.slowMul : 1);
+    }
     const spd = e.speed * (mul || 1);
     e.x += n.x * spd * dt;
     e.y += n.y * spd * dt;

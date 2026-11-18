@@ -42,6 +42,11 @@
 
     pendingRage: false,    // 泉水事件副作用：下一只精英攻击 +30%
 
+    // 陷阱（事件选择后概率触发）：影响陷阱期间刷新的敌人
+    trapFoeHpMul: 1,       // 敌人生命倍率
+    trapFoeAtkMul: 1,      // 敌人攻击倍率
+    trapUntil: 0,          // 陷阱失效时间（state.time，秒）
+
     banner: null,
 
     best: 0
@@ -96,12 +101,21 @@
     // 等级与攻击方式
     p.level = 1;
     p.xp = 0;
-    p.atkCdMul = 1;    // 攻速乘算系数（攻速提升卡）
-    p.shots = 1;       // 每次射击的箭矢数（散射箭）
-    p.pierce = 0;      // 箭矢贯穿数（贯穿箭）
-    p.orbits = 0;      // 环绕飞刃数量
-    p.rangeMul = 1;    // 射程乘算系数（射程提升卡）
-    p.range = C.range; // 当前射程（nearestFoe 与箭矢寿命都用它）
+    p.atkCdMul = 1;        // 攻速乘算系数（攻速提升卡）
+    p.shots = 1;           // 每次射击的箭矢数（散射箭）
+    p.pierce = 0;          // 箭矢贯穿数（贯穿箭）
+    p.orbits = 0;          // 环绕飞刃数量
+    p.rangeMul = 1;        // 射程乘算系数（射程提升卡）
+    p.range = C.range;     // 当前射程（nearestFoe 与箭矢寿命都用它）
+    p.critEvery = 0;       // 暴击节拍（0 = 无；每 N 发必暴）
+    p.critMult = 1;        // 暴击倍率
+    p.bulletSpeedMul = 1;  // 弹速乘算系数（弹速提升卡）
+    p.cardLeech = 0;       // 吸血箭：箭矢伤害回血百分比
+    p.cardSlow = 0;        // 减速箭：命中减速层数
+    p.shieldEvery = 0;     // 护盾生成节拍（0 = 无；每 N 秒）
+    p.shieldVal = 0;       // 护盾生成量
+    p.shieldT = 0;         // 护盾生成计时
+    p.SHIELD_CAP = 30;     // 生成护盾的上限
     return p;
   }
 

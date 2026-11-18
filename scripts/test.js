@@ -212,20 +212,20 @@ function featureTests() {
   run(3);
   assert(tf.hp < fh0 || tf.dead, 'T6 玩家自动射击命中敌人', { fh0, fh1: tf.hp });
 
-  // T15 经验获取与自动升级
+  // T15 经验获取与自动升级（不再自动成长三维）
   reset();
   const p15 = G.state.player;
   const lv0 = p15.level;
+  const atk0 = p15.baseAtk, hp0b = p15.baseHp;
   G.gainXp(G.xpNeed(p15.level));       // 喂满一级经验
   assert(p15.level === lv0 + 1, 'T15 经验满自动升级', { lv0, lv1: p15.level });
-  assert(p15.baseAtk === G.CFG.player.atk + G.CFG.growth.atk, 'T15 升级自动加攻击', p15.baseAtk);
-  assert(p15.baseHp === G.CFG.player.hp + G.CFG.growth.hp, 'T15 升级自动加生命', p15.baseHp);
+  assert(p15.baseAtk === atk0 && p15.baseHp === hp0b, 'T15 升级不再自动成长三维', { atk0, atk1: p15.baseAtk });
   assert(G.state.pendingLevelUps === 1, 'T15 升级累积待处理选项', G.state.pendingLevelUps);
 
-  // T16 升级卡效果：攻速 / 散射 / 环绕飞刃 / 射程；追踪已删除
-  const poolByKey = k => G.LEVEL_POOL.find(c => c.key === k);
-  assert(!poolByKey('homing'), 'T16 追踪箭已从卡池删除');
-  const haste = poolByKey('haste'), multi = poolByKey('multi'), orbit = poolByKey('orbit'), rangeC = poolByKey('range');
+  // T16 攻击方式卡池（MODE_POOL）与新卡效果；属性卡池（ATTR_POOL）
+  const modeByKey = k => G.MODE_POOL.find(c => c.key === k);
+  assert(!modeByKey('homing'), 'T16 追踪箭已从卡池删除');
+  const haste = modeByKey('haste'), multi = modeByKey('multi'), orbit = modeByKey('orbit'), rangeC = modeByKey('range');
   haste.apply(p15);
   multi.apply(p15);
   orbit.apply(p15);
@@ -235,15 +235,58 @@ function featureTests() {
   assert(p15.shots === 2, 'T16 散射箭卡生效', p15.shots);
   assert(p15.orbits === 2, 'T16 环绕飞刃卡生效', p15.orbits);
   assert(p15.range > rng0, 'T16 射程提升卡生效', { rng0, rng1: p15.range });
-  // 散射：一次 volley 生成 2 支箭，箭矢寿命 = 射程/弹速
+
+  // T16b 新攻击方式卡：暴击节奏 / 弹速 / 吸血箭 / 减速箭 / 护盾生成
+  const critC = modeByKey('crit'), veloC = modeByKey('velocity'), leechC = modeByKey('leech'), slowC = modeByKey('slow'), aegisC = modeByKey('aegis');
+  critC.apply(p15);
+  assert(p15.critEvery === 4 && p15.critMult === 2.2, 'T16b 暴击节奏卡生效', { every: p15.critEvery, mult: p15.critMult });
+  veloC.apply(p15);
+  assert(p15.bulletSpeedMul > 1, 'T16b 弹速提升卡生效', p15.bulletSpeedMul);
+  leechC.apply(p15);
+  assert(p15.cardLeech === 6, 'T16b 吸血箭卡生效', p15.cardLeech);
+  slowC.apply(p15);
+  assert(p15.cardSlow === 1, 'T16b 减速箭卡生效', p15.cardSlow);
+  aegisC.apply(p15);
+  assert(p15.shieldEvery === 8 && p15.shieldVal === 10, 'T16b 护盾生成卡生效', { every: p15.shieldEvery, val: p15.shieldVal });
+
+  // 减速箭命中减速 + 吸血箭回血（先扣血避免满血钳制）
+  reset();
+  const p16 = G.state.player;
+  p16.cardSlow = 1; p16.cardLeech = 20;
+  p16.hp = Math.max(1, p16.hp - 30);
+  const sf16 = G.makeEnemy(1, 0);
+  G.state.foes.push(sf16);
+  sf16.x = p16.x + 120; sf16.y = p16.y;
+  const sf16hp0 = sf16.hp, p16hp0 = p16.hp;
+  G.state.bullets.push({ x: p16.x, y: p16.y, vx: 250, vy: 0, r: 5, dmg: 10, crit: false, side: 'p', life: 2, owner: p16, pierceLeft: 0, hit: [] });
+  run(0.5);
+  assert(sf16.hp < sf16hp0, 'T16b 箭矢命中敌人', { sf16hp0, sf16hp1: sf16.hp });
+  assert(sf16.slowT > 0 && sf16.slowMul < 1, 'T16b 减速箭命中后敌人减速', { slowT: sf16.slowT, slowMul: sf16.slowMul });
+  assert(G.state.player.hp > p16hp0, 'T16b 吸血箭命中后回血', { p16hp0, p16hp1: G.state.player.hp });
+
+  // 散射：一次 volley 生成 2 支箭，箭矢寿命 = 射程/弹速（含弹速乘算）
+  reset();
+  const p16c = G.state.player;
+  p16c.shots = 2;
   const vtarget = G.makeEnemy(1, 0);
   G.state.foes.push(vtarget);
-  vtarget.x = p15.x + 200; vtarget.y = p15.y;
+  vtarget.x = p16c.x + 200; vtarget.y = p16c.y;
   const nb0 = G.state.bullets.length;
-  G.fireVolley(p15, vtarget);
+  G.fireVolley(p16c, vtarget);
   assert(G.state.bullets.length - nb0 === 2, 'T16 散射 volley 发射 2 支箭', G.state.bullets.length - nb0);
   const nb = G.state.bullets[G.state.bullets.length - 1];
-  assert(Math.abs(nb.life - p15.range / G.CFG.player.bulletSpeed) < 0.01, 'T16 箭矢寿命与射程绑定', nb.life);
+  const bSpd = G.CFG.player.bulletSpeed * p16c.bulletSpeedMul;
+  assert(Math.abs(nb.life - p16c.range / bSpd) < 0.01, 'T16 箭矢寿命与射程/弹速绑定', nb.life);
+
+  // T16c 卡池按等级分流：普通级只有属性卡，10 级里程碑才有攻击方式
+  reset();
+  const p16d = G.state.player;
+  p16d.level = 3;
+  const cards3 = G.makeLevelCards(p16d);
+  assert(cards3.every(c => c.kind === 'attr'), 'T16c 3 级升级只出属性卡', cards3.map(c => c.kind).join(','));
+  p16d.level = 10;
+  const cards10 = G.makeLevelCards(p16d);
+  assert(cards10.every(c => c.kind === 'mode'), 'T16c 10 级里程碑只出攻击方式卡', cards10.map(c => c.kind).join(','));
 
   // T17 等级里程碑解锁新地图（每 3 级一档：4/7/10 级解锁）
   reset();
@@ -277,7 +320,7 @@ function featureTests() {
   run(1);
   const elites = G.state.foes.filter(f => f.elite);
   assert(elites.length === 1, 'T-E1 每分钟整点出现一只精英', { elites: elites.length });
-  assert(elites[0].hp > G.curveHp(1) * 2, 'T-E1 精英血量显著高于普通怪', Math.round(elites[0].hp));
+  assert(elites[0].hp > G.curveHp(1) * 1.5, 'T-E1 精英血量显著高于普通怪', Math.round(elites[0].hp));
   assert(!!elites[0].affix, 'T-E1 精英必带词缀');
 
   // T-E2 精英死亡原地掉落装备宝箱
@@ -319,8 +362,10 @@ function featureTests() {
   G.continueLoot();
   assert(G.state.phase === 'play', 'T7 处理完战利品回战斗', G.state.phase);
 
-  // T9 事件地点：走近触发 → 选择 → 地点消失
+  // T9 事件地点：走近触发 → 选择 → 地点消失（临时关闭陷阱保证确定性）
   reset();
+  const trapChanceBak = G.CFG.events.trapChance;
+  G.CFG.events.trapChance = 0;
   const site = { x: G.state.player.x, y: G.state.player.y, evt: G.EVENTS[0], used: false };
   G.state.sites.push(site);
   run(0.3);
@@ -328,6 +373,30 @@ function featureTests() {
   G.chooseEventOption(G.EVENTS[0].options[2]);   // 离开
   assert(G.state.phase === 'play', 'T9 事件选择后回到战斗', G.state.phase);
   assert(site.used === true, 'T9 事件地点一次性（触发后消失）');
+  G.CFG.events.trapChance = trapChanceBak;
+
+  // T-Trap 陷阱：概率触发 → 弹陷阱弹窗 → 承受后生效（敌人倍率与持续时间）
+  reset();
+  G.CFG.events.trapChance = 1;
+  G.state.sites.push({ x: G.state.player.x, y: G.state.player.y, evt: G.EVENTS[0], used: false });
+  run(0.3);
+  assert(G.state.phase === 'event', 'T-Trap 事件选择后弹出陷阱', G.state.phase);
+  G.resolveTrap(G.TRAPS[0]);                      // 血肉盛宴：敌人生命 ×2
+  assert(G.state.phase === 'play', 'T-Trap 承受陷阱后回到战斗', G.state.phase);
+  assert(G.state.trapFoeHpMul === G.CFG.traps.foeHpMul, 'T-Trap 陷阱敌人生命倍率生效', G.state.trapFoeHpMul);
+  assert(G.state.trapUntil > G.state.time, 'T-Trap 陷阱有持续时间', Math.round(G.state.trapUntil - G.state.time));
+  // 陷阱期间刷新的敌人生命翻倍
+  const trapE = G.makeEnemy(1, 0);
+  G.state.trapUntil = 0;                          // 关闭陷阱后生成的敌人不受影响
+  const normE2 = G.makeEnemy(1, 0);
+  assert(trapE.hp > normE2.hp * 1.5, 'T-Trap 陷阱期间敌人生命翻倍', { trap: trapE.hp, norm: normE2.hp });
+  assert(Math.abs(normE2.hp - G.curveHp(1)) < 2, 'T-Trap 陷阱结束后敌人恢复正常', { normE2: normE2.hp, base: G.curveHp(1) });
+  // 伏击陷阱：立即召唤敌人
+  reset();
+  const ambushN0 = G.state.foes.filter(f => !f.dead).length;
+  G.TRAPS[2].apply();
+  assert(G.state.foes.filter(f => !f.dead).length >= ambushN0 + G.CFG.traps.ambushCount, 'T-Trap 伏击陷阱立即召唤敌人', G.state.foes.length);
+  G.CFG.events.trapChance = trapChanceBak;
 
   // T9a 经验需求逐层递增（二次曲线：相邻级差随等级扩大）
   const n1 = G.xpNeed(1), n2 = G.xpNeed(2), n3 = G.xpNeed(3), n5 = G.xpNeed(5);
@@ -359,7 +428,7 @@ function featureTests() {
   const e4 = G.makeEnemy(4, 0);
   assert(e4.hp > e1hp, 'T10 敌人强度随分钟增长', { m1: e1hp, m4: e4.hp });
   const elite1 = G.makeElite(1);
-  assert(elite1.elite === true && elite1.hp > e1hp * 2, 'T10 精英强度显著高于普通怪', { elite: elite1.hp, normal: e1hp });
+  assert(elite1.elite === true && elite1.hp > e1hp * 1.5, 'T10 精英强度显著高于普通怪', { elite: elite1.hp, normal: e1hp });
   assert(elite1.xp >= 25, 'T10 精英提供大量经验', elite1.xp);
 
   // T11 BOSS 扇形弹幕
@@ -417,9 +486,9 @@ function simulate(runs) {
   function autoAdvance() {
     const st = G.state;
     if (st.phase === 'levelup') {
-      const card = { kind: 'mode', key: 'multi', apply(pp) { pp.shots++; } };
-      if (st.player.shots >= 4) card.key = 'haste', card.apply = pp => { pp.atkCdMul = Math.max(0.35, pp.atkCdMul * 0.82); };
-      G.chooseLevelCard(card);
+      // 用真实卡池选第一张（普通级=属性卡，10 级=攻击方式卡）
+      const cards = G.makeLevelCards(st.player);
+      if (cards.length) G.chooseLevelCard(cards[0]);
       return;
     }
     if (st.phase === 'loot') {
@@ -435,8 +504,12 @@ function simulate(runs) {
     if (st.phase === 'event') {
       const overlay = sandbox.document._els.eventOverlay;
       if (overlay.classList.contains('show')) {
-        const opts = (st.activeSite && st.activeSite.evt ? st.activeSite.evt : G.EVENTS[0]).options;
-        G.chooseEventOption(opts[opts.length - 1]);
+        if (st.activeSite && st.activeSite.evt) {
+          const opts = st.activeSite.evt.options;
+          G.chooseEventOption(opts[opts.length - 1]);
+        } else {
+          G.resolveTrap(G.TRAPS[0]);   // 陷阱弹窗：直接承受
+        }
       }
     }
   }

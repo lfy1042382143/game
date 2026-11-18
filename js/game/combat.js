@@ -142,9 +142,10 @@
 
   /* =========================================================
      经验与升级：击杀获得经验，满值自动升级
-     - 三维属性自动成长（CFG.growth）
-     - 立即回复部分生命
+     - 不再自动成长三维（属性提升全部来自升级选卡）
+     - 升级立即回复少量生命（CFG.levelup.healPct）
      - 每级累积一个待处理的升级选项（三选一，见 cards.js）
+     - 每 N 级为「攻击方式」升级（cards.modeEvery），其余为属性三选一
      - 跨过等级里程碑时解锁新地图（见 flow.switchMap）
      ========================================================= */
   function xpNeed(level) {
@@ -168,12 +169,8 @@
   }
 
   function levelUp(p) {
-    const g = CFG.growth;
-    p.baseHp += g.hp;
-    p.baseAtk += g.atk;
-    p.baseDef += g.def;
     G.refresh(p);
-    G.healUnit(p, Math.round(p.maxHp * g.healPct));
+    G.healUnit(p, Math.round(p.maxHp * CFG.levelup.healPct));
     floatText(p, 'Lv.' + p.level + ' ↑', '#fbbf24', true);
     state.pendingLevelUps++;
 

@@ -203,6 +203,84 @@
     el.eventOverlay.classList.add('show');
   }
 
+  /* =========================================================
+     陷阱：选择事件选项后概率触发（看似机缘，实则杀机）
+     ========================================================= */
+  const TRAPS = [
+    {
+      key: 'feast',
+      name: '陷阱 · 血肉盛宴',
+      icon: '🪤',
+      text: '机关骤然收紧！黑暗中传来贪婪的低语——此地血肉将滋养群魔。',
+      sub: '陷阱持续期间刷新的敌人生命 ×2',
+      apply() {
+        state.trapFoeHpMul = CFG.traps.foeHpMul;
+        state.trapFoeAtkMul = 1;
+        state.trapUntil = state.time + CFG.traps.effectDur;
+      }
+    },
+    {
+      key: 'whisper',
+      name: '陷阱 · 狂怒低语',
+      icon: '🪤',
+      text: '脚下的符文亮起血红！低语钻入魔物耳中，它们被彻底激怒了。',
+      sub: '陷阱持续期间刷新的敌人攻击 +25%',
+      apply() {
+        state.trapFoeHpMul = 1;
+        state.trapFoeAtkMul = CFG.traps.foeAtkMul;
+        state.trapUntil = state.time + CFG.traps.effectDur;
+      }
+    },
+    {
+      key: 'ambush',
+      name: '陷阱 · 伏击',
+      icon: '🪤',
+      text: '四面的阴影同时扑来——你踩进了它们的狩猎圈！',
+      sub: '立即召唤一群敌人围攻',
+      apply() {
+        for (let i = 0; i < CFG.traps.ambushCount; i++) {
+          state.foes.push(G.makeEnemy(state.wave, state.kills + i));
+        }
+        state.banner = { text: '🪤 伏击！', sub: CFG.traps.ambushCount + ' 只敌人从阴影中扑出', t: 2 };
+      }
+    }
+  ];
+
+  /** 弹出陷阱弹窗（复用事件弹窗结构） */
+  function renderTrap(trap) {
+    const el = G.el;
+    el.eventTitle.textContent = trap.name;
+    el.eventIcon.textContent = trap.icon;
+    el.eventText.textContent = trap.text;
+    el.eventOpts.innerHTML = '';
+
+    const btn = document.createElement('button');
+    btn.className = 'event-opt';
+    btn.innerHTML = '<span class="event-opt-label">承受诅咒</span>' +
+      '<span class="event-opt-desc">' + trap.sub + '</span>';
+    btn.addEventListener('click', () => resolveTrap(trap));
+    el.eventOpts.appendChild(btn);
+
+    el.eventOverlay.classList.add('show');
+  }
+
+  function resolveTrap(trap) {
+    const box = G.el.eventOverlay;
+    if (!box || !box.classList.contains('show')) return;
+    box.classList.remove('show');
+
+    G.tone({ freq: 180, type: 'sawtooth', dur: 0.4, vol: 0.14 });   // 低沉的陷阱音
+    trap.apply();
+    G.ui.syncTopbar();
+
+    // 有挂起的升级先弹升级，否则回到战斗
+    if (state.pendingLevelUps > 0) {
+      G.showLevelUp();
+    } else {
+      state.phase = 'play';
+    }
+  }
+
   function chooseEventOption(opt) {
     const box = G.el.eventOverlay;
     if (!box || !box.classList.contains('show')) return;
@@ -216,6 +294,13 @@
     G.ui.syncTopbar();
     G.tone({ freq: 620, type: 'sine', dur: 0.18, vol: 0.1 });
 
+    // 陷阱判定：概率触发，弹陷阱弹窗（升级弹窗在陷阱确认后处理）
+    if (Math.random() < CFG.events.trapChance) {
+      const trap = TRAPS[Math.floor(Math.random() * TRAPS.length)];
+      renderTrap(trap);
+      return;
+    }
+
     // 有挂起的升级先弹升级，否则回到战斗
     if (state.pendingLevelUps > 0) {
       G.showLevelUp();
@@ -224,5 +309,5 @@
     }
   }
 
-  Object.assign(G, { EVENTS, spawnSite, checkSites, triggerSite, updateSites, chooseEventOption });
+  Object.assign(G, { EVENTS, TRAPS, spawnSite, checkSites, triggerSite, updateSites, chooseEventOption, resolveTrap });
 })(window.ABYSS = window.ABYSS || {});
