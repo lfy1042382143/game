@@ -100,7 +100,8 @@
     const enemyIdx = state.kills;   // 词缀轮换用
 
     // 普通敌人：存活数低于上限时按间隔刷新（缺口大时一次补 2 只，快速填场）
-    const alive = state.foes.filter(f => !f.dead).length;
+    // 法师是站桩炮台，不计入存活上限（否则会挤占近战/远程的刷新名额）
+    const alive = state.foes.filter(f => !f.dead && f.type !== 'mage').length;
     state.spawnT += dt;
     if (state.spawnT >= G.spawnInterval(minute)) {
       state.spawnT = 0;

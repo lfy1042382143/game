@@ -50,6 +50,17 @@
     /* ---------- 无敌帧 ---------- */
     if (p.iframes > 0) p.iframes -= dt;
 
+    /* ---------- 再生头环：每秒回复固定生命 ---------- */
+    if (p.agg && p.agg.regen > 0 && p.hp < p.maxHp) {
+      const before = p.hp;
+      p.hp = Math.min(p.maxHp, p.hp + p.agg.regen * dt);
+      p.regenAcc = (p.regenAcc || 0) + (p.hp - before);
+      if (p.regenAcc >= 5) {   // 每 5 点显示一次提示，避免刷屏
+        G.floatText(p, '+' + Math.round(p.regenAcc), '#86efac');
+        p.regenAcc = 0;
+      }
+    }
+
     /* ---------- 护盾生成（护盾生成卡）：每 shieldEvery 秒获得护盾 ---------- */
     if (p.shieldEvery > 0) {
       p.shieldT += dt;

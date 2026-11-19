@@ -68,7 +68,7 @@
     const A = {
       atkFlat: 0, defFlat: 0, hpFlat: 0,
       bleed: null, crit: 0, critMult: 1.6, leech: 0, thorn: 0,
-      guard: 0, bulwark: 0, vamp: 0, dotres: 0, swiftstep: 0, pierce: 0
+      guard: 0, bulwark: 0, vamp: 0, regen: 0, swiftstep: 0, pierce: 0
     };
     items.forEach(it => {
       if (it.statK === 'atk') A.atkFlat += it.statV;
@@ -89,7 +89,7 @@
         case 'guard': A.guard += e.shield; break;
         case 'bulwark': A.bulwark += e.pct; break;
         case 'vamp': A.vamp += e.pct; break;
-        case 'dotres': A.dotres += e.pct; break;
+        case 'regen': A.regen += e.val; break;
         case 'swiftstep': A.swiftstep += e.pct; break;
         case 'pierce': A.pierce += e.pct; break;
       }

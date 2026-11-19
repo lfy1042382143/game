@@ -28,19 +28,18 @@
     xp: { tierSize: 10, tierBase: 40, tierStep: 45 },   // 十级一档：档内需求恒定，每跨一档 +45（1-10级每级40，11-20级每级85…）
     levelup: {
       healPct: 0.12,          // 升级时回复 12% 生命（不再自动成长三维，属性全靠选卡）
-      modeEvery: 3,           // 每 N 级弹出一次「攻击方式/幸运」升级，其余等级为属性三选一
       luckTier: [0, 0.06, 0.12, 0.20, 0.30]  // 每点幸运对白/绿/蓝/紫/金权重增幅
     },
     maps: { milestoneEvery: 3 },                        // 每 N 级解锁一张新地图（4 级即解锁第二张）
 
-    // 源源不断刷怪（无波次）：开局稍缓给发育窗口，随后加密到 5~10 个敌人
+    // 源源不断刷怪（无波次）：开局稍缓给发育窗口，后期密度持续上升
     spawn: {
       interval0: 2.4,     // 第 1 分钟的刷怪间隔（秒）
-      intervalMin: 0.7,   // 间隔下限
-      intervalK: 0.08,    // 每分钟缩短量
+      intervalMin: 0.55,  // 间隔下限
+      intervalK: 0.1,     // 每分钟缩短量
       capBase: 4,         // 第 1 分钟的场上存活上限
-      capMax: 10,         // 存活上限
-      capK: 0.5           // 每分钟上限增量（快速逼近高密度）
+      capMax: 18,         // 存活上限（后期怪海）
+      capK: 0.8           // 每分钟上限增量
     },
 
     // 精英怪：每分钟整点出现一只；每 bossEvery 分钟为 BOSS
@@ -137,8 +136,8 @@
       summonCount: 2, summonCap: 8   // 召唤援军（场上总数上限）
     },
 
-    // 体型随血量：r = 基础半径 × (hp/refHp)^k，上下限裁剪（血量越高体型越大）
-    size: { refHp: 30, k: 0.4, min: 0.85, max: 2.3 },
+    // 体型随击杀难度：r = 基础半径 × (击杀箭数/refShots)^k，上下限裁剪（越难杀体型越大）
+    size: { refShots: 3, k: 0.4, min: 0.85, max: 2.3 },  // 体型 = 击杀所需箭数（血量/玩家攻击）相对基准的幂
 
     // 敌人词缀出现节奏（普通敌人按分钟）
     affixes: { firstAt: 3, every: 2 },
@@ -220,9 +219,9 @@
       },
       {
         k: 'guard', name: '壁垒甲', icon: '🛡️', stat: [1, 2, 3, 4, 6], step: 1,
-        mk: (r, L0) => ({ shield: Math.round([6, 10, 15, 21, 28][r] + 4 * L0) }),
-        desc: v => '每波开始时获得 <em>' + v.shield + '</em> 点护盾',
-        tag: v => '开局盾 +' + v.shield
+        mk: (r, L0) => ({ shield: Math.round([8, 12, 18, 25, 34][r] + 4 * L0) }),
+        desc: v => '开局与每次升级时获得 <em>' + v.shield + '</em> 点护盾',
+        tag: v => '护盾 +' + v.shield
       },
       {
         k: 'bulwark', name: '龙鳞甲', icon: '🐉', stat: [1, 2, 3, 4, 6], step: 1,
@@ -234,15 +233,15 @@
     helm: [
       {
         k: 'vamp', name: '回响头盔', icon: '🩹', stat: [10, 16, 24, 36, 52], step: 8,
-        mk: (r, L0) => ({ pct: [15, 20, 26, 32, 40][r] + 3 * L0 }),
+        mk: (r, L0) => ({ pct: [10, 14, 18, 24, 30][r] + 2 * L0 }),
         desc: v => '受到伤害后回复该次伤害的 <em>' + v.pct + '%</em>',
-        tag: v => '回复 ' + v.pct + '%'
+        tag: v => '受击回复 ' + v.pct + '%'
       },
       {
-        k: 'dotres', name: '抗性头冠', icon: '🧿', stat: [10, 16, 24, 36, 52], step: 8,
-        mk: (r, L0) => ({ pct: [20, 28, 36, 45, 55][r] + 4 * L0 }),
-        desc: v => '受到的流血伤害降低 <em>' + v.pct + '%</em>',
-        tag: v => '抗流血 ' + v.pct + '%'
+        k: 'regen', name: '再生头环', icon: '🌿', stat: [10, 16, 24, 36, 52], step: 8,
+        mk: (r, L0) => ({ val: Math.round([2, 3, 5, 7, 10][r] + 2 * L0) }),
+        desc: v => '每秒回复 <em>' + v.val + '</em> 点生命',
+        tag: v => '回复 ' + v.val + '/s'
       },
       {
         k: 'swiftstep', name: '疾步之靴', icon: '👟', stat: [10, 16, 24, 36, 52], step: 8,

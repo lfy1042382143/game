@@ -141,6 +141,14 @@
       }
     },
     {
+      key: 'ricochet', name: '反弹箭', icon: '🪃', kind: 'mode',
+      max: p => (p.bounce || 0) >= 2,
+      desc: p => (p.bounce || 0)
+        ? '弹幕碰墙反弹再 +1（当前可反弹 ' + p.bounce + ' 次）'
+        : '弹幕碰到地图墙壁后反弹 1 次继续飞行',
+      apply(p) { p.bounce = (p.bounce || 0) + 1; }
+    },
+    {
       key: 'luck', name: '幸运', icon: '🍀', kind: 'mode',
       max: p => p.luck >= 8,
       desc: p => p.luck
@@ -150,31 +158,16 @@
     }
   ];
 
-  /** 抽 3 张不重复：每 modeEvery 级抽攻击方式/幸运，其余等级抽三维属性
-      攻击方式卡池抽干（全部达到上限）时回落为属性卡，避免空弹窗卡死 */
+  /** 混合卡池：每次升级从「属性 + 攻击方式 + 幸运 + 升级效率」中随机抽 3 张
+      （全部达上限的卡不入池；池抽干时回落为属性卡，避免空弹窗卡死） */
   function makeLevelCards(p) {
-    const isModeLevel = p.level % CFG.levelup.modeEvery === 0;
-
-    // 每 2 级（非攻击方式级）：必含一张升级效率卡，其余随机属性
-    if (!isModeLevel && p.level % 2 === 0 && !XP_CARD.max(p)) {
-      const bag = ATTR_POOL.slice();
-      const out = [Object.assign({}, XP_CARD)];
-      while (out.length < 3 && bag.length) {
-        const i = Math.floor(Math.random() * bag.length);
-        const card = bag.splice(i, 1)[0];
-        const ri = rollRarity(p.level, p.luck);
-        out.push(Object.assign({}, card, { ri, val: ATTR_META[card.attr].vals[ri] }));
-      }
-      return out;
+    const bag = ATTR_POOL.slice();
+    for (const c of MODE_POOL) {
+      if (!c.max(p)) bag.push(c);
     }
-
-    let pool = isModeLevel
-      ? MODE_POOL.filter(c => !c.max(p))
-      : ATTR_POOL.slice();
-    if (!pool.length) pool = ATTR_POOL.slice();
+    if (!XP_CARD.max(p)) bag.push(XP_CARD);   // 升级效率：随机混入，不再按偶数级强制出现
 
     const out = [];
-    const bag = pool.slice();
     while (out.length < 3 && bag.length) {
       const i = Math.floor(Math.random() * bag.length);
       const card = bag.splice(i, 1)[0];
@@ -200,7 +193,7 @@
     } else {
       icon = card.icon; label = card.name;
       note = typeof card.desc === 'function' ? card.desc(state.player) : card.desc;
-      val = { orbit: '+2', range: '+15%', velocity: '+18%', leech: '+6%', slow: '−18%', aegis: '10/8s', crit: '×2.2', luck: '+1', xpgain: '+20%' }[card.key] || '+1';
+      val = { orbit: '+2', range: '+15%', velocity: '+18%', leech: '+6%', slow: '−18%', aegis: '10/8s', crit: '×2.2', luck: '+1', xpgain: '+20%', ricochet: '+1 次' }[card.key] || '+1';
     }
     const node = document.createElement('div');
     node.className = 'up-card' + (card.kind === 'attr' && card.ri === 4 ? ' gold' : '');
@@ -247,10 +240,7 @@
   function showLevelUp() {
     state.phase = 'levelup';
     const p = state.player;
-    const isMode = p.level % CFG.levelup.modeEvery === 0;
-    G.el.upSub.textContent = isMode
-      ? 'Lv.' + p.level + ' · ⚡ 攻击方式 / 🍀 幸运 · 选择一项'
-      : 'Lv.' + p.level + ' · 提升一项属性';
+    G.el.upSub.textContent = 'Lv.' + p.level + ' · 选择一项：属性 / 攻击方式 / 🍀 幸运 / ✨ 升级效率';
     G.el.curHp.textContent = G.fmt(p.maxHp);
     G.el.curAtk.textContent = G.fmt(p.atk);
     G.el.curDef.textContent = G.fmt(p.def);

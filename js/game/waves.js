@@ -70,10 +70,13 @@
   /* =========================================================
      生成一只普通敌人（minute = 当前分钟阶段）
      ========================================================= */
-  /** 体型系数：血量越高体型越大（r = 基础半径 × 系数） */
+  /** 体型系数：击杀所需箭数（敌人血量 / 玩家攻击）越多体型越大，
+      同时兼顾敌人血量成长与玩家攻击成长（r = 基础半径 × 系数） */
   function sizeScale(hp) {
     const S = CFG.size;
-    return Math.max(S.min, Math.min(S.max, Math.pow(hp / S.refHp, S.k)));
+    const p = state.player;
+    const shots = hp / Math.max(1, p ? p.atk : 10);
+    return Math.max(S.min, Math.min(S.max, Math.pow(shots / S.refShots, S.k)));
   }
 
   function makeEnemy(minute, idx) {

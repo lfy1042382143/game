@@ -88,7 +88,7 @@
     if (sig === lastEqSig) return;
     lastEqSig = sig;
 
-    const A = p.agg || { crit: 0, critMult: 1.6, leech: 0, thorn: 0, bulwark: 0, pierce: 0, swiftstep: 0, vamp: 0, dotres: 0, bleed: null, guard: 0 };
+    const A = p.agg || { crit: 0, critMult: 1.6, leech: 0, thorn: 0, bulwark: 0, pierce: 0, swiftstep: 0, vamp: 0, regen: 0, bleed: null, guard: 0 };
 
     // 三维（含装备加成来源）
     let html =
@@ -108,8 +108,8 @@
     if (A.bulwark) extras.push(['🐉', '减伤', A.bulwark + '%']);
     if (A.pierce) extras.push(['🔮', '破甲', A.pierce + '%']);
     if (A.swiftstep) extras.push(['👟', '移速', '+' + A.swiftstep + '%']);
-    if (A.dotres) extras.push(['🧿', '抗流血', A.dotres + '%']);
-    if (A.guard) extras.push(['🛡️', '开局盾', A.guard]);
+    if (A.regen) extras.push(['🌿', '回复', A.regen + '/s']);
+    if (A.guard) extras.push(['🛡️', '护盾', A.guard]);
     if (A.crit) extras.push(['💥', '暴击', '每' + A.crit + '发×' + A.critMult.toFixed(1)]);
     if (A.bleed) extras.push(['🗡️', '流血', A.bleed.dmg + '×' + A.bleed.turns + 's']);
     // 卡片能力

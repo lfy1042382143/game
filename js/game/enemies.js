@@ -15,19 +15,37 @@
      敌人之间的分离（避免叠成一团）
      ========================================================= */
   function separate(foes) {
-    for (let i = 0; i < foes.length; i++) {
-      for (let j = i + 1; j < foes.length; j++) {
-        const a = foes[i], b = foes[j];
-        if (a.dead || b.dead) continue;
-        const d = G.dist(a.x, a.y, b.x, b.y);
+    // 柔性分离：先累积每只敌人的推挤向量，统一限幅后应用。
+    // 旧版逐对直接位移，密集时多邻域推力叠加过冲，表现为"拥挤抖动"。
+    const Relax = 0.6;      // 每帧只修正 60% 的重叠量
+    const MaxPush = 1.2;    // 单只敌人每帧最大位移（px），封顶防抖
+    const n = foes.length;
+    const px = new Float64Array(n), py = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const a = foes[i];
+      if (a.dead) continue;
+      for (let j = i + 1; j < n; j++) {
+        const b = foes[j];
+        if (b.dead) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
         const min = a.r + b.r;
         if (d < min && d > 0.001) {
-          const push = (min - d) / 2;
-          const n = G.norm(b.x - a.x, b.y - a.y);
-          a.x -= n.x * push; a.y -= n.y * push;
-          b.x += n.x * push; b.y += n.y * push;
+          const push = (min - d) * Relax * 0.5;
+          const nx = dx / d, ny = dy / d;
+          px[i] -= nx * push; py[i] -= ny * push;
+          px[j] += nx * push; py[j] += ny * push;
         }
       }
+    }
+    const A = CFG.world;
+    for (let i = 0; i < n; i++) {
+      const e = foes[i];
+      if (e.dead) continue;
+      const mag = Math.sqrt(px[i] * px[i] + py[i] * py[i]);
+      const k = mag > MaxPush ? MaxPush / mag : 1;
+      e.x = clamp(e.x + px[i] * k, e.r, A.w - e.r);
+      e.y = clamp(e.y + py[i] * k, e.r, A.h - e.r);
     }
   }
 

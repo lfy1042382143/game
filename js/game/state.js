@@ -119,6 +119,7 @@
     p.critEvery = 0;       // 暴击节拍（0 = 无；每 N 发必暴）
     p.critMult = 1;        // 暴击倍率
     p.bulletSpeedMul = 1;  // 弹速乘算系数（弹速提升卡）
+    p.bounce = 0;          // 弹幕碰墙反弹次数（反弹箭卡）
     p.cardLeech = 0;       // 吸血箭：箭矢伤害回血百分比
     p.cardSlow = 0;        // 减速箭：命中减速层数
     p.shieldEvery = 0;     // 护盾生成节拍（0 = 无；每 N 秒）

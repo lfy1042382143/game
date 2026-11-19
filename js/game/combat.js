@@ -87,8 +87,12 @@
     if (src && src.agg && dmg > 0) {
       const leech = Math.round(dmg * clamp(src.agg.leech, 0, 100) / 100);
       if (leech > 0) healUnit(src, leech);
-      const vamp = Math.round(dmg * clamp(src.agg.vamp, 0, 100) / 100);
-      if (vamp > 0) healUnit(src, vamp);
+    }
+
+    // 受击回复（回响头盔）：受伤后按受到的伤害比例回血
+    if (dmg > 0 && tgt === state.player && tgt.agg && tgt.agg.vamp > 0) {
+      const back = Math.round(dmg * clamp(tgt.agg.vamp, 0, 100) / 100);
+      if (back > 0) healUnit(tgt, back);
     }
 
     // 反伤（尖刺词缀 / 荆棘甲）：反弹固定值，不受防御，不再连锁
@@ -138,8 +142,7 @@
     b.tick -= dt;
     if (b.tick <= 0) {
       b.tick += 1;
-      const res = u.agg ? clamp(u.agg.dotres, 0, 90) / 100 : 0;
-      dealDamage(null, u, b.dmg * (1 - res), { flat: true, noThorn: true, ignoreIframes: true });
+      dealDamage(null, u, b.dmg, { flat: true, noThorn: true, ignoreIframes: true });
     }
     if (b.t <= 0) u.bleed = null;
   }
@@ -176,6 +179,11 @@
   function levelUp(p) {
     G.refresh(p);
     G.healUnit(p, Math.round(p.maxHp * CFG.levelup.healPct));
+    // 壁垒甲：升级时刷新护盾（开局已由 startShield 施加）
+    if (p.agg && p.agg.guard > 0 && p.shield < p.agg.guard) {
+      p.shield = Math.round(p.agg.guard);
+      floatText(p, '盾+' + Math.round(p.agg.guard), '#7dd3fc');
+    }
     floatText(p, 'Lv.' + p.level + ' ↑', '#fbbf24', true);
     state.pendingLevelUps++;
 

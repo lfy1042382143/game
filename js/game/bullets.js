@@ -42,9 +42,21 @@
       b.y += b.vy * dt;
       b.life -= dt;
 
-      let dead = b.life <= 0
-        || b.x < 0 || b.x > W.w || b.y < 0 || b.y > W.h
-        || hitObstacle(b);
+      let dead = b.life <= 0 || hitObstacle(b);
+
+      // 反弹箭：玩家弹幕碰到地图墙壁后反弹（次数 = 反弹层数），超出次数则消散
+      if (!dead && b.side === 'p' && (b.x < 0 || b.x > W.w || b.y < 0 || b.y > W.h)) {
+        const maxBounce = (p && p.bounce) || 0;
+        if ((b.bounces || 0) < maxBounce) {
+          b.bounces = (b.bounces || 0) + 1;
+          if (b.x < 0 || b.x > W.w) { b.vx = -b.vx; b.x = clamp(b.x, 2, W.w - 2); }
+          if (b.y < 0 || b.y > W.h) { b.vy = -b.vy; b.y = clamp(b.y, 2, W.h - 2); }
+        } else {
+          dead = true;
+        }
+      } else if (b.x < 0 || b.x > W.w || b.y < 0 || b.y > W.h) {
+        dead = true;
+      }
 
       if (!dead && b.side === 'p') {
         for (const f of state.foes) {

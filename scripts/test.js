@@ -283,15 +283,13 @@ function featureTests() {
   const bSpd = G.CFG.player.bulletSpeed * p16c.bulletSpeedMul;
   assert(Math.abs(nb.life - p16c.range / bSpd) < 0.01, 'T16 箭矢寿命与射程/弹速绑定', nb.life);
 
-  // T16c 卡池按等级分流：3 的倍数级出攻击方式卡，其余等级出属性/经验卡
+  // T16c 卡池不重复且卡牌种类合法
   reset();
   const p16d = G.state.player;
-  p16d.level = 3;
   const cards3 = G.makeLevelCards(p16d);
-  assert(cards3.every(c => c.kind === 'mode'), 'T16c 3 级升级只出攻击方式卡', cards3.map(c => c.kind).join(','));
-  p16d.level = 10;
-  const cards10 = G.makeLevelCards(p16d);
-  assert(cards10.every(c => c.kind === 'attr' || c.key === 'xpgain'), 'T16c 非 3 倍数级（10 级）出属性/经验卡', cards10.map(c => c.key || c.kind).join(','));
+  const keys = cards3.map(c => c.key || c.attr);
+  assert(cards3.length === 3 && new Set(keys).size === 3, 'T16c 每次升级 3 张不重复卡', keys.join(','));
+  assert(cards3.every(c => c.kind === 'attr' || c.kind === 'mode'), 'T16c 卡牌只含属性/强化两类', cards3.map(c => c.kind).join(','));
 
   // T17 等级里程碑解锁新地图（每 3 级一档：4/7/10 级解锁）
   reset();
@@ -444,6 +442,79 @@ function featureTests() {
   assert(bossXpU.xp > eliteXp * 2.5, 'T25 BOSS 经验显著高于精英（≥2.5 倍）', { boss: bossXpU.xp, elite: eliteXp });
   const elite5 = G.makeElite(4);
   assert(elite5.xp < bossXpU.xp * 0.6, 'T25 同期 BOSS 经验远高于精英', { elite5: elite5.xp, boss: bossXpU.xp });
+
+  // T26 v9.13 新特性
+  // T26a 反弹箭：弹幕碰墙反弹
+  reset();
+  const pRic = G.state.player;
+  pRic.bounce = 1;
+  G.state.foes = [];
+  pRic.x = G.CFG.world.w / 2; pRic.y = G.CFG.world.h / 2;
+  G.state.bullets.push({ x: G.CFG.world.w - 40, y: pRic.y, vx: 600, vy: 0, r: 4, dmg: 1, side: 'p', life: 2, hit: [] });
+  run(0.5);
+  const bounced = G.state.bullets.filter(b => b.side === 'p' && b.vx < 0);
+  assert(bounced.length > 0, 'T26a 弹幕碰右墙后反弹（vx 反向）', G.state.bullets.length);
+  // 超出反弹次数后消散
+  pRic.bounce = 1;
+  G.state.bullets.push({ x: pRic.x + 40, y: pRic.y, vx: 600, vy: 0, r: 4, dmg: 1, side: 'p', life: 5, hit: [], bounces: 1 });
+  run(1.0);
+  assert(!G.state.bullets.some(b => b.bounces >= 2), 'T26b 反弹次数用尽后弹幕消散');
+
+  // T26c 壁垒甲：升级时刷新护盾
+  reset();
+  const pGd = G.state.player;
+  const guardItem = G.buildItem('armor', 1, 3, 1);   // 壁垒甲（史诗）
+  pGd.items.push(guardItem);
+  G.refresh(pGd);
+  const guardVal = Math.round(pGd.agg.guard);
+  assert(guardVal > 0, 'T26c 壁垒甲聚合出护盾值', guardVal);
+  pGd.shield = 0;
+  G.gainXp(G.xpNeed(pGd.level));
+  assert(pGd.shield >= guardVal, 'T26c 升级时刷新壁垒甲护盾', { shield: pGd.shield, guardVal });
+
+  // T26d 回响头盔：受击后按伤害比例回血
+  reset();
+  const pVp = G.state.player;
+  const vampItem = G.buildItem('helm', 0, 3, 1);     // 回响头盔（史诗）
+  pVp.items.push(vampItem);
+  G.refresh(pVp);
+  pVp.hp = pVp.maxHp; pVp.iframes = 0;
+  const hpVp0 = pVp.hp;
+  const dmgIn = 20;
+  G.dealDamage(null, pVp, dmgIn, { flat: true, noThorn: true, ignoreIframes: true });
+  const healed = pVp.hp - (hpVp0 - dmgIn);
+  assert(healed > 0, 'T26d 受击后按比例回血', { healed, pct: Math.round(pVp.agg.vamp) });
+
+  // T26e 再生头环：持续回血
+  reset();
+  const pRg = G.state.player;
+  const regenItem = G.buildItem('helm', 1, 3, 1);    // 再生头环（史诗）
+  pRg.items.push(regenItem);
+  G.refresh(pRg);
+  pRg.hp = Math.max(1, pRg.maxHp - 50);
+  const hpRg0 = pRg.hp;
+  run(3);
+  assert(pRg.hp > hpRg0, 'T26e 再生头环每秒回血', { hp0: Math.round(hpRg0), hp3: Math.round(pRg.hp), regen: pRg.agg.regen });
+
+  // T26f 法师不占刷怪名额
+  reset();
+  const mage = G.makeEnemy(1, 8);   // idx%10 === 8 → 法师
+  mage.type = 'mage';
+  G.state.foes = [mage];
+  assert(G.state.foes.length === 1, 'T26f 场上有 1 只法师');
+  G.state.spawnT = G.spawnInterval(1) - 0.1;   // 只差 0.1s 即到刷怪点
+  run(0.5);
+  assert(G.state.foes.length > 1, 'T26f 法师在场时其他敌人仍正常刷新', G.state.foes.length);
+
+  // T26g 体型随玩家攻击与敌人血量成长（击杀箭数越多体型越大）
+  reset();
+  const pSz = G.state.player;
+  const foeLow = G.makeEnemy(1, 0);
+  pSz.baseAtk = 200; G.refresh(pSz);      // 高攻击 → 箭数少 → 体型小
+  const foeSmall = G.makeEnemy(1, 0);
+  pSz.baseAtk = 5; G.refresh(pSz);        // 低攻击 → 箭数多 → 体型大
+  const foeBig = G.makeEnemy(1, 0);
+  assert(foeBig.r > foeSmall.r, 'T26g 同血量下玩家攻击越低敌人显形越大（箭数多）', { big: foeBig.r, small: foeSmall.r });
 
   // T11 BOSS 扇形弹幕
   reset();
@@ -638,13 +709,18 @@ function featureTests() {
   const fired = G.state.bullets.filter(b => b.side === 'p');
   assert(fired.some(b => b.vx < 0), 'T22d 有鼠标时箭矢朝鼠标方向（左侧）发射');
 
-  // T23 升级效率卡：每 2 级出现，经验获取可叠加放大
+  // T23 升级效率卡：随机混入混合卡池，经验获取可叠加放大
   reset();
   const pXp = G.state.player;
   pXp.level = 2;
-  assert(G.makeLevelCards(pXp).some(c => c.key === 'xpgain'), 'T23a 偶数级卡池含升级效率选项');
-  pXp.level = 3;
-  assert(!G.makeLevelCards(pXp).some(c => c.key === 'xpgain'), 'T23a 奇数级不出升级效率');
+  let xpSeen = false, kindsOK = true;
+  for (let i = 0; i < 60; i++) {
+    const cards = G.makeLevelCards(pXp);
+    if (cards.length !== 3) kindsOK = false;
+    if (cards.some(c => c.key === 'xpgain')) xpSeen = true;
+  }
+  assert(xpSeen, 'T23a 升级效率随机混入升级卡池（60 抽必出现）', xpSeen);
+  assert(kindsOK, 'T23a 混合池每级都出 3 张', kindsOK);
   const xpCard = G.XP_CARD;
   xpCard.apply(pXp);
   xpCard.apply(pXp);
@@ -715,19 +791,31 @@ function featureTests() {
   run(0.2);
   assert(G.state.hazards.length > 0, 'T15e 骨刺预警圈按周期出现', G.state.hazards.length);
 
-  // T16 属性削弱 + 升级节奏
+  // T16 升级卡池混合化：属性/攻击方式/幸运/升级效率每级一同随机出现
   const M16 = G.ATTR_META;
   assert(M16.hp.vals[4] === 108 && M16.atk.vals[4] === 25 && M16.def.vals[4] === 10,
     'T16a 属性卡数值已削弱', { hp: M16.hp.vals[4], atk: M16.atk.vals[4], def: M16.def.vals[4] });
-  assert(G.CFG.levelup.modeEvery === 3, 'T16a 攻击方式升级改为每 3 级');
   reset();
-  G.state.player.level = 3;
-  const m5 = G.makeLevelCards(G.state.player).map(c => c.kind);
-  G.state.player.level = 4;
-  const a4 = G.makeLevelCards(G.state.player);
-  assert(m5.length && m5.every(k => k === 'mode'), 'T16b 第 3 级出攻击方式卡', m5);
-  assert(a4.length && a4.every(c => c.kind === 'attr' || c.key === 'xpgain'), 'T16b 第 4 级仍为属性卡（经验卡除外）', a4.map(c => c.key || c.kind));
-  G.state.player.level = 1;
+  {
+    const pm = G.state.player;
+    let sawMode = false, sawAttr = false;
+    for (let i = 0; i < 60; i++) {
+      const cards = G.makeLevelCards(pm);
+      if (cards.some(c => c.kind === 'mode')) sawMode = true;
+      if (cards.some(c => c.kind === 'attr')) sawAttr = true;
+    }
+    assert(sawMode && sawAttr, 'T16a 混合池随机出现攻击方式与属性卡', { sawMode, sawAttr });
+  }
+  reset();
+  {
+    const pm = G.state.player;
+    pm.xpMul = 2.5;   // 升级效率达上限 → 不再入池
+    let xpShown = false;
+    for (let i = 0; i < 60; i++) {
+      if (G.makeLevelCards(pm).some(c => c.key === 'xpgain')) xpShown = true;
+    }
+    assert(!xpShown, 'T16a 升级效率满级后不再出现', xpShown);
+  }
 
   // T17 障碍伪装陷阱
   reset();
