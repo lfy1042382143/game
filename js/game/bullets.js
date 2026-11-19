@@ -31,6 +31,32 @@
     return false;
   }
 
+  /** 反弹箭：弹幕从障碍物上弹开（沿最近面法线反射，并把弹幕推出碰撞） */
+  function reflectOffObstacle(b) {
+    for (const o of state.obstacles) {
+      const cx = clamp(b.x, o.x, o.x + o.w);
+      const cy = clamp(b.y, o.y, o.y + o.h);
+      const dx = b.x - cx, dy = b.y - cy;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= b.r * b.r) continue;
+      if (d2 > 0.0001) {
+        const d = Math.sqrt(d2);
+        b.x = cx + (dx / d) * (b.r + 2);
+        b.y = cy + (dy / d) * (b.r + 2);
+        if (Math.abs(dx) > Math.abs(dy)) b.vx = -b.vx;
+        else b.vy = -b.vy;
+      } else {
+        // 圆心已进入矩形内部：沿来路退回并反转速度主导轴
+        b.x -= b.vx * 0.03;
+        b.y -= b.vy * 0.03;
+        if (Math.abs(b.vx) > Math.abs(b.vy)) b.vx = -b.vx;
+        else b.vy = -b.vy;
+      }
+      return true;
+    }
+    return false;
+  }
+
   function updateBullets(dt) {
     const p = state.player;
     const W = CFG.world;
@@ -42,7 +68,17 @@
       b.y += b.vy * dt;
       b.life -= dt;
 
-      let dead = b.life <= 0 || hitObstacle(b);
+      let dead = b.life <= 0;
+
+      // 障碍物碰撞：玩家弹幕有反弹次数则弹开，否则消散；敌人弹幕直接消散
+      if (!dead && hitObstacle(b)) {
+        const maxBounce = (b.side === 'p' && p && p.bounce) || 0;
+        if ((b.bounces || 0) < maxBounce && reflectOffObstacle(b)) {
+          b.bounces = (b.bounces || 0) + 1;
+        } else {
+          dead = true;
+        }
+      }
 
       // 反弹箭：玩家弹幕碰到地图墙壁后反弹（次数 = 反弹层数），超出次数则消散
       if (!dead && b.side === 'p' && (b.x < 0 || b.x > W.w || b.y < 0 || b.y > W.h)) {

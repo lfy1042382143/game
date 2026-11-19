@@ -516,6 +516,28 @@ function featureTests() {
   const foeBig = G.makeEnemy(1, 0);
   assert(foeBig.r > foeSmall.r, 'T26g 同血量下玩家攻击越低敌人显形越大（箭数多）', { big: foeBig.r, small: foeSmall.r });
 
+  // T26h 反弹箭碰障碍物反弹
+  reset();
+  const pObs = G.state.player;
+  pObs.bounce = 1;
+  G.state.foes = [];
+  G.state.obstacles = [{ x: pObs.x + 100, y: pObs.y - 200, w: 60, h: 200 }];   // 竖直障碍在右侧
+  G.state.bullets.push({ x: pObs.x + 60, y: pObs.y, vx: 500, vy: 0, r: 4, dmg: 1, side: 'p', life: 2, hit: [] });
+  run(0.5);
+  const bouncedObs = G.state.bullets.filter(b => b.side === 'p' && b.vx < 0);
+  assert(bouncedObs.length > 0, 'T26h 弹幕碰障碍物后反弹（vx 反向）', G.state.bullets.map(b => b.vx).join(','));
+
+  // T26i 法师数量上限：超上限后不再生成法师
+  reset();
+  const mageA = G.makeEnemy(1, 8); mageA.type = 'mage';
+  const mageB = G.makeEnemy(1, 9); mageB.type = 'mage';
+  G.state.foes = [mageA, mageB];      // 场上已有 2 只法师 = mageCap
+  G.state.spawnT = G.spawnInterval(1) - 0.1;
+  run(0.5);
+  const mageCount = G.state.foes.filter(f => !f.dead && f.type === 'mage').length;
+  assert(mageCount <= G.CFG.spawn.mageCap, 'T26i 法师不超过 mageCap', mageCount);
+  assert(G.state.foes.length > 2, 'T26i 法师满员时改刷其他类型敌人', G.state.foes.length);
+
   // T11 BOSS 扇形弹幕
   reset();
   const boss2 = G.makeElite(5);

@@ -79,14 +79,14 @@
     return Math.max(S.min, Math.min(S.max, Math.pow(shots / S.refShots, S.k)));
   }
 
-  function makeEnemy(minute, idx) {
+  function makeEnemy(minute, idx, forceType) {
     const pool = pick(G.MONSTER_POOL);
     const boost = 1 + CFG.mon.mapBoost * state.mapIdx;   // 每张新地图敌人更强
     const trap = trapMul();
 
-    // 类型分布：近战 50% / 远程 30% / 法师 20%
+    // 类型分布：近战 50% / 远程 30% / 法师 20%（forceType 用于法师超上限时改刷其他类型）
     const roll = idx % 10;
-    const type = roll < 5 ? 'melee' : roll < 8 ? 'ranged' : 'mage';
+    const type = forceType || (roll < 5 ? 'melee' : roll < 8 ? 'ranged' : 'mage');
     const cfgT = CFG[type];
     const pos = spawnNearPlayer();
 

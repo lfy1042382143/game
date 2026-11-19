@@ -100,8 +100,10 @@
     const enemyIdx = state.kills;   // 词缀轮换用
 
     // 普通敌人：存活数低于上限时按间隔刷新（缺口大时一次补 2 只，快速填场）
-    // 法师是站桩炮台，不计入存活上限（否则会挤占近战/远程的刷新名额）
+    // 法师是站桩炮台，不计入存活上限（否则会挤占近战/远程的刷新名额），
+    // 但有独立的场上数量上限 mageCap，防止不清理时无限堆积
     const alive = state.foes.filter(f => !f.dead && f.type !== 'mage').length;
+    const aliveMages = state.foes.filter(f => !f.dead && f.type === 'mage').length;
     state.spawnT += dt;
     if (state.spawnT >= G.spawnInterval(minute)) {
       state.spawnT = 0;
@@ -109,7 +111,11 @@
       if (deficit > 0) {
         const batch = deficit >= 3 ? 2 : 1;
         for (let i = 0; i < batch && i < deficit; i++) {
-          state.foes.push(G.makeEnemy(minute, enemyIdx + i));
+          const idx = enemyIdx + i;
+          const roll = idx % 10;
+          const wouldBeMage = roll >= 8;
+          const forceType = wouldBeMage && aliveMages >= CFG.spawn.mageCap ? 'ranged' : undefined;
+          state.foes.push(G.makeEnemy(minute, idx, forceType));
         }
       }
     }
