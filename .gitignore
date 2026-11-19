@@ -17,3 +17,4 @@ desktop.ini
 
 # Chrome CDP 调试临时目录
 scripts/.chrome-tmp*
+.shot_*.png
