@@ -34,6 +34,19 @@
     // 障碍物碰撞
     for (const o of state.obstacles) pushOutOfRect(p, o);
 
+    // 伪装陷阱障碍：靠近时尖刺弹出（伤害固定值、现形后失效）
+    for (const o of state.obstacles) {
+      const t = o.trap;
+      if (!t || !t.armed) continue;
+      if (G.circleRect(p.x, p.y, p.r + 6, o)) {
+        t.armed = false;
+        t.trigT = CFG.obstacles.trigT;
+        const dmg = Math.round(CFG.obstacles.trapDmg0 + (state.wave - 1) * CFG.obstacles.trapDmgK);
+        G.dealDamage(null, p, dmg, { flat: true, noThorn: true });
+        G.floatText(p, '陷阱!', '#f87171', true);
+      }
+    }
+
     /* ---------- 无敌帧 ---------- */
     if (p.iframes > 0) p.iframes -= dt;
 

@@ -136,6 +136,14 @@
     return state.obstacles.some(o => rectsOverlap(rect, o, 40));
   }
 
+  /** 新障碍物按概率携带尖刺陷阱（外观与普通掩体完全一致，靠近才触发） */
+  function maybeTrap(rect) {
+    const C = CFG.obstacles;
+    if (Math.random() < (C.trapChance || 0)) {
+      rect.trap = { armed: true, trigT: 0 };
+    }
+  }
+
   /** 在世界内随机生成 n 个障碍物（避开玩家与现有障碍） */
   function spawnObstaclesRandom(n) {
     const W = CFG.world;
@@ -151,6 +159,7 @@
       };
       if (p && G.circleRect(p.x, p.y, 250, rect)) continue;
       if (conflictsObstacles(rect)) continue;
+      maybeTrap(rect);
       state.obstacles.push(rect);
       made++;
     }
@@ -178,6 +187,7 @@
       if (G.circleRect(p.x, p.y, C.minDist * 0.7, rect)) continue;
       if (state.foes.some(f => !f.dead && G.circleRect(f.x, f.y, f.r + 50, rect))) continue;
       if (conflictsObstacles(rect)) continue;
+      maybeTrap(rect);
       state.obstacles.push(rect);
       return true;
     }
@@ -198,6 +208,6 @@
 
   Object.assign(G, {
     state, saveBest, makeUnit, makePlayer,
-    spawnObstaclesRandom, spawnObstacleNearPlayer, cullObstacles, rectsOverlap
+    spawnObstaclesRandom, spawnObstacleNearPlayer, cullObstacles, rectsOverlap, maybeTrap
   });
 })(window.ABYSS = window.ABYSS || {});

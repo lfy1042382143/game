@@ -79,6 +79,10 @@
      动态障碍物：随玩家移动周期生成/移除
      ========================================================= */
   function updateObstacles(dt) {
+    // 陷阱现形展示计时衰减
+    for (const o of state.obstacles) {
+      if (o.trap && o.trap.trigT > 0) o.trap.trigT -= dt;
+    }
     state.obsT += dt;
     if (state.obsT >= CFG.obstacles.spawnEvery) {
       state.obsT = 0;

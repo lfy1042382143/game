@@ -167,6 +167,70 @@
   pointer-events: none;
 }
 
+/* ---------- 实时装备/属性侧边栏 ---------- */
+.eq-side {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 218px;
+  max-height: calc(100% - 118px);   /* 给底部小地图与提示条留空间 */
+  overflow-y: auto;
+  padding: 10px 11px;
+  border-radius: 12px;
+  background: rgba(12, 12, 22, 0.78);
+  border: 1px solid rgba(126, 138, 180, 0.28);
+  backdrop-filter: blur(6px);
+  font-size: 12px;
+  color: #c9d1e0;
+  pointer-events: none;
+  z-index: 5;
+}
+.eq-side-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  color: #e5e9f5;
+}
+.eq-side-head small { font-weight: 400; font-size: 10px; color: #6f6a85; letter-spacing: 0.1em; }
+.eq-side-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed rgba(126, 138, 180, 0.25);
+}
+.eq-stat { display: flex; gap: 5px; align-items: baseline; white-space: nowrap; }
+.eq-stat i { font-style: normal; opacity: 0.85; }
+.eq-stat b { font-variant-numeric: tabular-nums; }
+.eq-stat.hp b { color: #fecaca; }
+.eq-stat.atk b { color: #fde68a; }
+.eq-stat.def b { color: #bae6fd; }
+.eq-stat small { color: #6f6a85; font-size: 10px; }
+.eq-slot {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 5px 7px;
+  margin-bottom: 5px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--c, #6f6a85) 40%, transparent);
+  background: rgba(255, 255, 255, 0.04);
+}
+.eq-slot .ic { font-size: 16px; line-height: 1.3; }
+.eq-slot .nm { font-weight: 600; color: var(--c, #9aa4c4); }
+.eq-slot .nm span { font-weight: 400; font-size: 10px; opacity: 0.75; margin-left: 4px; }
+.eq-slot .fx { color: #9aa4c4; font-size: 11px; line-height: 1.45; }
+.eq-slot.empty { opacity: 0.4; border-style: dashed; }
+.eq-slot.empty .fx { color: #6f6a85; }
+
+@media (max-width: 900px) {
+  .eq-side { display: none; }
+}
+
 /* ---------- 小屏适配 ---------- */
 @media (max-width: 720px) {
   .eq-row { display: none; }

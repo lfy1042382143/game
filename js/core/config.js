@@ -28,7 +28,7 @@
     xp: { base: 20, perLevel: 14, accel: 8 },           // 需求 = base + (lv-1)*perLevel + (lv-1)^2*accel
     levelup: {
       healPct: 0.12,          // 升级时回复 12% 生命（不再自动成长三维，属性全靠选卡）
-      modeEvery: 10           // 每 N 级弹出一次「攻击方式」升级（攻速/散射/暴击等），其余等级为属性三选一
+      modeEvery: 5            // 每 N 级弹出一次「攻击方式」升级（攻速/散射/暴击等），其余等级为属性三选一
     },
     maps: { milestoneEvery: 3 },                        // 每 N 级解锁一张新地图（4 级即解锁第二张）
 
@@ -56,7 +56,8 @@
       minDist: 260, maxDist: 640,   // 开局宝箱相对玩家的刷新环带
       pickupR: 34,       // 拾取半径
       itemsMin: 1, itemsMax: 2,     // 每个宝箱的装备件数
-      rarBonus: 1        // 精英宝箱稀有度加成
+      rarBonus: 1,       // 精英宝箱稀有度加成
+      mimicChance: 0.22  // 宝箱怪概率（伪装成宝箱，走近后现形）
     },
 
     // 场景事件：地图上的特定地点，走近触发（一次性）
@@ -76,9 +77,12 @@
       ambushCount: 3       // 伏击：立即召唤的敌人数
     },
 
-    // 动态障碍物：随主角移动随机生成/移除
+    // 动态障碍物：随主角移动随机生成/移除；部分伪装成普通掩体的尖刺陷阱
     obstacles: {
       cap: 8, spawnEvery: 4,
+      trapChance: 0.22,              // 新生成的障碍物是尖刺陷阱的概率
+      trapDmg0: 6, trapDmgK: 3,      // 陷阱伤害 = dmg0 + dmgK×(分钟-1)，固定值不受防御
+      trigT: 0.8,                    // 触发后尖刺现形的展示时长（秒）
       minDist: 350, maxDist: 720, cullDist: 1150,
       sizeMin: 46, sizeMax: 88
     },

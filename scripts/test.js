@@ -535,6 +535,61 @@ function featureTests() {
   run(0.2);
   assert(G.state.hazards.length > 0, 'T15e 骨刺预警圈按周期出现', G.state.hazards.length);
 
+  // T16 属性削弱 + 升级节奏
+  const M16 = G.ATTR_META;
+  assert(M16.hp.vals[4] === 108 && M16.atk.vals[4] === 25 && M16.def.vals[4] === 10,
+    'T16a 属性卡数值已削弱', { hp: M16.hp.vals[4], atk: M16.atk.vals[4], def: M16.def.vals[4] });
+  assert(G.CFG.levelup.modeEvery === 5, 'T16a 攻击方式升级改为每 5 级');
+  reset();
+  G.state.player.level = 5;
+  const m5 = G.makeLevelCards(G.state.player).map(c => c.kind);
+  G.state.player.level = 4;
+  const a4 = G.makeLevelCards(G.state.player).map(c => c.kind);
+  assert(m5.length && m5.every(k => k === 'mode'), 'T16b 第 5 级出攻击方式卡', m5);
+  assert(a4.length && a4.every(k => k === 'attr'), 'T16b 第 4 级仍为属性卡', a4);
+  G.state.player.level = 1;
+
+  // T17 障碍伪装陷阱
+  reset();
+  const p17 = G.state.player;
+  p17.iframes = 0;
+  G.state.obstacles = [{ x: p17.x - 20, y: p17.y - 20, w: 40, h: 40, trap: { armed: true, trigT: 0 } }];
+  const hp17 = p17.hp;
+  run(0.2);
+  const t17 = G.state.obstacles[0].trap;
+  assert(!t17.armed && t17.trigT > 0, 'T17 陷阱靠近后触发并现形', t17);
+  assert(p17.hp < hp17, 'T17 陷阱对玩家造成固定伤害', { hp17, hp2: p17.hp });
+  run(1);
+  assert(G.state.obstacles[0].trap.trigT <= 0, 'T17 尖刺现形动画按时结束');
+
+  // T18 宝箱怪
+  reset();
+  G.state.chests = [];
+  G.state.chests.push({ x: G.state.player.x + 10, y: G.state.player.y, opened: false, rarBonus: 1, t: 0, mimic: true });
+  run(0.3);
+  const mim = G.state.foes.find(f => !f.dead && f.name === '宝箱怪');
+  assert(mim && G.state.phase === 'play', 'T18a 开箱瞬间宝箱怪现形（不弹战利品）', { has: !!mim, ph: G.state.phase });
+  if (mim) {
+    const chestsBefore = G.state.chests.length;
+    G.dealDamage(G.state.player, mim, 99999);
+    const mc = G.state.chests[G.state.chests.length - 1];
+    assert(G.state.chests.length > chestsBefore && mc.mimic === false && mc.rarBonus === 1,
+      'T18b 击杀宝箱怪掉落真宝箱（稀有度+1）', G.state.chests.length);
+  }
+  // 普通宝箱不受影响
+  reset();
+  G.state.chests = [];
+  G.state.chests.push({ x: G.state.player.x + 10, y: G.state.player.y, opened: false, rarBonus: 0, t: 0, mimic: false });
+  run(0.3);
+  assert(G.state.phase === 'loot', 'T18c 普通宝箱仍正常弹出战利品');
+
+  // T19 实时装备侧边栏
+  reset();
+  G.ui.syncTopbar();
+  const side = sandbox.document._els.eqSide;
+  assert(side && side.innerHTML.indexOf('装备 · 属性') >= 0, 'T19a 侧边栏已渲染装备与属性');
+  assert(side.innerHTML.indexOf('空置') >= 0, 'T19b 空槽位显示「空置」');
+
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;
 }

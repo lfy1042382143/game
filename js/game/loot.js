@@ -75,18 +75,21 @@
       if (state.obstacles.some(o => G.circleRect(x, y, 40, o))) continue;
       if (state.sites.some(s => G.dist(x, y, s.x, s.y) < 160)) continue;
       if (state.chests.some(c => G.dist(x, y, c.x, c.y) < 200)) continue;
-      state.chests.push({ x, y, opened: false, rarBonus: 0, t: Math.random() * 6 });
+      state.chests.push({ x, y, opened: false, rarBonus: 0, t: Math.random() * 6, mimic: false });
       return true;
     }
     return false;
   }
 
-  /** 精英怪击杀 → 原地掉落装备宝箱（稀有度加成） */
+  /** 精英怪击杀 → 原地掉落装备宝箱（稀有度加成）；有概率是宝箱怪 */
   function dropEliteLoot(unit) {
     const W = CFG.world;
     const x = Math.max(50, Math.min(W.w - 50, unit.x + (Math.random() * 24 - 12)));
     const y = Math.max(50, Math.min(W.h - 50, unit.y + (Math.random() * 24 - 12)));
-    state.chests.push({ x, y, opened: false, rarBonus: CFG.chests.rarBonus, t: 0 });
+    state.chests.push({
+      x, y, opened: false, rarBonus: CFG.chests.rarBonus, t: 0,
+      mimic: Math.random() < (CFG.chests.mimicChance || 0)
+    });
     state.banner = {
       text: '📦 宝箱掉落',
       sub: '精英被击败 · 前去拾取装备',
@@ -108,10 +111,16 @@
     }
   }
 
-  /** 开启宝箱：生成装备战利品并弹出弹窗 */
+  /** 开启宝箱：宝箱怪现形突袭，否则生成装备战利品并弹出弹窗 */
   function openChest(chest) {
     chest.opened = true;
     state.chests = state.chests.filter(c => c !== chest);
+
+    // 宝箱怪：伪装的箱子突然活过来，击杀后掉落真正的宝箱
+    if (chest.mimic) {
+      spawnMimic(chest);
+      return;
+    }
 
     const C = CFG.chests;
     const n = C.itemsMin + Math.floor(Math.random() * (C.itemsMax - C.itemsMin + 1));
@@ -124,6 +133,47 @@
 
     G.sfxWin();
     showLoot('宝箱开启 · 获得战利品');
+  }
+
+  /* =========================================================
+     宝箱怪：伪装成宝箱的怪物（走近开箱瞬间现形）
+     - 强于同分钟普通怪（血 ×1.6 / 攻 ×1.1），固定近战追击
+     - 击杀后原地掉落必然为真宝箱（稀有度 +1）
+     ========================================================= */
+  function spawnMimic(chest) {
+    const m = G.makeEnemy(state.wave, state.kills);
+    m.x = chest.x;
+    m.y = chest.y;
+    m.type = 'melee';
+    m.speed = CFG.melee.speed * 1.1;
+    m.name = '宝箱怪';
+    m.emoji = '🎁';
+    m.baseHp = Math.round(m.baseHp * 1.6);
+    m.baseAtk = Math.round(m.baseAtk * 1.1);
+    m.xp = Math.round(m.xp * 2);          // 惩罚风险，奖励经验
+    m.mimic = true;
+    G.refresh(m);
+
+    state.foes.push(m);
+    state.banner = {
+      text: '🎁 是宝箱怪！',
+      sub: '宝箱是怪物伪装的 · 击杀它夺回真正的宝箱',
+      t: 2
+    };
+    G.sfxBoss();
+  }
+
+  /** 宝箱怪被击杀 → 原地掉落真宝箱 */
+  function dropMimicLoot(unit) {
+    const W = CFG.world;
+    const x = Math.max(50, Math.min(W.w - 50, unit.x));
+    const y = Math.max(50, Math.min(W.h - 50, unit.y));
+    state.chests.push({ x, y, opened: false, rarBonus: 1, t: 0, mimic: false });
+    state.banner = {
+      text: '📦 宝箱夺回',
+      sub: '宝箱怪被击败 · 这次是真的',
+      t: 1.6
+    };
   }
 
   /* =========================================================
@@ -334,6 +384,7 @@
 
   Object.assign(G, {
     rollChestItem, spawnChest, dropEliteLoot, checkChests, openChest,
+    spawnMimic, dropMimicLoot,
     lootPending, planFor, renderLoot,
     takeLoot, skipLoot, skipAll, clearLoot,
     showLoot, continueLoot

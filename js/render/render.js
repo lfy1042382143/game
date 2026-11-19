@@ -69,6 +69,29 @@
       ctx.strokeRect(o.x, o.y, o.w, o.h);
       ctx.fillStyle = map.obInner;
       ctx.fillRect(o.x + 6, o.y + 6, o.w - 12, o.h - 12);
+
+      // 伪装陷阱触发瞬间：红色尖刺从障碍物边缘弹出
+      if (o.trap && o.trap.trigT > 0) {
+        const k = clamp(o.trap.trigT / CFG.obstacles.trigT, 0, 1);
+        ctx.globalAlpha = k;
+        ctx.fillStyle = '#f87171';
+        ctx.strokeStyle = 'rgba(252,165,165,0.9)';
+        ctx.lineWidth = 1;
+        const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+        const spikes = 5;
+        for (let i = 0; i < spikes; i++) {
+          const sx = o.x + 8 + (o.w - 16) * (i / (spikes - 1));
+          const hgt = (12 + (i % 2) * 8) * k;
+          ctx.beginPath();
+          ctx.moveTo(sx - 5, cy + hgt * 0.4);
+          ctx.lineTo(sx, cy - hgt * 0.6);
+          ctx.lineTo(sx + 5, cy + hgt * 0.4);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
     });
   }
 

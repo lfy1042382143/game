@@ -26,9 +26,9 @@
   }
 
   const ATTR_META = {
-    hp:  { label: '生命', icon: '❤', vals: [28, 52, 85, 130, 198], note: '提升生命上限，并立即恢复等量生命' },
-    atk: { label: '攻击', icon: '⚔', vals: [9, 14, 20, 30, 44],    note: '每支箭矢造成更高伤害' },
-    def: { label: '防御', icon: '🛡', vals: [3, 5, 7, 10, 14],     note: '减免受到的伤害' }
+    hp:  { label: '生命', icon: '❤', vals: [16, 30, 48, 72, 108], note: '提升生命上限，并立即恢复等量生命' },
+    atk: { label: '攻击', icon: '⚔', vals: [5, 8, 12, 17, 25],    note: '每支箭矢造成更高伤害' },
+    def: { label: '防御', icon: '🛡', vals: [2, 3, 5, 7, 10],     note: '减免受到的伤害' }
   };
 
   const ATTR_POOL = [
@@ -120,12 +120,14 @@
     }
   ];
 
-  /** 抽 3 张不重复：10 级里程碑抽攻击方式，其余等级抽三维属性 */
+  /** 抽 3 张不重复：每 modeEvery 级抽攻击方式，其余等级抽三维属性
+      攻击方式卡池抽干（全部达到上限）时回落为属性卡，避免空弹窗卡死 */
   function makeLevelCards(p) {
     const isModeLevel = p.level % CFG.levelup.modeEvery === 0;
-    const pool = isModeLevel
+    let pool = isModeLevel
       ? MODE_POOL.filter(c => !c.max(p))
       : ATTR_POOL.slice();
+    if (!pool.length) pool = ATTR_POOL.slice();
 
     const out = [];
     const bag = pool.slice();
