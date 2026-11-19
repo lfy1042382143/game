@@ -54,11 +54,16 @@
      开局送一个引导宝箱（在玩家附近环带）
      ========================================================= */
 
-  /** 按分钟阶段生成一件随机装备（稀有度/等级随分钟成长） */
+  /** 按分钟阶段生成一件随机装备（稀有度/等级随分钟成长）
+      前期压制：稀有度按分钟硬封顶——第 1~2 分钟只有普通，
+      第 3 分钟起每 3 分钟放开一档（3→精良 6→稀有 9→史诗 12→传说），
+      精英/宝箱怪的稀有度加成同样不能突破封顶 */
   function rollChestItem(rarBonus) {
     const M = CFG.mon;
     const slot = G.SLOTS[Math.floor(Math.random() * G.SLOTS.length)].key;
-    const rar = Math.min(4, Math.floor(state.wave * M.rarK) + (Math.random() < 0.25 ? 1 : 0) + (rarBonus || 0));
+    const maxRar = Math.min(4, Math.floor(state.wave * CFG.chests.rarCapK));
+    let rar = Math.floor(state.wave * M.rarK) + (Math.random() < 0.25 ? 1 : 0) + (rarBonus || 0);
+    rar = Math.min(rar, maxRar);
     const lv = Math.min(CFG.forge.maxLevel, 1 + Math.floor((state.wave - 1) / M.eqLvEvery));
     return G.buildItem(slot, Math.floor(Math.random() * G.ITEM_DEFS[slot].length), rar, lv);
   }

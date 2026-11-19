@@ -590,6 +590,30 @@ function featureTests() {
   assert(side && side.innerHTML.indexOf('装备 · 属性') >= 0, 'T19a 侧边栏已渲染装备与属性');
   assert(side.innerHTML.indexOf('空置') >= 0, 'T19b 空槽位显示「空置」');
 
+  // T20 伤害不超过目标当前血量（溢出不结算）
+  reset();
+  const f20 = G.makeEnemy(1, 0);
+  G.state.foes.push(f20);
+  f20.hp = 7;
+  const dealt = G.dealDamage(G.state.player, f20, 100, { flat: true, noThorn: true });
+  assert(dealt === 7 && f20.dead, 'T20a 敌人 7 血吃 100 攻只掉 7', dealt);
+  const f20b = G.makeEnemy(1, 0);
+  G.state.foes.push(f20b);
+  const dealt2 = G.dealDamage(G.state.player, f20b, 3, { flat: true, noThorn: true });
+  assert(dealt2 === 3, 'T20b 未溢出时伤害正常', dealt2);
+
+  // T20c 装备稀有度按分钟封顶
+  reset();
+  G.state.wave = 1;
+  const rars1 = [];
+  for (let i = 0; i < 40; i++) rars1.push(G.rollChestItem(1).rarity);   // 含精英加成同样封顶
+  G.state.wave = 12;
+  const rars12 = [];
+  for (let i = 0; i < 40; i++) rars12.push(G.rollChestItem(1).rarity);
+  G.state.wave = 1;
+  assert(rars1.every(r => r === 0), 'T20c 第 1 分钟只能出普通装备', rars1.join(''));
+  assert(Math.max(...rars12) === 4, 'T20c 第 12 分钟才可能出传说', Math.max(...rars12));
+
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;
 }

@@ -63,6 +63,9 @@
     }
     dmg = Math.max(1, Math.round(dmg));
 
+    // 伤害上限 = 目标当前血量（溢出伤害不结算：敌 10 血吃 20 攻只掉 10）
+    dmg = Math.min(dmg, Math.max(0, tgt.hp));
+
     // 护盾优先吸收
     if (tgt.shield > 0) {
       const absorbed = Math.min(tgt.shield, dmg);
