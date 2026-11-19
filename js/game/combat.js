@@ -153,10 +153,10 @@
      - 跨过等级里程碑时解锁新地图（见 flow.switchMap）
      ========================================================= */
   function xpNeed(level) {
-    // 逐层递增：基础 + 线性 + 二次加速项（升级节奏随等级明显放缓）
+    // 十级一档：1-10 级一个挡位、11-20 级一个挡位……档内需求恒定，跨档递增
     const X = CFG.xp;
-    const l = level - 1;
-    return Math.round(X.base + l * X.perLevel + l * l * (X.accel || 0));
+    const tier = Math.floor((level - 1) / (X.tierSize || 10));
+    return (X.tierBase || 40) + tier * (X.tierStep || 45);
   }
 
   function gainXp(amount) {

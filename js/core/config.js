@@ -25,7 +25,7 @@
     },
 
     // 经验与升级（需求逐层递增：二次曲线）
-    xp: { base: 18, perLevel: 12, accel: 6 },           // 需求 = base + (lv-1)*perLevel + (lv-1)^2*accel（已适度下调）
+    xp: { tierSize: 10, tierBase: 40, tierStep: 45 },   // 十级一档：档内需求恒定，每跨一档 +45（1-10级每级40，11-20级每级85…）
     levelup: {
       healPct: 0.12,          // 升级时回复 12% 生命（不再自动成长三维，属性全靠选卡）
       modeEvery: 3,           // 每 N 级弹出一次「攻击方式/幸运」升级，其余等级为属性三选一

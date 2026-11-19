@@ -403,10 +403,12 @@ function featureTests() {
   assert(G.state.foes.filter(f => !f.dead).length >= ambushN0 + G.CFG.traps.ambushCount, 'T-Trap 伏击陷阱立即召唤敌人', G.state.foes.length);
   G.CFG.events.trapChance = trapChanceBak;
 
-  // T9a 经验需求逐层递增（二次曲线：相邻级差随等级扩大）
-  const n1 = G.xpNeed(1), n2 = G.xpNeed(2), n3 = G.xpNeed(3), n5 = G.xpNeed(5);
-  assert(n2 - n1 < n3 - n2 && n3 - n2 < G.xpNeed(5) - G.xpNeed(4), 'T9a 升级需求逐层递增', { n1, n2, n3, n5 });
-  assert(n2 > 30, 'T9a 前几级需求已明显提高（降频）', n2);
+  // T9a 经验需求十级一档：档内恒定，跨档跳增
+  const n1 = G.xpNeed(1), n2 = G.xpNeed(2), n10 = G.xpNeed(10), n11 = G.xpNeed(11), n20 = G.xpNeed(20), n21 = G.xpNeed(21);
+  assert(n1 === n2 && n2 === n10, 'T9a 1-10 级同挡（每级恒定）', { n1, n2, n10 });
+  assert(n11 === G.xpNeed(20) && n11 > n10, 'T9a 11-20 级新挡且高于上一档', { n10, n11, n20 });
+  assert(n21 > n11, 'T9a 21 级起再进下一挡', { n11, n21 });
+  assert(n1 === 40, 'T9a 首挡每级 40 经验', n1);
 
   // T9b 真实卡池选卡（含无 apply 的属性卡）不能卡死流程
   reset();
