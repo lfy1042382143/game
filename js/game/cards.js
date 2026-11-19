@@ -45,9 +45,9 @@
     key: 'xpgain', name: '升级效率', icon: '✨', kind: 'mode',
     max: p => (p.xpMul || 1) >= 2.5,
     desc: p => (p.xpMul || 1) > 1
-      ? '获得经验再 +15%（当前 +' + Math.round((p.xpMul - 1) * 100) + '%）· 升级更快'
-      : '击杀获得的经验 +15% · 升级更快（可叠加）',
-    apply(p) { p.xpMul = Math.min(2.5, (p.xpMul || 1) + 0.15); }
+      ? '获得经验再 +20%（当前 +' + Math.round((p.xpMul - 1) * 100) + '%）· 升级更快'
+      : '击杀获得的经验 +20% · 升级更快（可叠加）',
+    apply(p) { p.xpMul = Math.min(2.5, (p.xpMul || 1) + 0.2); }
   };
 
   /* =========================================================
@@ -200,7 +200,7 @@
     } else {
       icon = card.icon; label = card.name;
       note = typeof card.desc === 'function' ? card.desc(state.player) : card.desc;
-      val = { orbit: '+2', range: '+15%', velocity: '+18%', leech: '+6%', slow: '−18%', aegis: '10/8s', crit: '×2.2', luck: '+1', xpgain: '+15%' }[card.key] || '+1';
+      val = { orbit: '+2', range: '+15%', velocity: '+18%', leech: '+6%', slow: '−18%', aegis: '10/8s', crit: '×2.2', luck: '+1', xpgain: '+20%' }[card.key] || '+1';
     }
     const node = document.createElement('div');
     node.className = 'up-card' + (card.kind === 'attr' && card.ri === 4 ? ' gold' : '');

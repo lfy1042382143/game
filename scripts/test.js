@@ -283,15 +283,15 @@ function featureTests() {
   const bSpd = G.CFG.player.bulletSpeed * p16c.bulletSpeedMul;
   assert(Math.abs(nb.life - p16c.range / bSpd) < 0.01, 'T16 箭矢寿命与射程/弹速绑定', nb.life);
 
-  // T16c 卡池按等级分流：普通级只有属性卡，10 级里程碑才有攻击方式
+  // T16c 卡池按等级分流：3 的倍数级出攻击方式卡，其余等级出属性/经验卡
   reset();
   const p16d = G.state.player;
   p16d.level = 3;
   const cards3 = G.makeLevelCards(p16d);
-  assert(cards3.every(c => c.kind === 'attr'), 'T16c 3 级升级只出属性卡', cards3.map(c => c.kind).join(','));
+  assert(cards3.every(c => c.kind === 'mode'), 'T16c 3 级升级只出攻击方式卡', cards3.map(c => c.kind).join(','));
   p16d.level = 10;
   const cards10 = G.makeLevelCards(p16d);
-  assert(cards10.every(c => c.kind === 'mode'), 'T16c 10 级里程碑只出攻击方式卡', cards10.map(c => c.kind).join(','));
+  assert(cards10.every(c => c.kind === 'attr' || c.key === 'xpgain'), 'T16c 非 3 倍数级（10 级）出属性/经验卡', cards10.map(c => c.key || c.kind).join(','));
 
   // T17 等级里程碑解锁新地图（每 3 级一档：4/7/10 级解锁）
   reset();
@@ -646,9 +646,9 @@ function featureTests() {
   const xpCard = G.XP_CARD;
   xpCard.apply(pXp);
   xpCard.apply(pXp);
-  assert(Math.abs(pXp.xpMul - 1.3) < 1e-9, 'T23b 升级效率可叠加（+15% ×2）', pXp.xpMul);
+  assert(Math.abs(pXp.xpMul - 1.4) < 1e-9, 'T23b 升级效率可叠加（+20% ×2）', pXp.xpMul);
   G.gainXp(10);
-  assert(pXp.xp === 13, 'T23c 击杀经验按倍率放大', pXp.xp);
+  assert(pXp.xp === 14, 'T23c 击杀经验按倍率放大', pXp.xp);
 
   // T15 地图陷阱系统
   // T15a 初始地图无陷阱
@@ -717,13 +717,13 @@ function featureTests() {
   const M16 = G.ATTR_META;
   assert(M16.hp.vals[4] === 108 && M16.atk.vals[4] === 25 && M16.def.vals[4] === 10,
     'T16a 属性卡数值已削弱', { hp: M16.hp.vals[4], atk: M16.atk.vals[4], def: M16.def.vals[4] });
-  assert(G.CFG.levelup.modeEvery === 5, 'T16a 攻击方式升级改为每 5 级');
+  assert(G.CFG.levelup.modeEvery === 3, 'T16a 攻击方式升级改为每 3 级');
   reset();
-  G.state.player.level = 5;
+  G.state.player.level = 3;
   const m5 = G.makeLevelCards(G.state.player).map(c => c.kind);
   G.state.player.level = 4;
   const a4 = G.makeLevelCards(G.state.player);
-  assert(m5.length && m5.every(k => k === 'mode'), 'T16b 第 5 级出攻击方式卡', m5);
+  assert(m5.length && m5.every(k => k === 'mode'), 'T16b 第 3 级出攻击方式卡', m5);
   assert(a4.length && a4.every(c => c.kind === 'attr' || c.key === 'xpgain'), 'T16b 第 4 级仍为属性卡（经验卡除外）', a4.map(c => c.key || c.kind));
   G.state.player.level = 1;
 

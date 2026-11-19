@@ -25,10 +25,10 @@
     },
 
     // 经验与升级（需求逐层递增：二次曲线）
-    xp: { base: 20, perLevel: 14, accel: 8 },           // 需求 = base + (lv-1)*perLevel + (lv-1)^2*accel
+    xp: { base: 18, perLevel: 12, accel: 6 },           // 需求 = base + (lv-1)*perLevel + (lv-1)^2*accel（已适度下调）
     levelup: {
       healPct: 0.12,          // 升级时回复 12% 生命（不再自动成长三维，属性全靠选卡）
-      modeEvery: 5,           // 每 N 级弹出一次「攻击方式/幸运」升级，其余等级为属性三选一
+      modeEvery: 3,           // 每 N 级弹出一次「攻击方式/幸运」升级，其余等级为属性三选一
       luckTier: [0, 0.06, 0.12, 0.20, 0.30]  // 每点幸运对白/绿/蓝/紫/金权重增幅
     },
     maps: { milestoneEvery: 3 },                        // 每 N 级解锁一张新地图（4 级即解锁第二张）
