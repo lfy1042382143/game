@@ -18,27 +18,58 @@
     return map.hazard || null;
   }
 
+  /** 确定性伪随机（同一 seed 产生同一序列）——陷阱布局按地图固定 */
+  function seededRand(seed) {
+    let s = seed >>> 0;
+    return () => {
+      s = (s * 9301 + 49297) % 233280;
+      return s / 233280;
+    };
+  }
+
   /* =========================================================
-     进入地图 / 开局：布置持久区域（泥潭 / 裂隙）
+     进入地图 / 开局：布置持久区域（泥潭 / 裂隙）与固定灾害锚点
+     同一张地图的陷阱位置每次进入都完全一致（seeded by mapIdx）
      ========================================================= */
   function setupHazards() {
-    state.hazards = [];   // 临时灾害实例（火球 / 骨刺：预警 → 爆发）
-    state.zones = [];     // 持久区域（泥潭 / 裂隙）
+    state.hazards = [];     // 临时灾害实例（火球 / 骨刺：预警 → 爆发）
+    state.zones = [];       // 持久区域（泥潭 / 裂隙）
+    state.hazAnchors = [];  // 固定灾害锚点（骨刺 / 火球落点，按地图固定）
+    state.hazAnchorIdx = 0;
     state.hazT = 0;
     const kind = hazardKind();
     if (!kind) return;
     const H = CFG.hazards[kind];
     const W = CFG.world;
-    if (!H || !H.count) return;
-    for (let i = 0; i < H.count; i++) {
-      const r = H.r * (0.8 + Math.random() * 0.4);
-      let x = 0, y = 0, tries = 0;
-      // 避开地图正中心（玩家出生点）
-      do {
-        x = 100 + Math.random() * (W.w - 200);
-        y = 100 + Math.random() * (W.h - 200);
-      } while (G.dist(x, y, W.w / 2, W.h / 2) < r + 180 && tries++ < 40);
-      state.zones.push({ kind, x, y, r });
+    if (!H) return;
+
+    const rnd = seededRand(9173 + state.mapIdx * 7919);
+
+    /* ---- 持久区域（泥潭 / 裂隙）：固定位置 ---- */
+    if (H.count) {
+      for (let i = 0; i < H.count; i++) {
+        const r = H.r * (0.8 + rnd() * 0.4);
+        let x = 0, y = 0, tries = 0;
+        // 避开地图正中心（玩家出生点）
+        do {
+          x = 100 + rnd() * (W.w - 200);
+          y = 100 + rnd() * (W.h - 200);
+        } while (G.dist(x, y, W.w / 2, W.h / 2) < r + 180 && tries++ < 40);
+        state.zones.push({ kind, x, y, r });
+      }
+    }
+
+    /* ---- 周期灾害锚点（骨刺 / 火球）：固定落点，爆发按锚点轮换 ---- */
+    if (kind === 'spikes' || kind === 'fire') {
+      const n = H.anchors || 10;
+      for (let i = 0; i < n; i++) {
+        let x = 0, y = 0, tries = 0;
+        do {
+          x = 90 + rnd() * (W.w - 180);
+          y = 90 + rnd() * (W.h - 180);
+        } while (G.dist(x, y, W.w / 2, W.h / 2) < 200 && tries++ < 40);
+        state.hazAnchors.push({ x, y });
+      }
     }
   }
 
@@ -55,18 +86,15 @@
   }
 
   /* =========================================================
-     周期灾害：在玩家附近随机落点生成预警圈
+     周期灾害：在固定锚点生成预警圈（按顺序轮换，位置确定）
      ========================================================= */
   function spawnBurst(kind, minute) {
     const H = CFG.hazards[kind];
-    const W = CFG.world;
-    const p = state.player;
-    const a = Math.random() * Math.PI * 2;
-    const d = H.minDist + Math.random() * (H.maxDist - H.minDist);
-    const x = clamp(p.x + Math.cos(a) * d, H.r + 24, W.w - H.r - 24);
-    const y = clamp(p.y + Math.sin(a) * d, H.r + 24, W.h - H.r - 24);
+    if (!state.hazAnchors.length) return;
+    const a = state.hazAnchors[state.hazAnchorIdx % state.hazAnchors.length];
+    state.hazAnchorIdx++;
     state.hazards.push({
-      kind, x, y, r: H.r,
+      kind, x: a.x, y: a.y, r: H.r,
       t: 0, warn: H.warn, hit: false, boomT: 0,
       dmg: Math.round(H.dmg0 + (minute - 1) * H.dmgK)
     });

@@ -70,6 +70,12 @@
   /* =========================================================
      生成一只普通敌人（minute = 当前分钟阶段）
      ========================================================= */
+  /** 体型系数：血量越高体型越大（r = 基础半径 × 系数） */
+  function sizeScale(hp) {
+    const S = CFG.size;
+    return Math.max(S.min, Math.min(S.max, Math.pow(hp / S.refHp, S.k)));
+  }
+
   function makeEnemy(minute, idx) {
     const pool = pick(G.MONSTER_POOL);
     const boost = 1 + CFG.mon.mapBoost * state.mapIdx;   // 每张新地图敌人更强
@@ -90,7 +96,7 @@
       hp: Math.round(hp),
       atk: Math.max(1, Math.round(atk)),
       def,
-      r: cfgT.r,
+      r: Math.round(cfgT.r * sizeScale(hp) * 10) / 10,
       speed: cfgT.speed,
       type,
       isMon: true,
@@ -141,7 +147,7 @@
       hp: Math.round(hp),
       atk: Math.max(1, Math.round(atk)),
       def: Math.round(curveDef(minute) * 1.4),
-      r: cfgT.r,
+      r: Math.round(cfgT.r * sizeScale(hp) * 10) / 10,
       speed: cfgT.speed,
       type,
       isMon: true,
@@ -166,5 +172,5 @@
     return u;
   }
 
-  Object.assign(G, { curveHp, curveAtk, spawnInterval, aliveCap, isBossMinute, makeEnemy, makeElite, spawnNearPlayer });
+  Object.assign(G, { curveHp, curveAtk, spawnInterval, aliveCap, isBossMinute, makeEnemy, makeElite, spawnNearPlayer, sizeScale });
 })(window.ABYSS = window.ABYSS || {});

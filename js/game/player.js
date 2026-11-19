@@ -93,7 +93,7 @@
   function aimPoint(p) {
     const m = G.engine.mouse;
     if (m && m.active) {
-      const cam = (G.render && G.render.camera) || { x: 0, y: 0 };
+      const cam = G.camera || { x: 0, y: 0 };
       return { x: m.cx + cam.x, y: m.cy + cam.y };
     }
     const t = nearestFoe(p);

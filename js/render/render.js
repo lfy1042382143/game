@@ -227,16 +227,24 @@
   }
 
   /* =========================================================
-     宝箱怪：预警指向线 + 跳扑轨迹
+     预警指向线：宝箱怪跳扑（黄）与 BOSS 冲撞（红）
      ========================================================= */
   function drawMimicTelegraphs() {
     for (const e of state.foes) {
-      if (e.dead || !e.tele) continue;
-      const n = e.tele.n;
-      const len = 230;
-      const prog = clamp(1 - e.tele.t / CFG.mimic.tele, 0, 1);
+      if (e.dead) continue;
+      let n, tLeft, dur, color, len;
+      if (e.tele) {
+        n = e.tele.n; tLeft = e.tele.t; dur = CFG.mimic.tele;
+        color = '#fbbf24'; len = 230;
+      } else if (e.bossDash && e.bossDash.tele > 0) {
+        n = e.bossDash.n; tLeft = e.bossDash.tele; dur = CFG.boss.dashTele;
+        color = '#f87171'; len = 430;
+      } else {
+        continue;
+      }
+      const prog = clamp(1 - tLeft / dur, 0, 1);
       ctx.globalAlpha = 0.35 + 0.45 * prog;
-      ctx.strokeStyle = '#fbbf24';
+      ctx.strokeStyle = color;
       ctx.lineWidth = 3;
       ctx.setLineDash([10, 6]);
       ctx.beginPath();

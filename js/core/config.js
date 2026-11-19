@@ -33,14 +33,14 @@
     },
     maps: { milestoneEvery: 3 },                        // 每 N 级解锁一张新地图（4 级即解锁第二张）
 
-    // 源源不断刷怪（无波次）：场上始终维持 5~10 个敌人
+    // 源源不断刷怪（无波次）：开局稍缓给发育窗口，随后加密到 5~10 个敌人
     spawn: {
-      interval0: 1.6,     // 第 1 分钟的刷怪间隔（秒）
+      interval0: 2.4,     // 第 1 分钟的刷怪间隔（秒）
       intervalMin: 0.7,   // 间隔下限
-      intervalK: 0.05,    // 每分钟缩短量
-      capBase: 5,         // 第 1 分钟的场上存活上限
+      intervalK: 0.08,    // 每分钟缩短量
+      capBase: 4,         // 第 1 分钟的场上存活上限
       capMax: 10,         // 存活上限
-      capK: 0.35          // 每分钟上限增量
+      capK: 0.5           // 每分钟上限增量（快速逼近高密度）
     },
 
     // 精英怪：每分钟整点出现一只；每 bossEvery 分钟为 BOSS
@@ -94,9 +94,9 @@
       swamp:  { count: 5, r: 92, slowMul: 0.5 },                       // 腐雾沼泽：减速泥潭
       vortex: { count: 4, r: 110, pull: 95 },                          // 虚空回廊：引力裂隙
       spikes: { every: 3.2, warn: 0.8, r: 70, dmg0: 7, dmgK: 3.5,
-                minDist: 50, maxDist: 380 },                           // 荒芜骨林：骨刺突起
+                anchors: 10 },                                          // 荒芜骨林：骨刺突起（10 个固定锚点）
       fire:   { every: 2.8, warn: 1.1, r: 64, dmg0: 9, dmgK: 4.5,
-                minDist: 40, maxDist: 360 }                            // 熔岩裂隙：坠落火球
+                anchors: 12 }                                           // 熔岩裂隙：坠落火球（12 个固定锚点）
     },
 
     // 怪物成长曲线（按「分钟」缩放：minute = floor(存活时间/60)+1）
@@ -110,7 +110,7 @@
     },
 
     // 近战敌人：重装步兵——移速慢、伤害高、防御高（接触缠斗威胁大）
-    melee: { r: 15, speed: 92, atkCd: 1.5, reach: 3, atkMul: 1.3, defMul: 1.4 },
+    melee: { r: 15, speed: 92, atkCd: 1.5, reach: 3, atkMul: 1.2, defMul: 1.25 },
 
     // 远程敌人：游击射手——移速快、伤害低、防御低（风筝型骚扰）
     ranged: {
@@ -121,13 +121,23 @@
     },
 
     // 法师敌人：原地咏唱小范围 AoE（预警圈后爆发），完全不能移动
-    mage: { r: 14, speed: 0, castCd: 3.4, aoeR: 76, warn: 1.05, atkMul: 1.25, defMul: 0.8 },
+    mage: { r: 14, speed: 0, castCd: 3.4, aoeR: 52, warn: 1.1, atkMul: 1.25, defMul: 0.8 },
 
     // 宝箱怪：平时缓慢爬行，锁定后沿直线预警 → 跳扑突进
     mimic: { tele: 0.75, dashSpd: 440, dashDur: 0.42, cd: 1.9, crawl: 30, triggerDist: 330 },
 
-    // BOSS：缓慢追击 + 扇形弹幕
-    boss: { r: 24, speed: 74, shootCd: 2.6, bulletSpeed: 170, spread: 3, atkMul: 1.2, defMul: 1.4 },
+    // BOSS：技能轮换（扇形弹幕 → 全向环射 → 预警冲撞 → 召唤援军）
+    boss: {
+      r: 24, speed: 74, atkMul: 1.2, defMul: 1.4,
+      skillCd: 2.4,          // 技能间隔（秒）
+      bulletSpeed: 170, spread: 5, spreadGap: 0.24,   // 扇形弹幕
+      ringCount: 16,         // 全向环射弹数
+      dashTele: 0.7, dashSpd: 330, dashDur: 0.55, dashDmgMul: 1.25,  // 预警冲撞
+      summonCount: 2, summonCap: 8   // 召唤援军（场上总数上限）
+    },
+
+    // 体型随血量：r = 基础半径 × (hp/refHp)^k，上下限裁剪（血量越高体型越大）
+    size: { refHp: 30, k: 0.4, min: 0.85, max: 2.3 },
 
     // 敌人词缀出现节奏（普通敌人按分钟）
     affixes: { firstAt: 3, every: 2 },

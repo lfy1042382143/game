@@ -127,7 +127,7 @@
     }
   }
 
-  /** 法师 AoE 预警与爆发（对玩家与敌人都生效，可以借位打怪） */
+  /** 法师 AoE 预警与爆发（只对玩家生效） */
   function updateMageAoes(dt) {
     for (let i = state.mageAoes.length - 1; i >= 0; i--) {
       const a = state.mageAoes[i];
@@ -135,14 +135,10 @@
       a.t += dt;
       if (a.t < a.warn) continue;
 
-      // 爆发：圈内的所有单位（法师本人免疫自己的爆炸）
+      // 爆发：只命中玩家
       const p = state.player;
       if (p && !p.dead && G.dist(a.x, a.y, p.x, p.y) < a.r) {
         dealDamage(a.owner, p, a.dmg);
-      }
-      for (const f of state.foes) {
-        if (f.dead || f === a.owner) continue;
-        if (G.dist(a.x, a.y, f.x, f.y) < a.r) dealDamage(a.owner, f, a.dmg);
       }
       state.mageAoes.splice(i, 1);
     }
@@ -199,25 +195,94 @@
     }
   }
 
+  /* =========================================================
+     BOSS：缓慢追击 + 技能轮换
+     扇形弹幕 → 全向环射 → 预警冲撞 → 召唤援军 → 循环
+     ========================================================= */
+  /** 敌人与玩家不重叠：把敌人推出玩家圆（位移完全由敌人承担） */
+  function separateFromPlayer(foes) {
+    const p = state.player;
+    if (!p || p.dead) return;
+    for (const e of foes) {
+      if (e.dead) continue;
+      const d = G.dist(e.x, e.y, p.x, p.y);
+      const min = e.r + p.r;
+      if (d >= min) continue;
+      if (d < 0.001) { e.x += e.r; continue; }   // 极端重合：直接抖开
+      const n = G.norm(p.x - e.x, p.y - e.y);
+      e.x = clamp(e.x - n.x * (min - d), e.r, CFG.world.w - e.r);
+      e.y = clamp(e.y - n.y * (min - d), e.r, CFG.world.h - e.r);
+    }
+  }
+
   function updateBoss(e, dt) {
     const p = state.player;
     if (!p) return;
     const C = CFG.boss;
+
+    /* ---- 冲撞阶段 ---- */
+    if (e.bossDash) {
+      // 蓄力预警：原地硬直（方向已锁定，玩家可侧移）
+      if (e.bossDash.tele > 0) {
+        e.bossDash.tele -= dt;
+        return;
+      }
+      // 突进
+      const n = e.bossDash.n;
+      e.x = clamp(e.x + n.x * C.dashSpd * dt, e.r, CFG.world.w - e.r);
+      e.y = clamp(e.y + n.y * C.dashSpd * dt, e.r, CFG.world.h - e.r);
+      if (!e.bossDash.hitDone && G.dist(e.x, e.y, p.x, p.y) < e.r + p.r + 4) {
+        dealDamage(e, p, e.atk * C.dashDmgMul * G.frenzyMul(e));
+        e.bossDash.hitDone = true;
+      }
+      e.bossDash.t -= dt;
+      if (e.bossDash.t <= 0) { e.bossDash = null; e.atkCd = C.skillCd; }
+      return;
+    }
+
+    /* ---- 常规：缓慢追击 + 近身攻击 ---- */
     const mul = e.affix && e.affix.key === 'swift' ? 1.3 : 1;
     const n = G.norm(p.x - e.x, p.y - e.y);
     moveEnemy(e, n, dt, mul);
     tryMeleeHit(e, dt, 4);
 
-    // 扇形弹幕
+    /* ---- 技能轮换 ---- */
     e.atkCd -= dt;
-    if (e.atkCd <= 0) {
-      const base = Math.atan2(p.y - e.y, p.x - e.x);
-      const spread = C.spread;
-      for (let i = 0; i < spread; i++) {
-        const a = base + (i - (spread - 1) / 2) * 0.28;
+    if (e.atkCd > 0) return;
+    e.skillIdx = ((e.skillIdx || 0) + 1) % 4;
+
+    if (e.skillIdx === 1) {
+      // 全向环射：一圈 16 发
+      for (let i = 0; i < C.ringCount; i++) {
+        const a = (i / C.ringCount) * Math.PI * 2;
         G.fireEnemyBullet(e, e.x + Math.cos(a) * 100, e.y + Math.sin(a) * 100, C.bulletSpeed);
       }
-      e.atkCd = C.shootCd;
+      e.atkCd = C.skillCd;
+    } else if (e.skillIdx === 2) {
+      // 预警冲撞：锁定当前朝向，蓄力后直线冲
+      e.bossDash = { tele: C.dashTele, n: G.norm(p.x - e.x, p.y - e.y), t: C.dashDur, hitDone: false };
+    } else if (e.skillIdx === 3) {
+      // 召唤援军：在身边召唤 2 只普通怪（有场上上限）
+      const alive = state.foes.filter(f => !f.dead).length;
+      if (alive < C.summonCap) {
+        for (let i = 0; i < C.summonCount; i++) {
+          const minion = G.makeEnemy(state.wave, Math.floor(Math.random() * 10));
+          const a = Math.random() * Math.PI * 2;
+          minion.x = clamp(e.x + Math.cos(a) * (e.r + 50), 40, CFG.world.w - 40);
+          minion.y = clamp(e.y + Math.sin(a) * (e.r + 50), 40, CFG.world.h - 40);
+          state.foes.push(minion);
+        }
+        G.floatText(e, '召援!', '#f0abfc', true);
+      }
+      e.atkCd = C.skillCd;
+    } else {
+      // 扇形弹幕（开场即放，之后每轮回归）
+      const base = Math.atan2(p.y - e.y, p.x - e.x);
+      for (let i = 0; i < C.spread; i++) {
+        const a = base + (i - (C.spread - 1) / 2) * C.spreadGap;
+        G.fireEnemyBullet(e, e.x + Math.cos(a) * 100, e.y + Math.sin(a) * 100, C.bulletSpeed);
+      }
+      e.atkCd = C.skillCd;
     }
   }
 
@@ -256,7 +321,8 @@
 
     updateMageAoes(dt);
     separate(alive);
+    separateFromPlayer(alive);
   }
 
-  Object.assign(G, { updateEnemies, updateMageAoes, updateMimic, updateMage });
+  Object.assign(G, { updateEnemies, updateMageAoes, updateMimic, updateMage, separateFromPlayer });
 })(window.ABYSS = window.ABYSS || {});

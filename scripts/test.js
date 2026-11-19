@@ -554,7 +554,7 @@ function featureTests() {
   assert(mageF.speed === 0, 'T22a 法师完全不能移动', mageF.speed);
   assert(G.CFG.ranged.speed > G.CFG.melee.speed, 'T22a 远程移速快于近战');
 
-  // T22b 法师 AoE：预警后爆发，圈内的玩家和敌人受伤
+  // T22b 法师 AoE：预警后爆发，只对玩家生效（不伤敌人）
   reset();
   const mg = G.makeEnemy(1, 8);
   G.state.foes = [mg];
@@ -568,12 +568,13 @@ function featureTests() {
   G.state.foes.push(aoeFoe);
   run(0.1);   // 法师咏唱 → mageAoes 出现
   assert(G.state.mageAoes.length > 0, 'T22b 法师咏唱出 AoE 预警');
+  assert(G.CFG.mage.aoeR <= 60, 'T22b 法师 AoE 半径收紧（≤60）', G.CFG.mage.aoeR);
   const aoe = G.state.mageAoes[0];
   aoe.x = pT22.x; aoe.y = pT22.y;
   aoe.t = aoe.warn - 0.05;    // 即将爆发
   run(0.15);
   assert(pT22.hp < mgPhp0, 'T22b AoE 爆发对圈内玩家造成伤害', { mgPhp0, mgPhp1: pT22.hp });
-  assert(aoeFoe.hp < aoeFoeHp0, 'T22b AoE 爆发同样命中圈内敌人', { aoeFoeHp0, aoeFoeHp1: aoeFoe.hp });
+  assert(aoeFoe.hp === aoeFoeHp0, 'T22b AoE 不再伤害敌人', { aoeFoeHp0, aoeFoeHp1: aoeFoe.hp });
 
   // T22c 宝箱怪：预警 → 直线跳扑 → 突进中接触伤害
   reset();
@@ -784,6 +785,76 @@ function featureTests() {
   assert(rars1.every(r => r === 0), 'T20c 第 1 分钟只能出普通装备', rars1.join(''));
   assert(Math.max(...rars12) === 4, 'T20c 第 12 分钟才可能出传说', Math.max(...rars12));
 
+  /* ================= T24：体型随血量 + BOSS 技能轮换 + 固定陷阱 ================= */
+
+  // T24a 体型与血量正相关
+  const sLow = G.makeEnemy(1, 0);     // 第 1 分钟：低血量
+  const sHigh = G.makeEnemy(9, 1);    // 第 9 分钟：高血量
+  assert(G.sizeScale(sLow.hp) < G.sizeScale(sHigh.hp), 'T24a 血量越高体型系数越大',
+    { low: G.sizeScale(sLow.hp).toFixed(2), high: G.sizeScale(sHigh.hp).toFixed(2) });
+  assert(sLow.r <= sHigh.r, 'T24a 高血量敌人半径更大', { rLow: sLow.r, rHigh: sHigh.r });
+  const bossSz = G.makeElite(5);      // BOSS 血量最高 → 体型最大
+  assert(bossSz.r > G.CFG.boss.r * 1.5, 'T24a BOSS 半径显著大于基础值', { bossR: bossSz.r });
+
+  // T24b BOSS 技能轮换：扇形 → 环射 → 冲撞预警 → 召唤
+  reset();
+  const bk = G.makeElite(5);
+  G.state.foes = [bk];
+  const pBk = G.state.player;
+  bk.x = pBk.x + 300; bk.y = pBk.y;
+  bk.atkCd = 0;
+  const fanned = [];
+  for (let k = 0; k < 4; k++) {
+    const b0 = G.state.bullets.length;
+    const f0 = G.state.foes.length;
+    bk.bossDash = null;
+    bk.atkCd = 0;
+    bk.skillIdx = (k + 3) % 4;   // 使下一技能轮到第 k 个（fan/ring/dash/summon）
+    run(0.2);
+    fanned.push({
+      bullets: G.state.bullets.length - b0,
+      foes: G.state.foes.length - f0,
+      dashing: !!bk.bossDash
+    });
+  }
+  assert(fanned[0].bullets > 0, 'T24b BOSS 第 1 技能：扇形弹幕', fanned[0]);
+  assert(fanned[1].bullets >= G.CFG.boss.ringCount - 2, 'T24b BOSS 第 2 技能：全向环射', fanned[1]);
+  assert(fanned[2].dashing, 'T24b BOSS 第 3 技能：进入冲撞预警', fanned[2]);
+  assert(fanned[3].foes >= G.CFG.boss.summonCount, 'T24b BOSS 第 4 技能：召唤援军', fanned[3]);
+
+  // T24c 固定陷阱：同一地图布局确定（zones 与锚点可复现）
+  reset();
+  G.state.mapIdx = 4;                    // 沼泽（zones）
+  G.setupHazards();
+  const swampZones1 = JSON.stringify(G.state.zones.map(z => [Math.round(z.x), Math.round(z.y), Math.round(z.r)]));
+  G.setupHazards();
+  const swampZones2 = JSON.stringify(G.state.zones.map(z => [Math.round(z.x), Math.round(z.y), Math.round(z.r)]));
+  assert(swampZones1 === swampZones2 && G.state.zones.length > 0, 'T24c 泥潭位置每次进入完全一致');
+  G.state.mapIdx = 2;                    // 熔岩（锚点）
+  G.setupHazards();
+  const anchors1 = JSON.stringify(G.state.hazAnchors.map(a => [Math.round(a.x), Math.round(a.y)]));
+  G.setupHazards();
+  const anchors2 = JSON.stringify(G.state.hazAnchors.map(a => [Math.round(a.x), Math.round(a.y)]));
+  assert(anchors1 === anchors2 && G.state.hazAnchors.length === G.CFG.hazards.fire.anchors, 'T24c 火球落点锚点固定');
+  // 爆发按锚点顺序轮换
+  const firstBurst = [];
+  G.spawnBurst('fire', 1); G.spawnBurst('fire', 1);
+  firstBurst.push([G.state.hazards[0].x, G.state.hazards[0].y]);
+  firstBurst.push([G.state.hazards[1].x, G.state.hazards[1].y]);
+  const m1 = G.state.hazAnchors[0], m2 = G.state.hazAnchors[1];
+  assert(firstBurst[0][0] === m1.x && firstBurst[1][0] === m2.x, 'T24c 爆发落点严格按锚点顺序');
+
+  // T24d 敌人不与玩家重叠
+  reset();
+  const ovF = G.makeEnemy(1, 0);
+  ovF.type = 'melee'; ovF.speed = 0;
+  const pOv = G.state.player;
+  ovF.x = pOv.x; ovF.y = pOv.y + 5;    // 与玩家几乎重合
+  G.state.foes = [ovF];
+  run(0.1);
+  const ovD = G.dist(ovF.x, ovF.y, pOv.x, pOv.y);
+  assert(ovD >= ovF.r + pOv.r - 0.5, 'T24d 重叠敌人被推出玩家圆', { dist: ovD.toFixed(1), min: (ovF.r + pOv.r).toFixed(1) });
+
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;
 }
@@ -798,9 +869,13 @@ function simulate(runs) {
   function autoAdvance() {
     const st = G.state;
     if (st.phase === 'levelup') {
-      // 用真实卡池选第一张（普通级=属性卡，10 级=攻击方式卡）
+      // 用真实卡池选卡（真人优先攻击/防御，经验卡次之）
       const cards = G.makeLevelCards(st.player);
-      if (cards.length) G.chooseLevelCard(cards[0]);
+      if (cards.length) {
+        const pick = cards.find(c => c.key === 'atk') || cards.find(c => c.key === 'def') ||
+                     cards.find(c => c.kind === 'attr') || cards[0];
+        G.chooseLevelCard(pick);
+      }
       return;
     }
     if (st.phase === 'loot') {
@@ -861,6 +936,16 @@ function simulate(runs) {
       const ax = p.x - dodge.x, ay = p.y - dodge.y;
       if (Math.abs(ax) > 8) engineKeys.add(ax > 0 ? 'd' : 'a');
       if (Math.abs(ay) > 8) engineKeys.add(ay > 0 ? 's' : 'w');
+      return;
+    }
+
+    // 闪避 BOSS 冲撞预警（垂直于冲撞方向侧移）
+    const dasher = alive.find(f => f.bossDash && f.bossDash.tele > 0 && G.dist(p.x, p.y, f.x, f.y) < 500);
+    if (dasher) {
+      const n = dasher.bossDash.n;
+      const side = { x: -n.y, y: n.x };
+      if (Math.abs(side.x) > 8) engineKeys.add(side.x > 0 ? 'd' : 'a');
+      if (Math.abs(side.y) > 8) engineKeys.add(side.y > 0 ? 's' : 'w');
       return;
     }
 
