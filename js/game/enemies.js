@@ -89,8 +89,12 @@
       n = G.norm(p.x - e.x, p.y - e.y);          // 距离带外：加速靠近
       moveEnemy(e, n, dt, mul * 1.7);
     } else if (d < C.keepMin) {
-      n = G.norm(e.x - p.x, e.y - p.y);          // 太近：后撤
-      moveEnemy(e, n, dt, mul * 1.25);
+      // 太近：后撤——速度必须明显低于玩家，否则玩家靠近时会感觉敌人"加速暴涨"逃走
+      n = G.norm(e.x - p.x, e.y - p.y);
+      // 后撤速度 = 自身速度 × 0.8，且硬上限为玩家速度的 0.7（迅捷词缀也不豁免）
+      const fleeCap = CFG.player.speed * 0.7;
+      const fleeSpd = Math.min(e.speed * 0.8, fleeCap);
+      moveEnemy(e, n, dt, fleeSpd / e.speed);
     } else {
       // 距离带内：侧向环绕
       const perp = { x: (p.y - e.y) * e.strafeDir, y: (e.x - p.x) * e.strafeDir };

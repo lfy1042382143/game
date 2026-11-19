@@ -48,7 +48,8 @@
       every: 60,          // 精英出现间隔（秒）
       hpMul: 2.4,         // 精英生命倍率
       atkMul: 1.4,        // 精英攻击倍率
-      xpMul: 4,           // 精英经验倍率
+      xpMul: 5,           // 精英经验倍率
+      bossXpMul: 12,      // BOSS 经验倍率（远高于精英，击杀应显著升级）
       bossEvery: 5        // 每 N 分钟出现 BOSS（代替精英）
     },
 

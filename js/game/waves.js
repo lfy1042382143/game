@@ -156,7 +156,8 @@
       x: pos.x, y: pos.y
     });
 
-    u.xp = Math.round((6 + minute * 1.6) * E.xpMul);
+    // 击杀经验：精英 ×5，BOSS ×12（奖励与战斗耗时匹配）
+    u.xp = Math.round((6 + minute * 1.6) * (boss ? E.bossXpMul : E.xpMul));
     u.elite = true;
     u.strafeDir = Math.random() < 0.5 ? 1 : -1;
 

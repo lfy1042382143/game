@@ -436,6 +436,13 @@ function featureTests() {
   assert(elite1.elite === true && elite1.hp > e1hp * 1.5, 'T10 精英强度显著高于普通怪', { elite: elite1.hp, normal: e1hp });
   assert(elite1.xp >= 25, 'T10 精英提供大量经验', elite1.xp);
 
+  // T25 精英/BOSS 经验差距：BOSS 经验应显著高于精英（≥2.5 倍）
+  const eliteXp = elite1.xp;
+  const bossXpU = G.makeElite(5);
+  assert(bossXpU.xp > eliteXp * 2.5, 'T25 BOSS 经验显著高于精英（≥2.5 倍）', { boss: bossXpU.xp, elite: eliteXp });
+  const elite5 = G.makeElite(4);
+  assert(elite5.xp < bossXpU.xp * 0.6, 'T25 同期 BOSS 经验远高于精英', { elite5: elite5.xp, boss: bossXpU.xp });
+
   // T11 BOSS 扇形弹幕
   reset();
   const boss2 = G.makeElite(5);
