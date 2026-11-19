@@ -21,23 +21,23 @@
       options: [
         {
           label: '献祭生命上限',
-          desc: '牺牲 20% 生命上限，换取 +攻击',
+          desc: '牺牲 20% 生命上限，换取少量攻击',
           apply(p) {
             const lose = Math.max(1, Math.round(p.baseHp * 0.2));
             p.baseHp -= lose;
-            p.baseAtk += Math.round(lose * 0.8);
+            p.baseAtk += Math.max(1, Math.round(lose * 0.3));
             G.refresh(p);
             p.hp = Math.min(p.hp, p.maxHp);
           }
         },
         {
           label: '献祭防御',
-          desc: '牺牲 3 点防御，换取 +生命上限',
+          desc: '牺牲 3 点防御，换取少量生命上限',
           apply(p) {
             const lose = Math.min(p.baseDef, 3);
             p.baseDef -= lose;
-            p.baseHp += lose * 18;
-            p.hp += lose * 18;
+            p.baseHp += lose * 7;
+            p.hp += lose * 7;
             G.refresh(p);
           }
         },
