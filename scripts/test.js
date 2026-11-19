@@ -138,7 +138,7 @@ function runFull(seconds) {
   }
 }
 
-function reset() { G.startRun(); }
+function reset() { G.engine.mouse.active = false; G.startRun(); }
 
 /* ============================================================
    功能测试
@@ -171,7 +171,7 @@ function featureTests() {
   engineKeys.delete('d');
   assert(G.state.player.x <= 2000 - 13, 'T2 世界边界约束生效', G.state.player.x);
 
-  // T3 近战敌人追击
+  // T3 近战敌人追击（重装型：慢速但持续逼近）
   reset();
   const foe = G.makeEnemy(1, 0);
   G.state.foes.push(foe);
@@ -180,11 +180,16 @@ function featureTests() {
   run(1.5);
   const d1 = G.dist(foe.x, foe.y, G.state.player.x, G.state.player.y);
   assert(d1 < d0, 'T3 近战敌人向玩家靠近', { d0: Math.round(d0), d1: Math.round(d1) });
-  assert(G.CFG.melee.speed > G.CFG.player.speed * 0.85, 'T3 近战移速接近玩家（相对更快）', { melee: G.CFG.melee.speed, player: G.CFG.player.speed });
+  assert(G.CFG.melee.speed < G.CFG.player.speed, 'T3 近战移速慢于玩家（重装型）', { melee: G.CFG.melee.speed, player: G.CFG.player.speed });
+
+  // T3b 玩家移速全场景最快
+  const spdMax = Math.max(G.CFG.melee.speed, G.CFG.ranged.speed, G.CFG.mage.speed, G.CFG.boss.speed, G.CFG.mimic.crawl, G.CFG.mimic.dashSpd);
+  assert(G.CFG.player.speed > Math.max(G.CFG.melee.speed, G.CFG.ranged.speed, G.CFG.boss.speed),
+    'T3b 玩家常速快于所有敌兵（跳扑瞬发除外）', { player: G.CFG.player.speed, maxEnemy: spdMax });
 
   // T4 远程敌人发射弹幕（弹幕已降速）
   reset();
-  const rf = G.makeEnemy(1, 2);   // idx 2 → ranged
+  const rf = G.makeEnemy(1, 6);   // idx 6 → ranged（idx%10: 5-7 为远程）
   G.state.foes.push(rf);
   rf.x = G.state.player.x; rf.y = G.state.player.y - 260;
   rf.atkCd = 0;
@@ -535,6 +540,108 @@ function featureTests() {
   const baseAvg = baseSum / 800, luckAvg = luckSum / 800;
   assert(luckAvg > baseAvg + 0.15, 'T21d 幸运 8 的平均稀有度显著高于幸运 0', { baseAvg: baseAvg.toFixed(2), luckAvg: luckAvg.toFixed(2) });
 
+  // T22 敌人体系重做 + 鼠标瞄准
+  // T22a 角色分工：近战高攻高防 / 远程低攻低防 / 法师不动
+  reset();
+  const meleeF = G.makeEnemy(1, 0);   // melee
+  const rangedF = G.makeEnemy(1, 6);  // ranged
+  const mageF = G.makeEnemy(1, 8);    // mage
+  assert(meleeF.type === 'melee' && rangedF.type === 'ranged' && mageF.type === 'mage',
+    'T22a 类型分布正确', { m: meleeF.type, r: rangedF.type, g: mageF.type });
+  assert(meleeF.atk > rangedF.atk, 'T22a 近战攻击高于远程', { melee: meleeF.atk, ranged: rangedF.atk });
+  const meleeF6 = G.makeEnemy(6, 0), rangedF6 = G.makeEnemy(6, 6);
+  assert(meleeF6.def > rangedF6.def, 'T22a 近战防御高于远程', { melee: meleeF6.def, ranged: rangedF6.def });
+  assert(mageF.speed === 0, 'T22a 法师完全不能移动', mageF.speed);
+  assert(G.CFG.ranged.speed > G.CFG.melee.speed, 'T22a 远程移速快于近战');
+
+  // T22b 法师 AoE：预警后爆发，圈内的玩家和敌人受伤
+  reset();
+  const mg = G.makeEnemy(1, 8);
+  G.state.foes = [mg];
+  mg.atkCd = 0;
+  const pT22 = G.state.player;
+  pT22.iframes = 0; pT22.shield = 0;
+  const mgPhp0 = pT22.hp;
+  const aoeFoe = G.makeEnemy(1, 0);
+  aoeFoe.x = pT22.x + 20; aoeFoe.y = pT22.y;
+  const aoeFoeHp0 = aoeFoe.hp;
+  G.state.foes.push(aoeFoe);
+  run(0.1);   // 法师咏唱 → mageAoes 出现
+  assert(G.state.mageAoes.length > 0, 'T22b 法师咏唱出 AoE 预警');
+  const aoe = G.state.mageAoes[0];
+  aoe.x = pT22.x; aoe.y = pT22.y;
+  aoe.t = aoe.warn - 0.05;    // 即将爆发
+  run(0.15);
+  assert(pT22.hp < mgPhp0, 'T22b AoE 爆发对圈内玩家造成伤害', { mgPhp0, mgPhp1: pT22.hp });
+  assert(aoeFoe.hp < aoeFoeHp0, 'T22b AoE 爆发同样命中圈内敌人', { aoeFoeHp0, aoeFoeHp1: aoeFoe.hp });
+
+  // T22c 宝箱怪：预警 → 直线跳扑 → 突进中接触伤害
+  reset();
+  const mm = G.makeEnemy(1, 0);
+  mm.type = 'mimic';
+  mm.x = G.state.player.x + 200; mm.y = G.state.player.y;
+  mm.lungeT = 0; mm.tele = null; mm.dash = null;
+  G.state.foes = [mm];
+  const pT22c = G.state.player;
+  pT22c.iframes = 0; pT22c.shield = 0;
+  const mhp0 = pT22c.hp;
+  run(1.0);   // 距离 200 < 330 → 预警 0.75s → 跳扑（朝锁定方向）
+  const hitByDash = pT22c.hp < mhp0;
+  const movedCloser = G.dist(mm.x, mm.y, pT22c.x, pT22c.y) < 200;
+  assert(hitByDash || movedCloser, 'T22c 宝箱怪完成跳扑（命中或位移）', { hitByDash, moved: movedCloser });
+  // 预警阶段有 tele（在 run 过程中出现过——直接构造验证）
+  reset();
+  const mm2 = G.makeEnemy(1, 0);
+  mm2.type = 'mimic';
+  mm2.x = G.state.player.x + 200; mm2.y = G.state.player.y;
+  mm2.lungeT = 0; mm2.tele = null; mm2.dash = null;
+  G.state.foes = [mm2];
+  run(0.5);   // 冷却 0 → 触发预警（0.75s 未结束，仍处于 tele）
+  assert(!!mm2.tele, 'T22c 宝箱怪进入预警阶段（方向已锁定）');
+
+  // T22d 鼠标方向射击：无鼠标时兜底最近敌人，有鼠标时朝鼠标方向
+  reset();
+  const pAim = G.state.player;
+  G.engine.mouse.active = false;
+  const aimFoe = G.makeEnemy(1, 0);
+  aimFoe.speed = 0;
+  aimFoe.x = pAim.x + 150; aimFoe.y = pAim.y;   // 正右方
+  G.state.foes = [aimFoe];
+  pAim.atkT = 0;
+  pAim.shots = 1; pAim.shotDmgMul = 1;
+  run(0.7);
+  const aimed = aimFoe.hp < aimFoe.maxHp;
+  assert(aimed, 'T22d 无鼠标时兜底瞄准最近敌人');
+  // 有鼠标：放在玩家左侧 → 箭矢 vx < 0
+  reset();
+  const pAim2 = G.state.player;
+  const vx0 = G.state.bullets.length;
+  G.engine.mouse.active = true;
+  G.engine.mouse.cx = pAim2.x - 100;   // 相机为 0（玩家在中心附近）
+  G.engine.mouse.cy = pAim2.y;
+  const aimFoe2 = G.makeEnemy(1, 0);
+  aimFoe2.speed = 0;
+  aimFoe2.x = pAim2.x + 150; aimFoe2.y = pAim2.y;
+  G.state.foes = [aimFoe2];
+  pAim2.atkT = 0;
+  run(0.2);
+  const fired = G.state.bullets.filter(b => b.side === 'p');
+  assert(fired.some(b => b.vx < 0), 'T22d 有鼠标时箭矢朝鼠标方向（左侧）发射');
+
+  // T23 升级效率卡：每 2 级出现，经验获取可叠加放大
+  reset();
+  const pXp = G.state.player;
+  pXp.level = 2;
+  assert(G.makeLevelCards(pXp).some(c => c.key === 'xpgain'), 'T23a 偶数级卡池含升级效率选项');
+  pXp.level = 3;
+  assert(!G.makeLevelCards(pXp).some(c => c.key === 'xpgain'), 'T23a 奇数级不出升级效率');
+  const xpCard = G.XP_CARD;
+  xpCard.apply(pXp);
+  xpCard.apply(pXp);
+  assert(Math.abs(pXp.xpMul - 1.3) < 1e-9, 'T23b 升级效率可叠加（+15% ×2）', pXp.xpMul);
+  G.gainXp(10);
+  assert(pXp.xp === 13, 'T23c 击杀经验按倍率放大', pXp.xp);
+
   // T15 地图陷阱系统
   // T15a 初始地图无陷阱
   reset();
@@ -607,9 +714,9 @@ function featureTests() {
   G.state.player.level = 5;
   const m5 = G.makeLevelCards(G.state.player).map(c => c.kind);
   G.state.player.level = 4;
-  const a4 = G.makeLevelCards(G.state.player).map(c => c.kind);
+  const a4 = G.makeLevelCards(G.state.player);
   assert(m5.length && m5.every(k => k === 'mode'), 'T16b 第 5 级出攻击方式卡', m5);
-  assert(a4.length && a4.every(k => k === 'attr'), 'T16b 第 4 级仍为属性卡', a4);
+  assert(a4.length && a4.every(c => c.kind === 'attr' || c.key === 'xpgain'), 'T16b 第 4 级仍为属性卡（经验卡除外）', a4.map(c => c.key || c.kind));
   G.state.player.level = 1;
 
   // T17 障碍伪装陷阱
@@ -748,13 +855,22 @@ function simulate(runs) {
       return;
     }
 
-    // 附近无近战威胁时，主动靠近远程怪打（真人会优先清理射手）
-    const meleeThreat = alive.some(f => f.type === 'melee' && G.dist(p.x, p.y, f.x, f.y) < 220);
+    // 闪避法师 AoE 预警圈（真人会本能躲圈）
+    const dodge = (st.mageAoes || []).find(a => G.dist(p.x, p.y, a.x, a.y) < a.r + 42);
+    if (dodge) {
+      const ax = p.x - dodge.x, ay = p.y - dodge.y;
+      if (Math.abs(ax) > 8) engineKeys.add(ax > 0 ? 'd' : 'a');
+      if (Math.abs(ay) > 8) engineKeys.add(ay > 0 ? 's' : 'w');
+      return;
+    }
+
+    // 附近无近战/宝箱怪威胁时，优先清理射手、法师与宝箱怪（真人会打站桩目标）
+    const meleeThreat = alive.some(f => (f.type === 'melee' || f.type === 'mimic') && G.dist(p.x, p.y, f.x, f.y) < 230);
     let hunted = null;
     if (!meleeThreat) {
       let hd = Infinity;
       for (const f of alive) {
-        if (f.type !== 'ranged' && f.type !== 'boss') continue;
+        if (f.type !== 'ranged' && f.type !== 'boss' && f.type !== 'mage' && f.type !== 'mimic') continue;
         const d = G.dist(p.x, p.y, f.x, f.y);
         if (d < hd) { hd = d; hunted = f; }
       }
@@ -762,18 +878,28 @@ function simulate(runs) {
 
     let dx, dy;
     if (hunted) {
-      // 朝远程怪走到自己的射程边缘（射程 × 0.8）
-      const want = p.range * 0.8;
+      // 朝目标走到自己的射程边缘（射程 × 0.85）
+      const want = p.range * 0.85;
       const hd2 = G.dist(p.x, p.y, hunted.x, hunted.y);
       if (hd2 > want) { dx = hunted.x - p.x; dy = hunted.y - p.y; }
       else { dx = (p.x - hunted.x) + (p.y - hunted.y); dy = (p.y - hunted.y) - (p.x - hunted.x); }   // 切向环绕
-    } else if (Math.random() < 0.04) {
-      dx = near.x - p.x; dy = near.y - p.y;
-    } else if (nd > 360) {
-      dx = near.x - p.x; dy = near.y - p.y;
     } else {
-      dx = p.x - near.x; dy = p.y - near.y;
-      dx += (p.x > G.CFG.world.w / 2 ? 1 : -1) * 60;
+      // 威胁向量逃离：多个近战合围时沿合力方向撤（而不是只躲最近一个）
+      let fx = 0, fy = 0;
+      for (const f of alive) {
+        const d = G.dist(p.x, p.y, f.x, f.y);
+        if (d > 290 || d < 1) continue;
+        const w = (f.type === 'melee' || f.type === 'mimic') ? 1.2 : (f.type === 'ranged') ? 0.55 : 0;
+        if (w > 0) { fx += (p.x - f.x) / d * w; fy += (p.y - f.y) / d * w; }
+      }
+      if (fx || fy) {
+        dx = fx; dy = fy;
+        dx += (p.x > G.CFG.world.w / 2 ? 1 : -1) * 50;   // 贴边时沿切向绕开
+      } else if (Math.random() < 0.04) {
+        dx = near.x - p.x; dy = near.y - p.y;
+      } else {
+        dx = 0; dy = 0;
+      }
     }
 
     if (Math.abs(dx) > 8) engineKeys.add(dx > 0 ? 'd' : 'a');

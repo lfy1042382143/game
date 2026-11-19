@@ -38,6 +38,7 @@
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onBlur);
+    window.addEventListener('mousemove', onMouseMove);
   }
 
   /** 归一化移动向量（WASD / 方向键） */
@@ -48,6 +49,23 @@
     if (keys.has('a') || keys.has('arrowleft')) dx -= 1;
     if (keys.has('d') || keys.has('arrowright')) dx += 1;
     return { dx, dy };
+  }
+
+  /* =========================================================
+     鼠标输入：记录画布逻辑坐标（供玩家瞄准）
+     ========================================================= */
+  const mouse = { cx: 0, cy: 0, active: false };   // canvas 逻辑坐标（960×600）
+
+  function onMouseMove(e) {
+    try {
+      const c = (typeof document !== 'undefined') && document.getElementById('canvas');
+      if (!c || !c.getBoundingClientRect) return;
+      const r = c.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      mouse.cx = (e.clientX - r.left) * (c.width / r.width);
+      mouse.cy = (e.clientY - r.top) * (c.height / r.height);
+      mouse.active = true;
+    } catch (err) { /* 无头环境无 DOM，忽略 */ }
   }
 
   /* =========================================================
@@ -84,5 +102,5 @@
     rafId = requestAnimationFrame(frame);
   }
 
-  Object.assign(G, { engine: { STEP, keys, moveVec, start } });
+  Object.assign(G, { engine: { STEP, keys, moveVec, mouse, start } });
 })(window.ABYSS = window.ABYSS || {});

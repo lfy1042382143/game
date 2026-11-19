@@ -75,18 +75,21 @@
     const boost = 1 + CFG.mon.mapBoost * state.mapIdx;   // 每张新地图敌人更强
     const trap = trapMul();
 
-    const type = idx % 3 === 2 ? 'ranged' : 'melee';
+    // 类型分布：近战 50% / 远程 30% / 法师 20%
+    const roll = idx % 10;
+    const type = roll < 5 ? 'melee' : roll < 8 ? 'ranged' : 'mage';
     const cfgT = CFG[type];
     const pos = spawnNearPlayer();
 
     let hp = curveHp(minute) * boost * trap.hp;
-    let atk = curveAtk(minute) * boost * trap.atk;
+    let atk = curveAtk(minute) * boost * trap.atk * (cfgT.atkMul || 1);
     if (state.pendingRage && type === 'melee') atk *= 1.3;   // 泉水事件副作用
+    const def = Math.round(curveDef(minute) * (cfgT.defMul || 1));
 
     const u = G.makeUnit({
       hp: Math.round(hp),
       atk: Math.max(1, Math.round(atk)),
-      def: Math.round(curveDef(minute)),
+      def,
       r: cfgT.r,
       speed: cfgT.speed,
       type,
@@ -96,8 +99,8 @@
       x: pos.x, y: pos.y
     });
 
-    // 击杀经验：近战为基准，远程 ×1.3
-    u.xp = Math.round((6 + minute * 1.6) * (type === 'ranged' ? 1.3 : 1));
+    // 击杀经验：近战为基准，远程 ×1.3，法师 ×1.6
+    u.xp = Math.round((6 + minute * 1.6) * (type === 'ranged' ? 1.3 : type === 'mage' ? 1.6 : 1));
     u.strafeDir = Math.random() < 0.5 ? 1 : -1;
 
     const affix = affixFor(minute, idx);

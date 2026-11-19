@@ -83,7 +83,7 @@
       p.items.map(i => i.slot + ':' + i.key + ':' + i.rarity + ':' + i.level).join(','),
       Math.round(p.maxHp), Math.round(p.atk), Math.round(p.def),
       p.shots, p.orbits, p.pierce, p.cardLeech, p.cardSlow,
-      p.critEvery, p.atkCdMul.toFixed(2), Math.round(p.range), p.luck
+      p.critEvery, p.atkCdMul.toFixed(2), Math.round(p.range), p.luck, (p.xpMul || 1).toFixed(2)
     ].join('|');
     if (sig === lastEqSig) return;
     lastEqSig = sig;
@@ -102,6 +102,7 @@
     // 装备词条
     const extras = [];
     if (A.leech) extras.push(['🩸', '吸血', A.leech + '%']);
+    if (p.xpMul > 1) extras.push(['✨', '经验加成', '+' + Math.round((p.xpMul - 1) * 100) + '%']);
     if (A.vamp) extras.push(['🩹', '受击回复', A.vamp + '%']);
     if (A.thorn) extras.push(['🌵', '反伤', A.thorn]);
     if (A.bulwark) extras.push(['🐉', '减伤', A.bulwark + '%']);

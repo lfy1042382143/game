@@ -201,6 +201,59 @@
   }
 
   /* =========================================================
+     法师 AoE 预警圈与爆发（世界坐标）
+     ========================================================= */
+  function drawMageAoes() {
+    for (const a of state.mageAoes) {
+      const prog = clamp(a.t / a.warn, 0, 1);
+      // 预警圈：紫色底 + 进度环
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, a.r, 0, PI2);
+      ctx.fillStyle = 'rgba(139,92,246,0.10)';
+      ctx.fill();
+      ctx.strokeStyle = '#a78bfa';
+      ctx.globalAlpha = 0.85;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, a.r * 0.55, -Math.PI / 2, -Math.PI / 2 + prog * PI2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#a78bfa';
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /* =========================================================
+     宝箱怪：预警指向线 + 跳扑轨迹
+     ========================================================= */
+  function drawMimicTelegraphs() {
+    for (const e of state.foes) {
+      if (e.dead || !e.tele) continue;
+      const n = e.tele.n;
+      const len = 230;
+      const prog = clamp(1 - e.tele.t / CFG.mimic.tele, 0, 1);
+      ctx.globalAlpha = 0.35 + 0.45 * prog;
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([10, 6]);
+      ctx.beginPath();
+      ctx.moveTo(e.x, e.y);
+      ctx.lineTo(e.x + n.x * len, e.y + n.y * len);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // 蓄力圈收缩
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r + 8 - 6 * prog, 0, PI2);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /* =========================================================
      实体（世界坐标）
      ========================================================= */
   function drawUnit(u, isPlayer) {
@@ -224,7 +277,10 @@
     // 身体
     ctx.beginPath();
     ctx.arc(x, y, u.r, 0, Math.PI * 2);
-    ctx.fillStyle = u.flashT > 0 ? '#ffffff' : (isPlayer ? '#3b82f6' : (u.type === 'boss' ? '#dc2626' : '#b45309'));
+    const bodyC = {
+      boss: '#dc2626', mage: '#8b5cf6', mimic: '#d97706', ranged: '#b45309', melee: '#92400e'
+    }[u.type] || '#b45309';
+    ctx.fillStyle = u.flashT > 0 ? '#ffffff' : (isPlayer ? '#3b82f6' : bodyC);
     ctx.fill();
     ctx.lineWidth = isPlayer ? 2.5 : 2;
     ctx.strokeStyle = isPlayer ? '#93c5fd' : (u.type === 'boss' ? '#fca5a5' : (u.elite ? '#fbbf24' : '#d9a05b'));
@@ -457,10 +513,12 @@
     drawArena();
     drawZones();
     drawHazards();
+    drawMageAoes();
     drawSites();
     drawChests();
     drawOrbitBlades();
     drawBullets();
+    drawMimicTelegraphs();
     state.foes.forEach(f => drawUnit(f, false));
     if (state.player) drawUnit(state.player, true);
     drawFloaters();
@@ -469,6 +527,28 @@
     // 屏幕空间层
     drawMinimap();
     drawBanner();
+    drawCrosshair();
+  }
+
+  /** 鼠标准星（画布逻辑坐标，屏幕空间） */
+  function drawCrosshair() {
+    const m = G.engine && G.engine.mouse;
+    if (!m || !m.active || !state.player || state.phase !== 'play') return;
+    ctx.strokeStyle = 'rgba(147,197,253,0.9)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(m.cx, m.cy, 9, 0, PI2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(m.cx - 14, m.cy); ctx.lineTo(m.cx - 4, m.cy);
+    ctx.moveTo(m.cx + 4, m.cy); ctx.lineTo(m.cx + 14, m.cy);
+    ctx.moveTo(m.cx, m.cy - 14); ctx.lineTo(m.cx, m.cy - 4);
+    ctx.moveTo(m.cx, m.cy + 4); ctx.lineTo(m.cx, m.cy + 14);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(m.cx, m.cy, 1.5, 0, PI2);
+    ctx.fillStyle = '#93c5fd';
+    ctx.fill();
   }
 
   Object.assign(G, { render: { init, frame }, camera: cam });

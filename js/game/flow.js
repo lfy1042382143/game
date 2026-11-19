@@ -35,6 +35,7 @@
     state.activeSite = null;
     state.spawnT = 0;
     state.eliteT = 0;
+    state.mageAoes = [];
     state.mapIdx = 0;
     state.obsT = 0;
     state.player = G.makePlayer();

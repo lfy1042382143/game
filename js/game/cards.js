@@ -40,6 +40,16 @@
     { key: 'def', name: '防御', icon: '🛡', kind: 'attr', attr: 'def' }
   ];
 
+  /** 升级效率卡：每 2 级加入属性池（击杀经验 +15%，可叠加） */
+  const XP_CARD = {
+    key: 'xpgain', name: '升级效率', icon: '✨', kind: 'mode',
+    max: p => (p.xpMul || 1) >= 2.5,
+    desc: p => (p.xpMul || 1) > 1
+      ? '获得经验再 +15%（当前 +' + Math.round((p.xpMul - 1) * 100) + '%）· 升级更快'
+      : '击杀获得的经验 +15% · 升级更快（可叠加）',
+    apply(p) { p.xpMul = Math.min(2.5, (p.xpMul || 1) + 0.15); }
+  };
+
   /* =========================================================
      攻击方式卡池（每 modeEvery 级出现一次；全部有上限）
      ========================================================= */
@@ -144,6 +154,20 @@
       攻击方式卡池抽干（全部达到上限）时回落为属性卡，避免空弹窗卡死 */
   function makeLevelCards(p) {
     const isModeLevel = p.level % CFG.levelup.modeEvery === 0;
+
+    // 每 2 级（非攻击方式级）：必含一张升级效率卡，其余随机属性
+    if (!isModeLevel && p.level % 2 === 0 && !XP_CARD.max(p)) {
+      const bag = ATTR_POOL.slice();
+      const out = [Object.assign({}, XP_CARD)];
+      while (out.length < 3 && bag.length) {
+        const i = Math.floor(Math.random() * bag.length);
+        const card = bag.splice(i, 1)[0];
+        const ri = rollRarity(p.level, p.luck);
+        out.push(Object.assign({}, card, { ri, val: ATTR_META[card.attr].vals[ri] }));
+      }
+      return out;
+    }
+
     let pool = isModeLevel
       ? MODE_POOL.filter(c => !c.max(p))
       : ATTR_POOL.slice();
@@ -176,7 +200,7 @@
     } else {
       icon = card.icon; label = card.name;
       note = typeof card.desc === 'function' ? card.desc(state.player) : card.desc;
-      val = { orbit: '+2', range: '+15%', velocity: '+18%', leech: '+6%', slow: '−18%', aegis: '10/8s', crit: '×2.2', luck: '+1' }[card.key] || '+1';
+      val = { orbit: '+2', range: '+15%', velocity: '+18%', leech: '+6%', slow: '−18%', aegis: '10/8s', crit: '×2.2', luck: '+1', xpgain: '+15%' }[card.key] || '+1';
     }
     const node = document.createElement('div');
     node.className = 'up-card' + (card.kind === 'attr' && card.ri === 4 ? ' gold' : '');
@@ -285,5 +309,5 @@
     }
   }
 
-  Object.assign(G, { rollRarity, makeLevelCards, renderCard, renderEqPanel, showLevelUp, chooseLevelCard, MODE_POOL, ATTR_POOL, ATTR_META });
+  Object.assign(G, { rollRarity, makeLevelCards, renderCard, renderEqPanel, showLevelUp, chooseLevelCard, MODE_POOL, ATTR_POOL, ATTR_META, XP_CARD });
 })(window.ABYSS = window.ABYSS || {});

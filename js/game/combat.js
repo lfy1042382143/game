@@ -162,8 +162,9 @@
   function gainXp(amount) {
     const p = state.player;
     if (!p || !amount) return;
-    p.xp += amount;
-    floatText(p, '+' + amount + ' XP', '#c4b5fd');
+    const gain = Math.max(1, Math.round(amount * (p.xpMul || 1)));   // 升级效率卡：经验获取加成
+    p.xp += gain;
+    floatText(p, '+' + gain + ' XP', '#c4b5fd');
     while (p.xp >= xpNeed(p.level)) {
       p.xp -= xpNeed(p.level);
       p.level++;

@@ -83,7 +83,7 @@
 
     let n;
     if (d > C.keepMax + 140) {
-      n = G.norm(p.x - e.x, p.y - e.y);          // 太远：冲刺追击（打破风筝死锁）
+      n = G.norm(p.x - e.x, p.y - e.y);          // 太远：冲刺追击
       moveEnemy(e, n, dt, mul * 2.6);
     } else if (d > C.keepMax) {
       n = G.norm(p.x - e.x, p.y - e.y);          // 距离带外：加速靠近
@@ -103,6 +103,99 @@
     if (e.atkCd <= 0) {
       G.fireEnemyBullet(e, p.x, p.y, C.bulletSpeed);
       e.atkCd = C.shootCd;
+    }
+  }
+
+  /* =========================================================
+     法师：完全不动，原地咏唱小范围 AoE
+     咏唱 → 玩家当前位置出现预警圈 → warn 后爆发（对圈内所有单位）
+     ========================================================= */
+  function updateMage(e, dt) {
+    const p = state.player;
+    if (!p || p.dead) return;
+    e.atkCd -= dt;
+    if (e.atkCd <= 0) {
+      e.atkCd = CFG.mage.castCd;
+      state.mageAoes.push({
+        x: p.x, y: p.y,
+        r: CFG.mage.aoeR,
+        warn: CFG.mage.warn,
+        t: 0,
+        dmg: e.atk,
+        owner: e
+      });
+    }
+  }
+
+  /** 法师 AoE 预警与爆发（对玩家与敌人都生效，可以借位打怪） */
+  function updateMageAoes(dt) {
+    for (let i = state.mageAoes.length - 1; i >= 0; i--) {
+      const a = state.mageAoes[i];
+      if (a.owner.dead) { state.mageAoes.splice(i, 1); continue; }
+      a.t += dt;
+      if (a.t < a.warn) continue;
+
+      // 爆发：圈内的所有单位（法师本人免疫自己的爆炸）
+      const p = state.player;
+      if (p && !p.dead && G.dist(a.x, a.y, p.x, p.y) < a.r) {
+        dealDamage(a.owner, p, a.dmg);
+      }
+      for (const f of state.foes) {
+        if (f.dead || f === a.owner) continue;
+        if (G.dist(a.x, a.y, f.x, f.y) < a.r) dealDamage(a.owner, f, a.dmg);
+      }
+      state.mageAoes.splice(i, 1);
+    }
+  }
+
+  /* =========================================================
+     宝箱怪：跳跃式攻击
+     爬行接近 → 距离足够时锁定直线方向并预警 → 沿直线高速跳扑
+     突进期间接触玩家造成一次伤害，然后进入冷却
+     ========================================================= */
+  function updateMimic(e, dt) {
+    const p = state.player;
+    if (!p || p.dead) { e.tele = null; e.dash = null; return; }
+    const C = CFG.mimic;
+
+    // 跳扑突进中：沿锁定方向直线冲
+    if (e.dash) {
+      e.dash.t -= dt;
+      const n = e.dash.n;
+      e.x += n.x * C.dashSpd * dt;
+      e.y += n.y * C.dashSpd * dt;
+      e.x = clamp(e.x, e.r, CFG.world.w - e.r);
+      e.y = clamp(e.y, e.r, CFG.world.h - e.r);
+      // 突进期间接触玩家造成一次伤害
+      if (!e.dash.hitDone && G.dist(e.x, e.y, p.x, p.y) < e.r + p.r + 4) {
+        dealDamage(e, p, e.atk * G.frenzyMul(e));
+        e.dash.hitDone = true;
+      }
+      if (e.dash.t <= 0) { e.dash = null; e.lungeT = C.cd; }
+      return;
+    }
+
+    // 预警阶段：方向已锁定，原地蓄力（硬直）
+    if (e.tele) {
+      e.tele.t -= dt;
+      if (e.tele.t <= 0) {
+        e.dash = { n: e.tele.n, t: C.dashDur, hitDone: false };
+        e.tele = null;
+        if (G.sfxHurt) G.sfxHurt();
+      }
+      return;
+    }
+
+    // 冷却阶段：缓慢爬行接近
+    e.lungeT -= dt;
+    const d = G.dist(e.x, e.y, p.x, p.y);
+    if (d > 90) {
+      const n = G.norm(p.x - e.x, p.y - e.y);
+      moveEnemy(e, n, dt, 1);
+    }
+    if (e.lungeT <= 0 && d < C.triggerDist) {
+      // 锁定当前朝向玩家的直线，进入预警（玩家可侧移躲开）
+      e.tele = { t: C.tele, n: G.norm(p.x - e.x, p.y - e.y) };
     }
   }
 
@@ -152,15 +245,18 @@
 
       if (e.type === 'melee') updateMelee(e, dt);
       else if (e.type === 'ranged') updateRanged(e, dt);
+      else if (e.type === 'mage') updateMage(e, dt);
+      else if (e.type === 'mimic') updateMimic(e, dt);
       else if (e.type === 'boss') updateBoss(e, dt);
 
-      // 帧末速度（供玩家预判瞄准）
+      // 帧末速度
       e.vx = (e.x - e.lx) / dt;
       e.vy = (e.y - e.ly) / dt;
     }
 
+    updateMageAoes(dt);
     separate(alive);
   }
 
-  Object.assign(G, { updateEnemies });
+  Object.assign(G, { updateEnemies, updateMageAoes, updateMimic, updateMage });
 })(window.ABYSS = window.ABYSS || {});

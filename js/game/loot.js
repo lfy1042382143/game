@@ -149,14 +149,17 @@
     const m = G.makeEnemy(state.wave, state.kills);
     m.x = chest.x;
     m.y = chest.y;
-    m.type = 'melee';
-    m.speed = CFG.melee.speed * 1.1;
+    m.type = 'mimic';
+    m.speed = CFG.mimic.crawl;
     m.name = '宝箱怪';
     m.emoji = '🎁';
     m.baseHp = Math.round(m.baseHp * 1.6);
-    m.baseAtk = Math.round(m.baseAtk * 1.1);
+    m.baseAtk = Math.round(m.baseAtk * 1.15);
     m.xp = Math.round(m.xp * 2);          // 惩罚风险，奖励经验
     m.mimic = true;
+    m.lungeT = 1.1;                        // 首次跳扑延迟
+    m.tele = null;
+    m.dash = null;
     G.refresh(m);
 
     state.foes.push(m);

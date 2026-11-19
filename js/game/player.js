@@ -65,9 +65,9 @@
     /* ---------- 自动射击 ---------- */
     p.atkT -= dt;
     if (p.atkT <= 0) {
-      const t = nearestFoe(p);
-      if (t) {
-        fireVolley(p, t);
+      // 只要射程内有敌人就朝鼠标方向开火（无鼠标时兜底瞄准最近敌人）
+      if (nearestFoe(p)) {
+        fireVolley(p);
         p.atkT = effAtkCd(p);
       } else {
         p.atkT = 0.08;
@@ -88,9 +88,20 @@
     return best;
   }
 
-  /** 一次射击：shots 支箭矢扇形散开，暴击节拍整轮共享
-      瞄准带预判提前量（按目标当前速度外推），否则打不中侧向环绕的敌人 */
-  function fireVolley(p, target) {
+  /** 瞄准点：鼠标方向优先（画布逻辑坐标 + 相机偏移 = 世界坐标）；
+      无鼠标环境（触屏/无头测试）兜底最近敌人 */
+  function aimPoint(p) {
+    const m = G.engine.mouse;
+    if (m && m.active) {
+      const cam = (G.render && G.render.camera) || { x: 0, y: 0 };
+      return { x: m.cx + cam.x, y: m.cy + cam.y };
+    }
+    const t = nearestFoe(p);
+    return t ? { x: t.x, y: t.y } : { x: p.x + 1, y: p.y };
+  }
+
+  /** 一次射击：shots 支箭矢朝鼠标方向扇形散开，暴击节拍整轮共享 */
+  function fireVolley(p) {
     p.strikes++;
     let crit = false;
     let mult = 1;
@@ -106,16 +117,9 @@
     }
 
     const bSpd = CFG.player.bulletSpeed * p.bulletSpeedMul;
+    const aim = aimPoint(p);
+    const baseA = Math.atan2(aim.y - p.y, aim.x - p.x);
 
-    // 预判：两次迭代求提前量（飞行时间 × 目标速度）
-    let ax = target.x, ay = target.y;
-    for (let k = 0; k < 2; k++) {
-      const tof = G.dist(p.x, p.y, ax, ay) / bSpd;
-      ax = target.x + (target.vx || 0) * tof;
-      ay = target.y + (target.vy || 0) * tof;
-    }
-
-    const baseA = Math.atan2(ay - p.y, ax - p.x);
     const n = p.shots;
     const life = p.range / bSpd;   // 箭矢飞满射程即消失
     for (let i = 0; i < n; i++) {
