@@ -14,8 +14,11 @@
   /* =========================================================
      属性卡（沿用稀有度体系）
      ========================================================= */
-  function rollRarity(level) {
-    const weights = RARITY.map(r => r.w(level));
+  /** 抽稀有度：幸运值抬升高稀有度权重（白卡不变，稀有度越高增幅越大） */
+  function rollRarity(level, luck) {
+    luck = luck || 0;
+    const tiers = CFG.levelup.luckTier || [0, 0.06, 0.12, 0.20, 0.30];
+    const weights = RARITY.map((r, i) => r.w(level) * (1 + tiers[i] * luck));
     const total = weights.reduce((a, b) => a + b, 0);
     let r = Math.random() * total;
     for (let i = 0; i < RARITY.length; i++) {
@@ -50,13 +53,17 @@
     {
       key: 'multi', name: '散射箭', icon: '🏹', kind: 'mode',
       max: p => p.shots >= 4,
-      desc: '每次射击多射出 1 支箭（扇形散开）',
-      apply(p) { p.shots++; }
+      desc: p => p.shots > 1
+        ? '再多射出 1 支箭（当前 ' + p.shots + ' 支，每支 ' + Math.round(p.shotDmgMul * 100) + '% 攻击）'
+        : '每次射击多射出 1 支箭（扇形散开），每支箭的伤害变为 70% 攻击',
+      apply(p) { p.shots++; p.shotDmgMul = 0.7; }
     },
     {
       key: 'pierce', name: '贯穿箭', icon: '🎯', kind: 'mode',
       max: p => p.pierce >= 3,
-      desc: '箭矢可穿透 1 个额外的敌人',
+      desc: p => p.pierce
+        ? '再穿透 1 个额外的敌人（当前穿透 ' + p.pierce + ' 层，逐层衰减）'
+        : '箭矢可穿透 1 个额外的敌人，穿透伤害为 70% 攻击（逐层再衰减）',
       apply(p) { p.pierce++; }
     },
     {
@@ -71,8 +78,13 @@
     {
       key: 'orbit', name: '环绕飞刃', icon: '🌀', kind: 'mode',
       max: p => p.orbits >= 6,
-      desc: '增加 2 枚绕身飞刃，持续切割靠近的敌人',
-      apply(p) { p.orbits += 2; }
+      desc: p => p.orbits
+        ? '再增加 2 枚飞刃（当前 ' + p.orbits + ' 枚，每枚 ' + Math.round(p.orbitDmgMul * 100) + '% 攻击）'
+        : '增加 2 枚绕身飞刃（每枚 60% 攻击），飞刃越多单枚伤害越低',
+      apply(p) {
+        p.orbits += 2;
+        p.orbitDmgMul = Math.max(0.3, p.orbitDmgMul * 0.85);
+      }
     },
     {
       key: 'crit', name: '暴击节奏', icon: '💥', kind: 'mode',
@@ -117,10 +129,18 @@
         if (!p.shieldEvery) { p.shieldEvery = 8; p.shieldVal = 10; }
         else { p.shieldEvery = Math.max(3, p.shieldEvery - 2); p.shieldVal += 4; }
       }
+    },
+    {
+      key: 'luck', name: '幸运', icon: '🍀', kind: 'mode',
+      max: p => p.luck >= 8,
+      desc: p => p.luck
+        ? '幸运再 +1（当前 ' + p.luck + '）· 升级选项更容易出现高稀有度'
+        : '幸运 +1：升级属性卡更容易出现精良/稀有/史诗/传说',
+      apply(p) { p.luck++; }
     }
   ];
 
-  /** 抽 3 张不重复：每 modeEvery 级抽攻击方式，其余等级抽三维属性
+  /** 抽 3 张不重复：每 modeEvery 级抽攻击方式/幸运，其余等级抽三维属性
       攻击方式卡池抽干（全部达到上限）时回落为属性卡，避免空弹窗卡死 */
   function makeLevelCards(p) {
     const isModeLevel = p.level % CFG.levelup.modeEvery === 0;
@@ -135,7 +155,7 @@
       const i = Math.floor(Math.random() * bag.length);
       const card = bag.splice(i, 1)[0];
       if (card.kind === 'attr') {
-        const ri = rollRarity(p.level);
+        const ri = rollRarity(p.level, p.luck);
         out.push(Object.assign({}, card, { ri, val: ATTR_META[card.attr].vals[ri] }));
       } else {
         out.push(Object.assign({}, card));
@@ -156,7 +176,7 @@
     } else {
       icon = card.icon; label = card.name;
       note = typeof card.desc === 'function' ? card.desc(state.player) : card.desc;
-      val = { orbit: '+2', range: '+15%', velocity: '+18%', leech: '+6%', slow: '−18%', aegis: '10/8s', crit: '×2.2' }[card.key] || '+1';
+      val = { orbit: '+2', range: '+15%', velocity: '+18%', leech: '+6%', slow: '−18%', aegis: '10/8s', crit: '×2.2', luck: '+1' }[card.key] || '+1';
     }
     const node = document.createElement('div');
     node.className = 'up-card' + (card.kind === 'attr' && card.ri === 4 ? ' gold' : '');
@@ -205,7 +225,7 @@
     const p = state.player;
     const isMode = p.level % CFG.levelup.modeEvery === 0;
     G.el.upSub.textContent = isMode
-      ? 'Lv.' + p.level + ' · ⚡ 攻击方式强化 · 选择一项新能力'
+      ? 'Lv.' + p.level + ' · ⚡ 攻击方式 / 🍀 幸运 · 选择一项'
       : 'Lv.' + p.level + ' · 提升一项属性';
     G.el.curHp.textContent = G.fmt(p.maxHp);
     G.el.curAtk.textContent = G.fmt(p.atk);

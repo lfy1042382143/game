@@ -472,6 +472,69 @@ function featureTests() {
   run(1);
   assert(fa.hp < fahp0, 'T14 贯穿箭命中敌人', { fahp0, fh1: fa.hp });
 
+  // T21 数量型强化伤害衰减
+  // T21a 散射箭：2 支箭各 70% 攻击
+  reset();
+  const p21 = G.state.player;
+  p21.atk = 10; p21.atkT = 0;
+  p21.shots = 2; p21.shotDmgMul = 0.7;
+  const m21 = G.makeEnemy(1, 0);
+  m21.type = 'melee'; m21.speed = 0;
+  m21.x = p21.x + 80; m21.y = p21.y;   // 正对扇形中央
+  m21.hp = 100; m21.maxHp = 100;
+  G.state.foes = [m21];
+  const m21hp0 = m21.hp;
+  run(0.9);   // 首轮射击在 0.4s，箭矢 0.32s 后命中；下一轮在 1.2s 不会触发
+  const m21dmg = m21hp0 - m21.hp;
+  assert(m21dmg > 0, 'T21a 散射箭命中敌人', { m21dmg });
+  // 70% 系数下两支箭总伤 ≈ 14（±暴击容差只允许更低），原全额应是 20
+  assert(m21dmg <= 14, 'T21a 单箭伤害为 70% 攻击（两箭 ≤14）', { m21dmg });
+
+  // T21b 贯穿衰减：第二个被穿透的敌人受伤 < 首个
+  reset();
+  const p21b = G.state.player;
+  p21b.pierce = 1;
+  const fall21a = G.makeEnemy(1, 0); fall21a.type = 'melee'; fall21a.speed = 0;
+  const fall21b = G.makeEnemy(1, 0); fall21b.type = 'melee'; fall21b.speed = 0;
+  fall21a.x = p21b.x + 60; fall21a.y = p21b.y; fall21a.hp = 100; fall21a.maxHp = 100;
+  fall21b.x = p21b.x + 160; fall21b.y = p21b.y; fall21b.hp = 100; fall21b.maxHp = 100;
+  G.state.foes = [fall21a, fall21b];
+  G.state.bullets.push({ x: p21b.x, y: p21b.y, vx: 250, vy: 0, r: 5, dmg: 10, crit: false, side: 'p', life: 2, owner: p21b, pierceLeft: 1, hit: [] });
+  run(1);
+  const fd1 = 100 - fall21a.hp, fd2 = 100 - fall21b.hp;
+  assert(fd1 > 0 && fd2 > 0, 'T21b 贯穿命中两个敌人', { fd1, fd2 });
+  assert(fd2 < fd1, 'T21b 穿透伤害衰减（第二目标 < 首目标）', { fd1, fd2 });
+  assert(Math.abs(fd2 - Math.round(fd1 * 0.7)) <= 1, 'T21b 衰减系数为 0.7', { fd1, fd2 });
+
+  // T21c 环绕飞刃：第二张卡后单枚伤害降低
+  reset();
+  const p21c = G.state.player;
+  p21c.orbits = 2; p21c.orbitDmgMul = 0.6; p21c.atk = 10;
+  const mul1 = p21c.orbitDmgMul;
+  const orbitCard = G.MODE_POOL.find(c => c.key === 'orbit');
+  orbitCard.apply(p21c);
+  assert(p21c.orbits === 4, 'T21c 飞刃 +2');
+  assert(p21c.orbitDmgMul < mul1, 'T21c 飞刃伤害系数递减', { mul1, mul2: p21c.orbitDmgMul });
+
+  // T21d 幸运值系统
+  // T21d1 幸运卡在 5 级池中且可叠加、有上限
+  reset();
+  const p21d = G.state.player;
+  p21d.level = 5;
+  const luckCard = G.MODE_POOL.find(c => c.key === 'luck');
+  assert(!!luckCard, 'T21d 幸运卡存在于攻击方式池');
+  luckCard.apply(p21d);
+  luckCard.apply(p21d);
+  assert(p21d.luck === 2, 'T21d 幸运卡每次 +1', p21d.luck);
+  assert(luckCard.max(p21d) === false, 'T21d 幸运未达上限时仍可出现');
+  p21d.luck = 8;
+  assert(luckCard.max(p21d) === true, 'T21d 幸运 8 时达到上限');
+  // T21d2 高幸运显著抬升平均稀有度
+  let baseSum = 0, luckSum = 0;
+  for (let i = 0; i < 800; i++) { baseSum += G.rollRarity(1, 0); luckSum += G.rollRarity(1, 8); }
+  const baseAvg = baseSum / 800, luckAvg = luckSum / 800;
+  assert(luckAvg > baseAvg + 0.15, 'T21d 幸运 8 的平均稀有度显著高于幸运 0', { baseAvg: baseAvg.toFixed(2), luckAvg: luckAvg.toFixed(2) });
+
   // T15 地图陷阱系统
   // T15a 初始地图无陷阱
   reset();

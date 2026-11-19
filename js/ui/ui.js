@@ -83,7 +83,7 @@
       p.items.map(i => i.slot + ':' + i.key + ':' + i.rarity + ':' + i.level).join(','),
       Math.round(p.maxHp), Math.round(p.atk), Math.round(p.def),
       p.shots, p.orbits, p.pierce, p.cardLeech, p.cardSlow,
-      p.critEvery, p.atkCdMul.toFixed(2), Math.round(p.range)
+      p.critEvery, p.atkCdMul.toFixed(2), Math.round(p.range), p.luck
     ].join('|');
     if (sig === lastEqSig) return;
     lastEqSig = sig;
@@ -97,7 +97,8 @@
         '<span class="eq-stat hp"><i>❤</i><b>' + Math.round(p.maxHp) + '</b><small>(基础' + Math.round(p.baseHp) + ')</small></span>' +
         '<span class="eq-stat atk"><i>⚔</i><b>' + Math.round(p.atk) + '</b><small>(基础' + Math.round(p.baseAtk) + ')</small></span>' +
         '<span class="eq-stat def"><i>🛡</i><b>' + Math.round(p.def) + '</b><small>(基础' + Math.round(p.baseDef) + ')</small></span>' +
-        '<span class="eq-stat"><i>📡</i><b>' + Math.round(p.range) + '</b><small>射程</small></span>';
+        '<span class="eq-stat"><i>📡</i><b>' + Math.round(p.range) + '</b><small>射程</small></span>' +
+        '<span class="eq-stat"><i>🍀</i><b>' + (p.luck || 0) + '</b><small>幸运</small></span>';
     // 装备词条
     const extras = [];
     if (A.leech) extras.push(['🩸', '吸血', A.leech + '%']);

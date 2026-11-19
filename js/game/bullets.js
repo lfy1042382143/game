@@ -50,7 +50,9 @@
         for (const f of state.foes) {
           if (f.dead || b.hit.indexOf(f) >= 0) continue;
           if (G.dist(b.x, b.y, f.x, f.y) < b.r + f.r) {
-            const dealt = dealDamage(p, f, b.dmg, { crit: b.crit });
+            // 贯穿衰减：每次穿透后伤害 ×0.7（首目标全额，后续逐层递减）
+            const falloff = Math.pow(0.7, b.pierceHits || 0);
+            const dealt = dealDamage(p, f, Math.max(1, Math.round(b.dmg * falloff)), { crit: b.crit });
             // 血刃：命中附加流血（多件只取最强，聚合时已处理）
             if (dealt > 0 && p.agg.bleed) applyBleed(f, p.agg.bleed);
             // 吸血箭：命中按伤害比例回血
@@ -64,6 +66,7 @@
             if (b.pierceLeft > 0) {
               // 贯穿：穿过这个敌人继续飞
               b.pierceLeft--;
+              b.pierceHits = (b.pierceHits || 0) + 1;
               b.hit.push(f);
             } else {
               dead = true;

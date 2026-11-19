@@ -124,7 +124,7 @@
       state.bullets.push({
         x: p.x + v.x * (p.r + 4), y: p.y + v.y * (p.r + 4),
         vx: v.x * bSpd, vy: v.y * bSpd,
-        r: 5, dmg: p.atk * mult, crit,
+        r: 5, dmg: p.atk * mult * p.shotDmgMul, crit,
         side: 'p', life, owner: p,
         pierceLeft: p.pierce,
         hit: []
@@ -138,7 +138,6 @@
      ========================================================= */
   const ORBIT_R = 64;
   const ORBIT_SPD = 2.6;
-  const ORBIT_DMG_MUL = 0.6;
   const ORBIT_CD = 0.5;
 
   function updateOrbitBlades(p, dt) {
@@ -150,7 +149,7 @@
       if (f.orbitCd > 0) { f.orbitCd -= dt; continue; }
       for (const b of blades) {
         if (G.dist(b.x, b.y, f.x, f.y) < 10 + f.r) {
-          G.dealDamage(p, f, p.atk * ORBIT_DMG_MUL);
+          G.dealDamage(p, f, p.atk * p.orbitDmgMul);
           f.orbitCd = ORBIT_CD;
           break;
         }

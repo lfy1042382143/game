@@ -107,8 +107,11 @@
     p.xp = 0;
     p.atkCdMul = 1;        // 攻速乘算系数（攻速提升卡）
     p.shots = 1;           // 每次射击的箭矢数（散射箭）
+    p.shotDmgMul = 1;      // 多箭时的单箭伤害系数（散射箭：0.7）
     p.pierce = 0;          // 箭矢贯穿数（贯穿箭）
     p.orbits = 0;          // 环绕飞刃数量
+    p.orbitDmgMul = 0.6;   // 环绕飞刃单次伤害系数（随卡数递减）
+    p.luck = 0;            // 幸运值（幸运卡：提升升级选项高稀有度权重）
     p.rangeMul = 1;        // 射程乘算系数（射程提升卡）
     p.range = C.range;     // 当前射程（nearestFoe 与箭矢寿命都用它）
     p.critEvery = 0;       // 暴击节拍（0 = 无；每 N 发必暴）
