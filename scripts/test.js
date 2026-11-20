@@ -941,12 +941,19 @@ function featureTests() {
   run(0.3);
   assert(G.state.phase === 'levelup', 'T18c 普通宝箱仍正常弹出强化选项');
 
-  // T19 实时属性侧边栏（装备模块已移除，只显示属性与能力）
+  // T19 双侧边栏：右侧只放攻击方式（维度等级），左侧放属性（三维置顶）+ 输出统计
   reset();
   G.ui.syncTopbar();
   const side = sandbox.document._els.eqSide;
-  assert(side && side.innerHTML.indexOf('⚔ 属性') >= 0, 'T19a 侧边栏已渲染属性与能力');
-  assert(side.innerHTML.indexOf('空置') < 0 && side.innerHTML.indexOf('eq-slot') < 0, 'T19b 装备槽位已从侧边栏移除');
+  const dmgSideT19 = sandbox.document._els.dmgSide;
+  assert(side && side.innerHTML.indexOf('🗡️ 攻击方式') >= 0 && side.innerHTML.indexOf('sk-dim') >= 0,
+    'T19a 右侧栏渲染攻击方式与维度等级');
+  assert(!!dmgSideT19 && dmgSideT19.innerHTML.indexOf('属性') >= 0 && dmgSideT19.innerHTML.indexOf('输出统计') >= 0,
+    'T19a 左侧栏渲染属性与输出统计');
+  assert(side.innerHTML.indexOf('生命') < 0 && dmgSideT19.innerHTML.indexOf('生命') >= 0,
+    'T19a 三维等非攻击属性已移到左侧');
+  assert(side.innerHTML.indexOf('空置') < 0 && side.innerHTML.indexOf('eq-slot') < 0
+    && dmgSideT19.innerHTML.indexOf('空置') < 0, 'T19b 装备槽位已从两侧边栏移除');
 
   // T20 伤害不超过目标当前血量（溢出不结算）
   reset();

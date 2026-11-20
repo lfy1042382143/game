@@ -14,66 +14,91 @@
 
   /* =========================================================
      线与维度定义（dims 顺序即卡池内文案顺序）
+     eff(lv) 返回该维度在 Lv.lv 时的具体效果描述（卡牌与侧边栏共用）
      ========================================================= */
   const LINES = {
     arrow: {
       name: '箭矢', icon: '🏹',
-      unlockDesc: '解锁箭矢：自动持续射击（初始 1 支）',
+      unlockDesc: '解锁箭矢：自动朝鼠标/最近敌人持续射击（初始 1 支，100% 攻击）',
       dims: [
-        { key: 'count',  name: '箭矢数量', icon: '🏹', max: 4, desc: '每次射击 +1 支箭矢' },
-        { key: 'rate',   name: '射速提升', icon: '⚡', max: 4, desc: '射击间隔 −12%' },
-        { key: 'bounce', name: '弹射强化', icon: '🪃', max: 3, desc: '箭矢碰到墙壁/障碍物后反弹 +1 次' },
-        { key: 'pierce', name: '穿透强化', icon: '🎯', max: 3, desc: '箭矢可穿透 +1 名敌人（穿透后伤害 ×0.7）' },
-        { key: 'split',  name: '分裂弹幕', icon: '✴️', max: 3, desc: '箭矢命中后分裂 +1 枚更小、40% 伤害的弹幕' }
+        { key: 'count',  name: '箭矢数量', icon: '🏹', max: 4,
+          eff: lv => '每次射击射出 ' + (1 + lv) + ' 支箭矢' },
+        { key: 'rate',   name: '射速提升', icon: '⚡', max: 4,
+          eff: lv => '射击间隔 ' + (CFG.player.atkCd * Math.pow(0.88, lv)).toFixed(2) + ' 秒/发' },
+        { key: 'bounce', name: '弹射强化', icon: '🪃', max: 3,
+          eff: lv => lv ? '箭矢碰墙/障碍物后反弹 ' + lv + ' 次，可再次命中' : '箭矢碰墙/障碍物即消失' },
+        { key: 'pierce', name: '穿透强化', icon: '🎯', max: 3,
+          eff: lv => lv ? '箭矢可穿过 ' + lv + ' 名敌人继续飞行（每次穿透伤害 ×0.7）' : '命中第一个敌人后消失' },
+        { key: 'split',  name: '分裂弹幕', icon: '✴️', max: 3,
+          eff: lv => lv ? '箭矢命中后分裂出 ' + lv + ' 枚更小的弹幕（各 40% 伤害）' : '命中不分裂' }
       ]
     },
     chain: {
       name: '连锁闪电', icon: '⚡',
-      unlockDesc: '解锁连锁闪电：周期性劈向最近敌人并弹射跳跃',
+      unlockDesc: '解锁连锁闪电：每 4.2 秒劈向最近敌人并沿敌人弹射跳跃（初始 50% 攻击）',
       dims: [
-        { key: 'jumps', name: '弹射数量', icon: '🔗', max: 4, desc: '闪电弹射目标 +1' },
-        { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4, desc: '闪电伤害 +15%（初始伤害较低，靠升级成长）' },
-        { key: 'rate',  name: '攻击频率', icon: '⏱️', max: 4, desc: '闪电攻击间隔 −12%' },
-        { key: 'bolts', name: '闪电数量', icon: '🌩️', max: 3, desc: '每次攻击额外发出 +1 道独立闪电' }
+        { key: 'jumps', name: '弹射数量', icon: '🔗', max: 4,
+          eff: lv => '每次攻击弹射跳跃 ' + (2 + lv) + ' 个目标（可重复累计）' },
+        { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
+          eff: lv => '每道闪电造成 ' + Math.round((0.5 + 0.15 * lv) * 100) + '% 攻击的伤害' },
+        { key: 'rate',  name: '攻击频率', icon: '⏱️', max: 4,
+          eff: lv => '每 ' + (4.2 * Math.pow(0.88, lv)).toFixed(2) + ' 秒发动一轮攻击' },
+        { key: 'bolts', name: '闪电数量', icon: '🌩️', max: 3,
+          eff: lv => '每次攻击同时发出 ' + (1 + lv) + ' 道独立闪电（各自弹射）' }
       ]
     },
     shock: {
       name: '震荡波', icon: '💥',
-      unlockDesc: '解锁震荡波：周期性释放环形冲击',
+      unlockDesc: '解锁震荡波：每 6 秒以自身为中心释放环形冲击（初始 60% 攻击）',
       dims: [
-        { key: 'range', name: '范围扩大', icon: '🌐', max: 4, desc: '冲击波半径 +24' },
-        { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4, desc: '震荡波伤害 +20%' },
-        { key: 'rate',  name: '释放频率', icon: '⏱️', max: 4, desc: '释放间隔 −12%' },
-        { key: 'echo',  name: '连锁震荡', icon: '〰️', max: 3, desc: '命中敌人后产生 +1 道更小的次级震荡波' }
+        { key: 'range', name: '范围扩大', icon: '🌐', max: 4,
+          eff: lv => '冲击波半径 ' + (110 + 24 * lv) + ' 像素' },
+        { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
+          eff: lv => '冲击波造成 ' + Math.round((0.6 + 0.2 * lv) * 100) + '% 攻击的伤害' },
+        { key: 'rate',  name: '释放频率', icon: '⏱️', max: 4,
+          eff: lv => '每 ' + (6 * Math.pow(0.88, lv)).toFixed(2) + ' 秒释放一次' },
+        { key: 'echo',  name: '连锁震荡', icon: '〰️', max: 3,
+          eff: lv => lv ? '命中敌人后在其位置产生 ' + lv + ' 道次级震荡波（半径 45%、伤害 50%）' : '不产生次级震荡波' }
       ]
     },
     orbit: {
       name: '环绕飞刃', icon: '🌀',
-      unlockDesc: '解锁环绕飞刃：每隔一段时间展开一批旋转飞刃',
+      unlockDesc: '解锁环绕飞刃：每隔 5 秒展开一批绕身旋转的飞刃，接触敌人造成 60% 攻击伤害',
       dims: [
-        { key: 'count', name: '飞刃数量', icon: '🌀', max: 4, desc: '每批 +2 枚飞刃' },
-        { key: 'rate',  name: '出现频率', icon: '⏱️', max: 4, desc: '下次出现的间隔 −12%' },
-        { key: 'range', name: '范围扩大', icon: '🌐', max: 4, desc: '绕行半径 +10' },
-        { key: 'speed', name: '转速提升', icon: '💨', max: 4, desc: '旋转速度 +22%' }
+        { key: 'count', name: '飞刃数量', icon: '🌀', max: 4,
+          eff: lv => '每批 ' + (2 + 2 * lv) + ' 枚飞刃均匀环绕' },
+        { key: 'rate',  name: '出现频率', icon: '⏱️', max: 4,
+          eff: lv => '每 ' + (5 * Math.pow(0.88, lv)).toFixed(2) + ' 秒展开一批（持续约 ' + (5 * Math.pow(0.88, lv) * 0.62).toFixed(1) + ' 秒）' },
+        { key: 'range', name: '范围扩大', icon: '🌐', max: 4,
+          eff: lv => '绕行半径 ' + (62 + 10 * lv) + ' 像素' },
+        { key: 'speed', name: '转速提升', icon: '💨', max: 4,
+          eff: lv => '旋转速度加快 ' + (lv * 22) + '%（更快触碰敌人）' }
       ]
     },
     drone: {
       name: '浮游炮', icon: '🔮',
-      unlockDesc: '解锁浮游炮：停在玩家周围射击，可拦截敌人弹幕，存活时间有限',
+      unlockDesc: '解锁浮游炮：停在玩家周围射击（50% 攻击），可拦截敌方弹幕，存活 4 秒后收回',
       dims: [
-        { key: 'count', name: '浮游炮数量', icon: '🔮', max: 3, desc: '每次部署 +1 座浮游炮' },
-        { key: 'dmg',   name: '子弹伤害', icon: '🗡️', max: 4, desc: '浮游炮子弹伤害 +15%' },
-        { key: 'life',  name: '存在时间', icon: '⌛', max: 3, desc: '浮游炮存活时间 +1.5 秒' }
+        { key: 'count', name: '浮游炮数量', icon: '🔮', max: 3,
+          eff: lv => '每次部署 ' + (1 + lv) + ' 座浮游炮（环绕玩家四周固定方位）' },
+        { key: 'dmg',   name: '子弹伤害', icon: '🗡️', max: 4,
+          eff: lv => '每发子弹造成 ' + Math.round((0.5 + 0.15 * lv) * 100) + '% 攻击的伤害' },
+        { key: 'life',  name: '存在时间', icon: '⌛', max: 3,
+          eff: lv => '部署后存活 ' + (4 + 1.5 * lv).toFixed(1) + ' 秒（每 6.5 秒重新部署一批）' }
       ]
     },
     mine: {
       name: '感应地雷', icon: '🧨',
-      unlockDesc: '解锁感应地雷：周期性在身边布雷，敌人靠近即引爆',
+      unlockDesc: '解锁感应地雷：每 4 秒在身边布设地雷（120% 攻击），敌人靠近即引爆',
       dims: [
-        { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4, desc: '地雷伤害 +20%' },
-        { key: 'count', name: '布雷数量', icon: '🧨', max: 3, desc: '每次部署 +1 枚地雷' },
-        { key: 'rate',  name: '部署冷却', icon: '⏱️', max: 4, desc: '下次布雷的间隔 −12%' },
-        { key: 'range', name: '范围扩大', icon: '🌐', max: 4, desc: '爆炸半径 +20' }
+        { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
+          eff: lv => '每枚地雷爆炸造成 ' + Math.round((1.2 + 0.2 * lv) * 100) + '% 攻击的伤害' },
+        { key: 'count', name: '布雷数量', icon: '🧨', max: 3,
+          eff: lv => '每次部署 ' + (1 + lv) + ' 枚地雷（散布在玩家两侧）' },
+        { key: 'rate',  name: '部署冷却', icon: '⏱️', max: 4,
+          eff: lv => '每 ' + (4 * Math.pow(0.88, lv)).toFixed(2) + ' 秒布设一批' },
+        { key: 'range', name: '范围扩大', icon: '🌐', max: 4,
+          eff: lv => '爆炸半径 ' + (70 + 20 * lv) + ' 像素' }
       ]
     }
   };
@@ -191,7 +216,12 @@
           name: L.name + '·' + d.name, icon: d.icon,
           max: p => !p.skills[k] || (p.sd[k][d.key] || 0) >= d.max,
           val: p => 'Lv.' + ((p.sd[k] && p.sd[k][d.key]) || 0) + '→' + (((p.sd[k] && p.sd[k][d.key]) || 0) + 1),
-          desc: () => d.desc,
+          // 详细描述：当前效果 → 升级后效果（具体数值）
+          desc: p => {
+            const cur = (p.sd[k] && p.sd[k][d.key]) || 0;
+            const next = Math.min(d.max, cur + 1);
+            return '当前：' + d.eff(cur) + '<br>升到 Lv.' + next + '：' + d.eff(next);
+          },
           apply(p) {
             p.sd[k][d.key] = (p.sd[k][d.key] || 0) + 1;
             applySkillBuild(p);
