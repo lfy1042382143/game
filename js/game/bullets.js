@@ -70,6 +70,24 @@
     return false;
   }
 
+  /** 分裂弹幕：箭矢命中后分裂出更小、更弱的弹幕（不再继续分裂/穿透） */
+  function spawnSplits(p, b) {
+    const n = (p && p.splitN) || 0;
+    if (n <= 0) return;
+    const base = Math.atan2(b.vy, b.vx);
+    const spd = Math.hypot(b.vx, b.vy) || CFG.player.bulletSpeed;
+    for (let i = 0; i < n; i++) {
+      const a = base + (i - (n - 1) / 2) * 0.55 + (Math.random() * 0.2 - 0.1);
+      state.bullets.push({
+        x: b.x, y: b.y,
+        vx: Math.cos(a) * spd * 0.85, vy: Math.sin(a) * spd * 0.85,
+        r: 3, dmg: Math.max(1, Math.round(b.dmg * 0.4)),
+        side: 'p', life: 0.55, owner: p, hit: [],
+        pierceLeft: 0, noSplit: true, color: '#a5f3fc'
+      });
+    }
+  }
+
   function updateBullets(dt) {
     const p = state.player;
     const W = CFG.world;
@@ -111,9 +129,12 @@
         for (const f of state.foes) {
           if (f.dead || b.hit.indexOf(f) >= 0) continue;
           if (G.dist(b.x, b.y, f.x, f.y) < b.r + f.r) {
+            b.hitFoe = true;   // 标记命中过敌人（死亡时触发分裂弹幕）
             // 贯穿衰减：每次穿透后伤害 ×0.7（首目标全额，后续逐层递减）
             const falloff = Math.pow(0.7, b.pierceHits || 0);
-            const dealt = dealDamage(p, f, Math.max(1, Math.round(b.dmg * falloff)), { crit: b.crit });
+            // 输出统计归集：浮游炮子弹 / 玩家箭矢（分裂弹随箭矢）
+            const tag = b.skill === 'drone' ? 'drone' : 'arrow';
+            const dealt = dealDamage(p, f, Math.max(1, Math.round(b.dmg * falloff)), { crit: b.crit, tag });
             // 血刃：命中附加流血（多件只取最强，聚合时已处理）
             if (dealt > 0 && p.agg.bleed) applyBleed(f, p.agg.bleed);
             // 霜刃：命中使敌人减速（装备词条，自动生效）
@@ -141,11 +162,22 @@
           }
         }
       } else if (!dead && b.side === 'e') {
-        if (p && !p.dead && G.dist(b.x, b.y, p.x, p.y) < b.r + p.r) {
+        // 浮游炮拦截：停留在玩家周围的浮游炮可抵消敌方弹幕
+        if (p && !p.dead && p.skills && p.skills.drone && p.sk && p.sk.drone.active > 0) {
+          const d = p.sk.drone;
+          for (let di = 0; di < d.count; di++) {
+            const dp = G.dronePos(p, di, d.count);
+            if (G.dist(b.x, b.y, dp.x, dp.y) < 15 + b.r) { dead = true; break; }
+          }
+        }
+        if (!dead && p && !p.dead && G.dist(b.x, b.y, p.x, p.y) < b.r + p.r) {
           dealDamage(b.owner, p, b.dmg);
           dead = true;
         }
       }
+
+      // 箭矢命中敌人后消散 → 分裂出小弹幕（分裂弹/浮游炮弹不再分裂）
+      if (dead && b.side === 'p' && b.hitFoe && !b.noSplit) spawnSplits(p, b);
 
       if (dead) state.bullets.splice(i, 1);
     }

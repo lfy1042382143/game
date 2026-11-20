@@ -119,7 +119,7 @@
     });
     state.banner = {
       text: '📦 宝箱掉落',
-      sub: '精英被击败 · 前去拾取装备',
+      sub: '精英被击败 · 前去拾取宝箱（开启获得强化）',
       t: 1.4
     };
   }
@@ -138,7 +138,7 @@
     }
   }
 
-  /** 开启宝箱：宝箱怪现形突袭，否则生成装备战利品并弹出弹窗 */
+  /** 开启宝箱：宝箱怪现形突袭，否则获得一次免费升级选项（装备已移除） */
   function openChest(chest) {
     chest.opened = true;
     state.chests = state.chests.filter(c => c !== chest);
@@ -149,17 +149,14 @@
       return;
     }
 
-    const C = CFG.chests;
-    const n = C.itemsMin + Math.floor(Math.random() * (C.itemsMax - C.itemsMin + 1));
-    state.loots = [];
-    state.lootSlots = [];
-    for (let i = 0; i < n; i++) {
-      const item = rollChestItem(chest.rarBonus || 0);
-      state.loots.push({ item, done: false, result: '', slot: item.slot });
-    }
-
+    // 宝箱 = 一次免费升级三选一（与升级共用同一套卡池与弹窗）
     G.sfxWin();
-    showLoot('宝箱开启 · 获得战利品');
+    grantChestUpgrade();
+  }
+
+  /** 宝箱奖励：+1 次免费升级选择（由 flow.update 统一弹出，与升级共用卡池） */
+  function grantChestUpgrade() {
+    state.pendingChestUps = (state.pendingChestUps || 0) + 1;
   }
 
   /* =========================================================
@@ -419,7 +416,7 @@
 
   Object.assign(G, {
     rollChestItem, spawnChest, dropEliteLoot, checkChests, openChest,
-    spawnMimic, dropMimicLoot,
+    spawnMimic, dropMimicLoot, grantChestUpgrade,
     lootPending, itemScore, planFor, renderLoot,
     takeLoot, skipLoot, skipAll, clearLoot,
     showLoot, continueLoot

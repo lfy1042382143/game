@@ -61,7 +61,7 @@
             if (state.phase === 'play' || state.phase === 'busy') {
               const e = G.makeElite(state.wave, { hpMul: 1.5 });
               state.foes.push(e);
-              state.banner = { text: '⚠ 精英来袭', sub: e.name + ' · 击杀掉落装备宝箱', t: 2 };
+              state.banner = { text: '⚠ 精英来袭', sub: e.name + ' · 击杀掉落宝箱', t: 2 };
             }
           }
         },
@@ -80,20 +80,14 @@
       key: 'merchant',
       name: '神秘商人',
       icon: '🎭',
-      text: '披着斗篷的商人递来一件装备，索要你的生命作为代价。',
+      text: '披着斗篷的商人低声许诺一份强化，索要你的生命作为代价。',
       options: [
         {
-          label: '交易装备',
-          desc: '损失 15% 当前生命，获得一件随机部位装备（自动装备/替换）',
+          label: '购买强化',
+          desc: '损失 15% 当前生命，立即获得一次免费强化三选一',
           apply(p) {
             p.hp = Math.max(1, Math.round(p.hp * 0.85));
-            const slot = G.SLOTS[Math.floor(Math.random() * G.SLOTS.length)].key;
-            const rar = Math.min(4, Math.floor(state.wave * CFG.mon.rarK));
-            const item = G.randomItem(slot, rar, Math.min(CFG.forge.maxLevel, 1 + Math.floor((state.wave - 1) / CFG.mon.eqLvEvery)));
-            const idx = p.items.findIndex(i => i.slot === slot);
-            if (idx >= 0) p.items[idx] = item;
-            else p.items.push(item);
-            G.refresh(p);
+            G.grantChestUpgrade();
           }
         },
         {

@@ -414,8 +414,9 @@
       ctx.beginPath();
       ctx.arc(x, y, b.r, 0, Math.PI * 2);
       if (b.side === 'p') {
-        ctx.fillStyle = b.crit ? '#fbbf24' : '#7dd3fc';
-        ctx.shadowColor = '#38bdf8';
+        // 分裂弹/浮游炮弹自带颜色，与玩家箭矢区分
+        ctx.fillStyle = b.crit ? '#fbbf24' : (b.color || '#7dd3fc');
+        ctx.shadowColor = b.crit ? '#f59e0b' : (b.color || '#38bdf8');
       } else {
         ctx.fillStyle = '#fb7185';
         ctx.shadowColor = '#f43f5e';
@@ -444,70 +445,80 @@
   }
 
   /* =========================================================
-     技能特效：浮游炮 / 地雷 / 震荡波 / 连锁闪电
+     技能特效：浮游炮 / 震荡波 / 次级震荡波 / 连锁闪电
      ========================================================= */
   function drawSkills() {
     const p = state.player;
 
-    // 浮游炮本体
-    if (p && p.droneLv > 0 && !p.dead) {
-      const n = p.sk.drone.count;
-      for (let i = 0; i < n; i++) {
-        const d = G.dronePos(p, i, n);
+    // 浮游炮本体：停在玩家周围固定方位（不旋转），部署期间可见
+    if (p && p.skills && p.skills.drone && p.sk && p.sk.drone.active > 0 && !p.dead) {
+      const d = p.sk.drone;
+      for (let i = 0; i < d.count; i++) {
+        const dp = G.dronePos(p, i, d.count);
+        // 存活时间即将耗尽时闪烁提醒
+        const fading = d.active < 1.2 && (Math.floor(state.time * 6) % 2 === 0);
         ctx.save();
-        ctx.translate(d.x, d.y);
-        ctx.rotate(state.time * 3);
+        ctx.translate(dp.x, dp.y);
+        ctx.globalAlpha = fading ? 0.45 : 1;
         ctx.fillStyle = '#c4b5fd';
         ctx.shadowColor = '#a78bfa';
         ctx.shadowBlur = 10;
         ctx.beginPath();
         ctx.arc(0, 0, 7, 0, Math.PI * 2);
         ctx.fill();
+        ctx.shadowBlur = 0;
         ctx.fillStyle = '#4c1d95';
         ctx.fillRect(-2, -2, 4, 4);
         ctx.restore();
       }
     }
 
-    // 感应地雷
-    (state.mines || []).forEach(m => {
-      ctx.beginPath();
-      ctx.arc(m.x, m.y, 9, 0, Math.PI * 2);
-      ctx.fillStyle = m.armed > 0 ? 'rgba(148,163,184,0.6)' : '#f59e0b';
-      ctx.shadowColor = '#fbbf24';
-      ctx.shadowBlur = 8;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = 'rgba(251,191,36,0.35)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
-      ctx.stroke();
-    });
-
     // 技能特效
     (state.skillFx || []).forEach(fx => {
       if (fx.delay > 0) return;
       const k = clamp(fx.t / fx.dur, 0, 1);
-      if (fx.kind === 'shock' || fx.kind === 'mine') {
+      if (fx.kind === 'shock' || fx.kind === 'shockEcho') {
         const r = fx.r * (0.3 + k * 0.7);
         ctx.beginPath();
         ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
-        ctx.strokeStyle = fx.kind === 'mine'
-          ? 'rgba(251,191,36,' + (1 - k) + ')'
+        ctx.strokeStyle = fx.kind === 'shockEcho'
+          ? 'rgba(147,197,253,' + (1 - k) + ')'
           : 'rgba(125,211,252,' + (1 - k) + ')';
         ctx.lineWidth = 4 * (1 - k) + 1;
+        if (fx.kind === 'shockEcho') ctx.setLineDash([8, 6]);
         ctx.stroke();
+        ctx.setLineDash([]);
       } else if (fx.kind === 'chain') {
+        // 锯齿电弧：外层紫色辉光 + 内层白色核心，醒目
+        ctx.save();
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(fx.pts[0].x, fx.pts[0].y);
         for (let i = 1; i < fx.pts.length; i++) ctx.lineTo(fx.pts[i].x, fx.pts[i].y);
-        ctx.strokeStyle = 'rgba(196,181,253,' + (1 - k) + ')';
         ctx.shadowColor = '#a78bfa';
-        ctx.shadowBlur = 12;
-        ctx.lineWidth = 3;
+        ctx.shadowBlur = 18;
+        ctx.strokeStyle = 'rgba(167,139,250,' + (1 - k) + ')';
+        ctx.lineWidth = 6 * (1 - k) + 2;
         ctx.stroke();
+        ctx.shadowBlur = 8;
+        ctx.strokeStyle = 'rgba(255,255,255,' + (1 - k) + ')';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      } else if (fx.kind === 'zap') {
+        // 闪电命中点闪光
+        ctx.beginPath();
+        ctx.arc(fx.x, fx.y, fx.r * (0.4 + k * 0.8), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(196,181,253,' + (1 - k) * 0.75 + ')';
+        ctx.shadowColor = '#a78bfa';
+        ctx.shadowBlur = 14;
+        ctx.fill();
         ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.arc(fx.x, fx.y, fx.r * 0.4 * (1 - k), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,' + (1 - k) + ')';
+        ctx.fill();
       }
     });
   }
@@ -681,6 +692,9 @@
     drawMinimap();
     drawBanner();
     drawCrosshair();
+    // 左：输出统计；右：属性/攻击方式（内部有变化签名节流，仅变化时写 DOM）
+    if (G.ui && G.ui.syncEqPanel) G.ui.syncEqPanel();
+    if (G.ui && G.ui.syncDmgPanel) G.ui.syncDmgPanel();
   }
 
   /** 鼠标准星（画布逻辑坐标，屏幕空间） */

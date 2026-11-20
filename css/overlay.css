@@ -551,6 +551,24 @@
 }
 .over-best b { color: #f5c451; }
 
+/* 结算弹窗 · 输出统计 */
+.over-dmg {
+  width: min(420px, 100%);
+  margin: 0 auto clamp(16px, 2.4vh, 24px);
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .035);
+  border: 1px solid rgba(255, 255, 255, .07);
+  text-align: left;
+}
+.over-dmg-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ddd8ee;
+  letter-spacing: .12em;
+  margin-bottom: 10px;
+}
+
 .btn-again {
   background: linear-gradient(160deg, #ffe08a, #f5b53c 55%, #e08a1e);
   box-shadow: 0 10px 30px -8px rgba(245, 181, 60, .7), inset 0 1px 0 rgba(255, 255, 255, .5);

@@ -22,6 +22,7 @@
     state.loots = [];
     state.lootSlots = [];
     state.pendingLevelUps = 0;
+    state.pendingChestUps = 0;    // 宝箱强化（免费升级选项）待处理数
     state.pendingRage = false;
     state.trapFoeHpMul = 1;
     state.trapFoeAtkMul = 1;
@@ -38,6 +39,7 @@
     state.mageAoes = [];
     state.skillFx = [];
     state.mines = [];
+    state.dmgStats = { arrow: 0, chain: 0, shock: 0, orbit: 0, drone: 0, mine: 0 };  // 输出统计
     state.mapIdx = 0;
     state.obsT = 0;
     state.player = G.makePlayer();
@@ -221,8 +223,8 @@
       if (state.banner.t <= 0) state.banner = null;
     }
 
-    // 升级弹窗：战斗中攒够经验立即处理
-    if (state.pendingLevelUps > 0) {
+    // 升级弹窗：战斗中攒够经验立即处理（宝箱免费强化同样入队后统一弹出）
+    if (state.pendingLevelUps > 0 || (state.pendingChestUps || 0) > 0) {
       G.showLevelUp();
     }
   }

@@ -221,37 +221,82 @@ function featureTests() {
   const p15 = G.state.player;
   const lv0 = p15.level;
   const atk0 = p15.baseAtk, hp0b = p15.baseHp;
+  p15.hp = 10;                          // 先压低血量验证升级回满
   G.gainXp(G.xpNeed(p15.level));       // 喂满一级经验
   assert(p15.level === lv0 + 1, 'T15 经验满自动升级', { lv0, lv1: p15.level });
+  assert(p15.hp === p15.maxHp, 'T15 升级血量回满', { hp: p15.hp, maxHp: p15.maxHp });
   assert(p15.baseAtk === atk0 && p15.baseHp === hp0b, 'T15 升级不再自动成长三维', { atk0, atk1: p15.baseAtk });
   assert(G.state.pendingLevelUps === 1, 'T15 升级累积待处理选项', G.state.pendingLevelUps);
 
-  // T16 六条攻击方式技能线（每条 5 级）
+  // T16 六条攻击方式线：解锁卡 + 随机维度卡（v9.18 重设计）
   const modeByKey = k => G.MODE_POOL.find(c => c.key === k);
-  const skillCard = k => G.SKILL_CARDS.find(c => c.skill === k);
-  assert(G.SKILL_KEYS.length === 6 && G.SKILL_CARDS.length === 6, 'T16 六条攻击方式升级线', G.SKILL_KEYS);
+  const unlockCard = k => G.SKILL_CARDS.find(c => c.kind === 'skill' && c.line === k && c.sub === 'unlock');
+  const dimCard = (k, d) => G.SKILL_CARDS.find(c => c.kind === 'skill' && c.line === k && c.dim === d);
+  const dimTotal = G.LINE_KEYS.reduce((n, k) => n + G.LINES[k].dims.length, 0);
+  assert(G.LINE_KEYS.length === 6 && G.SKILL_CARDS.length === 6 + dimTotal,
+    'T16 六条攻击方式线（解锁卡+维度卡）', { lines: G.LINE_KEYS, cards: G.SKILL_CARDS.length });
+  assert(G.LINE_KEYS.includes('mine'), 'T16 地雷线保留', G.LINE_KEYS);
   assert(!modeByKey('homing'), 'T16 追踪箭已从卡池删除');
-  // 箭矢线：Lv1 基础 → Lv2 双箭 → Lv3 穿透 → Lv4 攻速 → Lv5 反弹满伤
-  const arrowCard = skillCard('arrow');
-  arrowCard.apply(p15);  // Lv2
-  assert(p15.shots === 2 && Math.abs(p15.shotDmgMul - 0.85) < 1e-9, 'T16 箭矢 Lv2 双箭85%', { shots: p15.shots, mul: p15.shotDmgMul });
-  arrowCard.apply(p15);  // Lv3
-  assert(p15.pierce === 1, 'T16 箭矢 Lv3 穿透', p15.pierce);
-  arrowCard.apply(p15);  // Lv4
-  assert(Math.abs(p15.atkCdMul - 0.85) < 1e-9, 'T16 箭矢 Lv4 攻速提升', p15.atkCdMul);
-  arrowCard.apply(p15);  // Lv5
-  assert(p15.bounce === 1 && p15.shotDmgMul === 1, 'T16 箭矢 Lv5 反弹满伤', { bounce: p15.bounce, mul: p15.shotDmgMul });
-  assert(arrowCard.max(p15), 'T16 箭矢满级后不再入池');
-  // 飞刃线 Lv2 → 4 枚
-  const orbitCard = skillCard('orbit');
-  orbitCard.apply(p15);
-  assert(p15.orbits === 2, 'T16 飞刃 Lv1 为 2 枚', p15.orbits);
-  // 新技能线：震荡波/闪电/浮游炮/地雷 解锁与升级
-  ['shock', 'chain', 'drone', 'mine'].forEach(k => {
-    const c = skillCard(k);
+  // 箭矢维度：数量/射速/弹射/穿透/分裂
+  assert(p15.skills.arrow === 1, 'T16 箭矢初始解锁', p15.skills.arrow);
+  const aCount16 = dimCard('arrow', 'count');
+  aCount16.apply(p15);
+  assert(p15.shots === 2, 'T16 箭矢·数量维度 +1 支', p15.shots);
+  const aRate16 = dimCard('arrow', 'rate');
+  aRate16.apply(p15);
+  assert(Math.abs(p15.atkCdMul - 0.88) < 1e-9, 'T16 箭矢·射速维度间隔 −12%', p15.atkCdMul);
+  dimCard('arrow', 'pierce').apply(p15);
+  assert(p15.pierce === 1, 'T16 箭矢·穿透维度', p15.pierce);
+  dimCard('arrow', 'bounce').apply(p15);
+  assert(p15.bounce === 1, 'T16 箭矢·弹射维度', p15.bounce);
+  dimCard('arrow', 'split').apply(p15);
+  assert(p15.splitN === 1, 'T16 箭矢·分裂弹幕维度', p15.splitN);
+  assert(aCount16.max(p15) === false, 'T16 数量维度未满仍可入池');
+  // 解锁其余五条线；未解锁时其维度卡不出现
+  const chainDimBefore = dimCard('chain', 'jumps');
+  assert(chainDimBefore.max(p15) === true, 'T16 未解锁线的维度卡不入池');
+  ['shock', 'chain', 'drone', 'mine', 'orbit'].forEach(k => {
+    const c = unlockCard(k);
     c.apply(p15);
-    assert((p15.skills[k] || 0) === 1, 'T16 解锁 ' + G.SKILLS[k].name, p15.skills[k]);
+    assert(p15.skills[k] === 1, 'T16 解锁 ' + G.LINES[k].name, p15.skills[k]);
   });
+  assert(chainDimBefore.max(p15) === false, 'T16 解锁后维度卡可入池');
+  // 闪电初始伤害明显偏低（0.5×攻击），伤害维度 +0.15
+  assert(Math.abs(p15.sk.chain.mult - 0.5) < 1e-9, 'T16 闪电初始伤害 0.5×攻击', p15.sk.chain.mult);
+  dimCard('chain', 'dmg').apply(p15);
+  assert(Math.abs(p15.sk.chain.mult - 0.65) < 1e-9, 'T16 闪电·伤害维度 +15%', p15.sk.chain.mult);
+  dimCard('chain', 'bolts').apply(p15);
+  assert(p15.sk.chain.bolts === 2, 'T16 闪电·闪电数量维度', p15.sk.chain.bolts);
+  // 震荡波次级震荡波维度
+  dimCard('shock', 'echo').apply(p15);
+  assert(p15.sk.shock.echo === 1, 'T16 震荡波·连锁震荡维度', p15.sk.shock.echo);
+  // 飞刃：解锁后 2 枚，数量维度 +2
+  assert(p15.sk.orbit.count === 2, 'T16 飞刃解锁 2 枚', p15.sk.orbit.count);
+  dimCard('orbit', 'count').apply(p15);
+  assert(p15.sk.orbit.count === 4, 'T16 飞刃·数量维度 +2 枚', p15.sk.orbit.count);
+  // 浮游炮维度：数量/子弹伤害/存在时间
+  dimCard('drone', 'count').apply(p15);
+  assert(p15.sk.drone.count === 2, 'T16 浮游炮·数量维度', p15.sk.drone.count);
+  dimCard('drone', 'life').apply(p15);
+  assert(Math.abs(p15.sk.drone.life - 5.5) < 1e-9, 'T16 浮游炮·存在时间维度', p15.sk.drone.life);
+  // 地雷维度：伤害/数量/冷却/范围
+  dimCard('mine', 'dmg').apply(p15);
+  assert(Math.abs(p15.sk.mine.mult - 1.4) < 1e-9, 'T16 地雷·伤害维度 +20%', p15.sk.mine.mult);
+  dimCard('mine', 'count').apply(p15);
+  assert(p15.sk.mine.count === 2, 'T16 地雷·布雷数量维度', p15.sk.mine.count);
+  dimCard('mine', 'rate').apply(p15);
+  assert(Math.abs(p15.sk.mine.cd - 4 * 0.88) < 1e-9, 'T16 地雷·部署冷却维度', p15.sk.mine.cd);
+  dimCard('mine', 'range').apply(p15);
+  assert(p15.sk.mine.r === 90, 'T16 地雷·范围维度 +20', p15.sk.mine.r);
+  // 全局冷却卡：所有间隔 −10%
+  const cdrCard16 = modeByKey('cdr');
+  assert(!!cdrCard16, 'T16 全局冷却卡存在');
+  cdrCard16.apply(p15);
+  assert(p15.cdr === 1 && Math.abs(p15.sk.chain.cd - 4.2 * 0.9) < 1e-9
+    && Math.abs(p15.sk.orbit.interval - 5 * 0.9) < 1e-9
+    && Math.abs(p15.sk.drone.interval - 6.5 * 0.9) < 1e-9
+    && Math.abs(p15.sk.mine.cd - 4 * 0.88 * 0.9) < 1e-9,
+    'T16 全局冷却卡同时缩短所有攻击间隔', { cdr: p15.cdr, chain: p15.sk.chain.cd, orbit: p15.sk.orbit.interval, drone: p15.sk.drone.interval, mine: p15.sk.mine.cd });
 
   // T16b 通用辅助卡：减速箭 / 护盾生成 / 幸运
   const slowC = modeByKey('slow'), aegisC = modeByKey('aegis'), luckCard16 = modeByKey('luck');
@@ -363,17 +408,17 @@ function featureTests() {
   assert(G.CFG.events.spawnEvery >= 40, 'T-S1 事件刷新间隔已放宽', G.CFG.events.spawnEvery);
   assert(G.CFG.events.cap === 2, 'T-S1 事件地点上限降为 2', G.CFG.events.cap);
 
-  // T7 宝箱：走近开启 → 装备战利品 → 继续战斗
+  // T7 宝箱：走近开启 → 免费升级三选一（装备已移除，宝箱给强化）
   reset();
   G.state.chests.push({ x: G.state.player.x, y: G.state.player.y, opened: false, rarBonus: 0, t: 0 });
   run(0.4);
-  assert(G.state.phase === 'loot', 'T7 走近宝箱自动开启进入战利品', G.state.phase);
-  assert(G.state.loots.length >= 1, 'T7 宝箱开出装备', G.state.loots.length);
-  let g7 = 0;
-  while (G.lootPending() > 0 && g7++ < 5) G.takeLoot(G.state.loots.findIndex(e => !e.done));
-  assert(G.state.player.items.length >= 1, 'T7 宝箱装备到玩家');
-  G.continueLoot();
-  assert(G.state.phase === 'play', 'T7 处理完战利品回战斗', G.state.phase);
+  assert(G.state.phase === 'levelup', 'T7 走近宝箱自动开启弹出升级选项', G.state.phase);
+  assert((G.state.pendingChestUps || 0) >= 1, 'T7 宝箱计入免费强化次数', G.state.pendingChestUps);
+  const atkBefore7 = G.state.player.baseAtk;
+  G.chooseLevelCard({ kind: 'attr', attr: 'atk', val: 5 });
+  assert(G.state.phase === 'play', 'T7 选择强化后回战斗', G.state.phase);
+  assert(G.state.player.baseAtk === atkBefore7 + 5 && (G.state.pendingChestUps || 0) === 0,
+    'T7 宝箱强化生效并消耗', { baseAtk: G.state.player.baseAtk, chest: G.state.pendingChestUps });
 
   // T9 事件地点：走近触发 → 选择 → 地点消失（临时关闭陷阱保证确定性）
   reset();
@@ -630,15 +675,18 @@ function featureTests() {
   assert(fd2 < fd1, 'T21b 穿透伤害衰减（第二目标 < 首目标）', { fd1, fd2 });
   assert(Math.abs(fd2 - Math.round(fd1 * 0.7)) <= 1, 'T21b 衰减系数为 0.7', { fd1, fd2 });
 
-  // T21c 环绕飞刃技能线：升级到 Lv2 → 4 枚
+  // T21c 环绕飞刃：解锁 2 枚 → 数量维度升到 4 枚（周期出现，平时收起）
   reset();
   const p21c = G.state.player;
-  G.upgradeSkill(p21c, 'orbit');   // Lv1 = 2 枚
+  const unlockOrbit21c = G.SKILL_CARDS.find(c => c.line === 'orbit' && c.sub === 'unlock');
+  unlockOrbit21c.apply(p21c);
+  assert(p21c.skills.orbit === 1 && p21c.sk.orbit.count === 2, 'T21c 飞刃解锁为 2 枚', p21c.sk.orbit.count);
   const mul1 = p21c.orbitDmgMul;
-  const orbitCard21c = G.SKILL_CARDS.find(c => c.skill === 'orbit');
-  orbitCard21c.apply(p21c);
-  assert(p21c.orbits === 4, 'T21c 飞刃 Lv2 为 4 枚', p21c.orbits);
-  assert(p21c.orbitDmgMul >= mul1, 'T21c 飞刃 Lv4 伤害提升（不再递减）', { mul1, mul2: p21c.orbitDmgMul });
+  const orbitDim21c = G.SKILL_CARDS.find(c => c.line === 'orbit' && c.dim === 'count');
+  orbitDim21c.apply(p21c);
+  assert(p21c.sk.orbit.count === 4, 'T21c 飞刃数量维度 +2 枚', p21c.sk.orbit.count);
+  assert(p21c.orbitDmgMul >= mul1, 'T21c 飞刃伤害倍率不降低', { mul1, mul2: p21c.orbitDmgMul });
+  assert(p21c.orbits === 0, 'T21c 飞刃平时收起（周期出现）', p21c.orbits);
 
   // T21d 幸运值系统
   // T21d1 幸运卡在 5 级池中且可叠加、有上限
@@ -891,14 +939,14 @@ function featureTests() {
   G.state.chests = [];
   G.state.chests.push({ x: G.state.player.x + 10, y: G.state.player.y, opened: false, rarBonus: 0, t: 0, mimic: false });
   run(0.3);
-  assert(G.state.phase === 'loot', 'T18c 普通宝箱仍正常弹出战利品');
+  assert(G.state.phase === 'levelup', 'T18c 普通宝箱仍正常弹出强化选项');
 
-  // T19 实时装备侧边栏
+  // T19 实时属性侧边栏（装备模块已移除，只显示属性与能力）
   reset();
   G.ui.syncTopbar();
   const side = sandbox.document._els.eqSide;
-  assert(side && side.innerHTML.indexOf('装备 · 属性') >= 0, 'T19a 侧边栏已渲染装备与属性');
-  assert(side.innerHTML.indexOf('空置') >= 0, 'T19b 空槽位显示「空置」');
+  assert(side && side.innerHTML.indexOf('⚔ 属性') >= 0, 'T19a 侧边栏已渲染属性与能力');
+  assert(side.innerHTML.indexOf('空置') < 0 && side.innerHTML.indexOf('eq-slot') < 0, 'T19b 装备槽位已从侧边栏移除');
 
   // T20 伤害不超过目标当前血量（溢出不结算）
   reset();
@@ -1160,22 +1208,67 @@ function featureTests() {
   assert(new Set(rocks.map(o => o.veinId)).size >= 1 && rocks.some(o => o.veinId),
     'T29c 多边形组成岩脉', [...new Set(rocks.map(o => o.veinId))].length);
 
-  // T29d 六条技能线实际生效
+  // T29d 六条技能线实际生效（解锁 + 周期触发）
   reset();
   const p29 = G.state.player;
-  G.upgradeSkill(p29, 'shock'); G.upgradeSkill(p29, 'chain');
-  G.upgradeSkill(p29, 'drone'); G.upgradeSkill(p29, 'mine');
+  const unlock29 = k => G.SKILL_CARDS.find(c => c.line === k && c.sub === 'unlock');
+  ['shock', 'chain', 'drone', 'mine'].forEach(k => unlock29(k).apply(p29));
   const foe29 = G.makeEnemy(1, 0);
   foe29.x = p29.x + 100; foe29.y = p29.y;
-  p29.shockLv = 1; p29.sk.shock.t = 0;
+  p29.sk.shock.t = 0;
   const hp29 = foe29.hp;
   G.state.foes = [foe29];
   run(0.1);
   assert(G.state.skillFx.some(f => f.kind === 'shock'), 'T29d 震荡波触发特效');
-  // 直接测连锁/地雷的结算函数（不用等计时）
-  G.explodeMineForTest ? 0 : 0;
   assert(p29.skills.shock === 1 && p29.skills.chain === 1 && p29.skills.drone === 1 && p29.skills.mine === 1,
-    'T29d 四条新技能线各升 1 级', p29.skills);
+    'T29d 四条新技能线已解锁', p29.skills);
+
+  // T30 输出统计：伤害按攻击方式归集
+  reset();
+  assert(!!G.state.dmgStats, 'T30 开局初始化输出统计', G.state.dmgStats);
+  const p30 = G.state.player;
+  const foe30 = G.makeEnemy(1, 0);
+  foe30.x = p30.x + 120; foe30.y = p30.y;
+  foe30.maxHp = 200; foe30.hp = 200;   // 高血量避免中途死亡中断归集
+  G.state.foes = [foe30];
+  G.dealDamage(p30, foe30, 10, { tag: 'arrow', flat: true, noThorn: true });
+  G.dealDamage(p30, foe30, 15, { tag: 'chain', flat: true, noThorn: true });
+  G.dealDamage(p30, foe30, 5, { tag: 'shock', flat: true, noThorn: true });
+  G.dealDamage(p30, foe30, 7, { tag: 'orbit', flat: true, noThorn: true });
+  G.dealDamage(p30, foe30, 9, { tag: 'drone', flat: true, noThorn: true });
+  G.dealDamage(p30, foe30, 12, { tag: 'mine', flat: true, noThorn: true });
+  assert(G.state.dmgStats.arrow === 10 && G.state.dmgStats.chain === 15 && G.state.dmgStats.shock === 5
+    && G.state.dmgStats.orbit === 7 && G.state.dmgStats.drone === 9 && G.state.dmgStats.mine === 12,
+    'T30 六种攻击方式伤害分别归集', G.state.dmgStats);
+  // 玩家承受的伤害（无 tag / 敌人来源）不计入
+  const php30 = p30.hp;
+  G.dealDamage(foe30, p30, 8, { flat: true, noThorn: true, ignoreIframes: true });
+  G.dealDamage(p30, foe30, 6, { flat: true, noThorn: true });   // 未带 tag
+  assert(G.state.dmgStats.arrow === 10 && p30.hp < php30, 'T30 无 tag 与玩家承伤不计数', G.state.dmgStats);
+  // UI：伤害行 HTML 可生成且含六类
+  const dmgHtml30 = G.ui.dmgRowsHtml(G.state.dmgStats);
+  assert(['箭矢', '连锁闪电', '震荡波', '环绕飞刃', '浮游炮', '感应地雷'].every(n => dmgHtml30.indexOf(n) >= 0),
+    'T30 输出统计 UI 含全部六类');
+
+  // T31 障碍绕行：敌人被障碍物挡路时能绕过去，不会永久卡住
+  reset();
+  const p31 = G.state.player;
+  const foe31 = G.makeEnemy(1, 0);
+  foe31.x = p31.x - 220; foe31.y = p31.y;
+  const wallX = p31.x - 110;
+  G.state.obstacles = [{
+    x: wallX, y: p31.y, cx: wallX, cy: p31.y, r: 85, veinId: 't31', trap: null,
+    pts: [{ x: -60, y: -85 }, { x: 45, y: -75 }, { x: 75, y: 5 }, { x: 30, y: 80 }, { x: -55, y: 72 }]
+      .map(q => ({ x: wallX + q.x, y: p31.y + q.y }))
+  }];
+  G.state.foes = [foe31];
+  const d0_31 = G.dist(foe31.x, foe31.y, p31.x, p31.y);
+  for (let i = 0; i < 420; i++) { if (foe31.dead) break; G.updateEnemies(1 / 60); }
+  const d1_31 = G.dist(foe31.x, foe31.y, p31.x, p31.y);
+  assert(d1_31 < d0_31 - 80, 'T31 敌人能绕过障碍接近玩家（不卡死）', { d0: Math.round(d0_31), d1: Math.round(d1_31) });
+  // 绕行后敌人不应残留在障碍物内部
+  assert(!G.state.obstacles.some(o => G.circlePoly(foe31.x, foe31.y, foe31.r, o)),
+    'T31 绕行过程中敌人不被卡进障碍物');
 
   // T29e BOSS 血量压迫感
   const boss29 = G.makeElite(5);

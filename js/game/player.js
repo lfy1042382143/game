@@ -171,7 +171,7 @@
       if (f.orbitCd > 0) { f.orbitCd -= dt; continue; }
       for (const b of blades) {
         if (G.dist(b.x, b.y, f.x, f.y) < 10 + f.r) {
-          G.dealDamage(p, f, p.atk * p.orbitDmgMul);
+          G.dealDamage(p, f, p.atk * p.orbitDmgMul, { tag: 'orbit' });
           f.orbitCd = ORBIT_CD;
           break;
         }

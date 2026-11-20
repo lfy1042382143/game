@@ -74,15 +74,19 @@
     return inside;
   }
 
-  /** 点到多边形边界最近点 + 距离平方 */
+  /** 点到多边形边界最近点 + 距离平方（异常输入兜底返回不可达，避免崩溃/NaN 传染） */
   function nearestOnPoly(px, py, pts) {
+    if (!pts || !pts.length || !isFinite(px) || !isFinite(py)) {
+      return { x: px, y: py, d2: Infinity };
+    }
     let best = null, bestD2 = Infinity;
     for (let i = 0; i < pts.length; i++) {
       const a = pts[i], b = pts[(i + 1) % pts.length];
       const q = nearestOnSeg(px, py, a.x, a.y, b.x, b.y);
       const d2 = (px - q.x) * (px - q.x) + (py - q.y) * (py - q.y);
-      if (d2 < bestD2) { bestD2 = d2; best = q; }
+      if (isFinite(d2) && d2 < bestD2) { bestD2 = d2; best = q; }
     }
+    if (!best) return { x: px, y: py, d2: Infinity };
     return { x: best.x, y: best.y, d2: bestD2 };
   }
 

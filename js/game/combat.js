@@ -106,6 +106,10 @@
       // 玩家受击后获得短暂无敌帧（躲避窗口），期间免疫一切伤害
       if (tgt === state.player) tgt.iframes = G.CFG.player.iframes;
       floatText(tgt, dmg, opts.crit ? '#fbbf24' : (tgt === state.player ? '#f87171' : '#fff'), opts.crit);
+      // 输出统计：按攻击方式归集玩家造成的伤害（opts.tag 由各攻击来源传入）
+      if (opts.tag && src === state.player && tgt !== state.player && state.dmgStats) {
+        state.dmgStats[opts.tag] = (state.dmgStats[opts.tag] || 0) + dmg;
+      }
     }
 
     // 回响头盔：受击后短时间加速（不再回血）
@@ -219,7 +223,7 @@
 
   function levelUp(p) {
     G.refresh(p);
-    G.healUnit(p, Math.round(p.maxHp * CFG.levelup.healPct));
+    G.healUnit(p, p.maxHp);   // 升级血量回满
     // 壁垒甲：升级时刷新护盾（开局已由 startShield 施加）
     if (p.agg && p.agg.guard > 0 && p.shield < p.agg.guard) {
       p.shield = Math.round(p.agg.guard);

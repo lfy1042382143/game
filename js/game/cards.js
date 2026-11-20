@@ -51,10 +51,11 @@
   };
 
   /* =========================================================
-     攻击方式卡池：六条技能线（箭矢/飞刃/震荡波/闪电/浮游炮/地雷）
-     + 通用辅助卡（幸运）；每条线 5 级，满级后不再入池
+     攻击方式卡池：六条技能线（箭矢/闪电/震荡波/飞刃/浮游炮/地雷）
+     的解锁卡 + 随机维度卡 + 通用辅助卡（幸运/全局冷却）；
+     未解锁线的维度卡与已达上限的卡自动排除
      ========================================================= */
-  const SKILL_CARDS = G.SKILL_KEYS ? G.SKILL_KEYS.map(k => G.makeSkillCard(k)) : [];
+  const SKILL_CARDS = G.SKILL_CARDS || [];
 
   const MODE_POOL = [
     {
@@ -83,6 +84,20 @@
         ? '幸运再 +1（当前 ' + p.luck + '）· 升级选项更容易出现高稀有度'
         : '幸运 +1：升级属性卡更容易出现精良/稀有/史诗/传说',
       apply(p) { p.luck++; }
+    },
+    {
+      key: 'cdr', name: '全局冷却', icon: '⏱️', kind: 'mode',
+      max: p => (p.cdr || 0) >= 5,
+      desc: p => {
+        const lv = p.cdr || 0;
+        return lv
+          ? '所有攻击方式间隔再 −10%（当前 −' + lv * 10 + '%）'
+          : '箭矢/闪电/震荡波的攻击间隔、飞刃/浮游炮/地雷的下次出现间隔，全部 −10%';
+      },
+      apply(p) {
+        p.cdr = (p.cdr || 0) + 1;
+        if (G.applySkillBuild) G.applySkillBuild(p);
+      }
     }
   ];
 
@@ -126,9 +141,9 @@
     } else {
       icon = card.icon; label = card.name;
       note = typeof card.desc === 'function' ? card.desc(state.player) : card.desc;
-      val = card.kind === 'skill'
-        ? 'Lv.' + ((state.player.skills && state.player.skills[card.skill]) || 0) + '→' + (((state.player.skills && state.player.skills[card.skill]) || 0) + 1)
-        : ({ slow: '−18%', aegis: '10/8s', luck: '+1', xpgain: '+20%' }[card.key] || '+1');
+      val = typeof card.val === 'function'
+        ? card.val(state.player)
+        : ({ slow: '−18%', aegis: '10/8s', luck: '+1', xpgain: '+20%', cdr: '−10%' }[card.key] || '+1');
     }
     const node = document.createElement('div');
     node.className = 'up-card' + (card.kind === 'attr' && card.ri === 4 ? ' gold' : '');
@@ -142,40 +157,17 @@
     return node;
   }
 
-  function renderEqPanel() {
-    const panel = G.el.eqPanel;
-    const SLOTS = G.SLOTS;
-    panel.innerHTML = '';
-    SLOTS.forEach(slot => {
-      const it = G.itemAt(state.player, slot.key);
-      const cell = document.createElement('div');
-      cell.className = 'eq-cell' + (it ? '' : ' empty');
-      if (it) {
-        const rar = rarOf(it.rarity);
-        cell.innerHTML =
-          '<div class="eq-cell-ic">' + it.icon + '</div>' +
-          '<div class="eq-cell-body">' +
-            '<div class="eq-cell-name">' + it.name +
-              '<span style="color:' + rar.c + '">Lv.' + it.level + '</span></div>' +
-            '<div class="eq-cell-eff">' + G.itemDescText(it) + '</div>' +
-          '</div>';
-      } else {
-        cell.innerHTML =
-          '<div class="eq-cell-ic" style="opacity:.5">' + slot.icon + '</div>' +
-          '<div class="eq-cell-body">' +
-            '<div class="eq-cell-name" style="color:#6f6a85">' + slot.name + '空置</div>' +
-            '<div class="eq-cell-eff">战利品可填补此位</div>' +
-          '</div>';
-      }
-      panel.appendChild(cell);
-    });
-  }
+  /** 装备模块已移除：保留空函数兼容旧调用 */
+  function renderEqPanel() { }
 
-  /** 弹出升级三选一（连升多级依次弹出） */
+  /** 弹出升级三选一（连升多级依次弹出；宝箱来源共用同一弹窗） */
   function showLevelUp() {
     state.phase = 'levelup';
     const p = state.player;
-    G.el.upSub.textContent = 'Lv.' + p.level + ' · 选择一项：属性 / 攻击方式 / 🍀 幸运 / ✨ 升级效率';
+    const fromChest = (state.pendingLevelUps || 0) === 0 && (state.pendingChestUps || 0) > 0;
+    G.el.upSub.textContent = fromChest
+      ? '宝箱开启 · 选择一项强化'
+      : 'Lv.' + p.level + ' · 选择一项：属性 / 攻击方式 / 🍀 幸运 / ✨ 升级效率 / ⏱️ 冷却';
     G.el.curHp.textContent = G.fmt(p.maxHp);
     G.el.curAtk.textContent = G.fmt(p.atk);
     G.el.curDef.textContent = G.fmt(p.def);
@@ -209,10 +201,13 @@
     G.el.upgradeOverlay.classList.remove('show');
     G.tone({ freq: 660, type: 'sine', dur: 0.18, vol: 0.1 });
 
-    state.pendingLevelUps = Math.max(0, state.pendingLevelUps - 1);
-
-    // 还有未处理的升级 → 继续弹；否则回到战斗
-    if (state.pendingLevelUps > 0) {
+    // 还有未处理的升级/宝箱强化 → 继续弹（每次选择恰好消耗一个）；否则回到战斗
+    if ((state.pendingLevelUps || 0) > 0) {
+      state.pendingLevelUps = Math.max(0, state.pendingLevelUps - 1);
+    } else {
+      state.pendingChestUps = Math.max(0, (state.pendingChestUps || 0) - 1);
+    }
+    if ((state.pendingLevelUps || 0) > 0 || (state.pendingChestUps || 0) > 0) {
       G.showLevelUp();
     } else {
       state.phase = 'play';

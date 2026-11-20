@@ -52,6 +52,53 @@
   /* =========================================================
      移动公共步骤
      ========================================================= */
+  /** 障碍绕行：前方探测到障碍 → 提前沿边缘切向偏转；已贴合 → 沿切线滑向目标一侧 */
+  function avoidObstacles(e, n) {
+    const obs = state.obstacles;
+    if (!obs.length) return n;
+    const look = e.r + 30;   // 前方探测距离
+    for (const o of obs) {
+      if (!o.pts || !o.pts.length) continue;   // 兼容异常障碍数据
+      if (G.dist(e.x, e.y, o.x, o.y) > o.r + look + e.r) continue;
+      const fx = e.x + n.x * look, fy = e.y + n.y * look;
+      const inside = G.circlePoly(e.x, e.y, e.r + 2, o);
+      const ahead = !inside && G.circlePoly(fx, fy, Math.max(4, e.r * 0.8), o);
+      if (!inside && !ahead) continue;
+      // 外向方向：贴身取最近边法线，前方拦截取探测点相对障碍中心
+      let nx, ny;
+      if (inside) {
+        const near = G.nearestOnPoly(e.x, e.y, o.pts);
+        nx = e.x - near.x; ny = e.y - near.y;
+      } else {
+        nx = fx - o.x; ny = fy - o.y;
+      }
+      const nl = Math.hypot(nx, ny) || 1;
+      nx /= nl; ny /= nl;
+      // 外向方向已朝向玩家 → 直接朝玩家走（贴身时带一点外推），打破绕圈
+      const align = nx * n.x + ny * n.y;
+      if (align > 0.25) {
+        return inside ? G.norm(n.x * 0.75 + nx * 0.55, n.y * 0.75 + ny * 0.55) : n;
+      }
+      // 沿切线绕行：对同一障碍物记住绕行侧（防止对齐度相近时逐帧翻面抖动）；
+      // 卡死强制绕行期间优先使用 detourSide
+      const side = (e.detourT > 0 && e.detourSide)
+        ? e.detourSide
+        : (e.avoidObs === o && e.avoidSide
+          ? e.avoidSide
+          : ((-ny) * n.x + nx * n.y >= ny * n.x - nx * n.y ? 1 : -1));
+      e.avoidObs = o;
+      e.avoidSide = side;
+      const tx = -ny * side, ty = nx * side;
+      // 沿切线滑动为主，混入少量外推与原方向分量，避免贴墙抖动
+      const w = inside ? 0.85 : 0.7;
+      const mix = 1 - w;
+      return G.norm(tx * w + nx * mix * 0.6 + n.x * mix * 0.4,
+                    ty * w + ny * mix * 0.6 + n.y * mix * 0.4);
+    }
+    e.avoidObs = null;   // 脱离接触后重置，下次接触重新选侧
+    return n;
+  }
+
   function moveEnemy(e, n, dt, mul) {
     const A = CFG.world;
     // 减速箭：slowT 期间移动速度乘算 slowMul
@@ -59,12 +106,30 @@
       e.slowT -= dt;
       mul *= (e.slowMul !== undefined ? e.slowMul : 1);
     }
+    // 卡死绕行计时
+    if (e.detourT > 0) e.detourT -= dt;
     const spd = e.speed * (mul || 1) * (G.zoneSlowMul ? G.zoneSlowMul(e.x, e.y) : 1);
-    e.x += n.x * spd * dt;
-    e.y += n.y * spd * dt;
+    // 障碍绕行转向（前方拦截 / 贴边滑行）
+    const nav = avoidObstacles(e, n);
+    const bx = e.x, by = e.y;
+    e.x += nav.x * spd * dt;
+    e.y += nav.y * spd * dt;
     e.x = clamp(e.x, e.r, A.w - e.r);
     e.y = clamp(e.y, e.r, A.h - e.r);
     for (const o of state.obstacles) pushOutOfPoly(e, o);
+    // 卡死检测：想移动但实际位移极小 → 强制沿一侧绕行；一侧不通则换另一侧
+    const moved = G.dist(bx, by, e.x, e.y);
+    if (spd * dt > 0.005 && moved < spd * dt * 0.35) {
+      e.stuckT = (e.stuckT || 0) + dt;
+      if (e.stuckT > 0.4) {
+        if (!e.detourSide) e.detourSide = Math.random() < 0.5 ? 1 : -1;
+        else if (e.stuckT > 1.6) e.detourSide = -e.detourSide;   // 换向再试
+        e.detourT = 0.9;
+      }
+    } else {
+      e.stuckT = Math.max(0, (e.stuckT || 0) - dt * 2);
+      if ((e.stuckT || 0) <= 0) e.detourSide = 0;
+    }
   }
 
   /* =========================================================

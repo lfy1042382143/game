@@ -9,10 +9,10 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
 
 <!-- 基础与弹窗（复用） -->
-<link rel="stylesheet" href="css/base.css?v=917">
-<link rel="stylesheet" href="css/overlay.css?v=917">
+<link rel="stylesheet" href="css/base.css?v=919">
+<link rel="stylesheet" href="css/overlay.css?v=919">
 <!-- 竞技场与顶栏（新版实时战斗） -->
-<link rel="stylesheet" href="css/arena.css?v=917">
+<link rel="stylesheet" href="css/arena.css?v=919">
 </head>
 <body>
 
@@ -21,6 +21,9 @@
 <div class="bg-vignette"></div>
 
 <div id="app">
+  <!-- 左侧：输出统计（每种攻击方式造成的伤害） -->
+  <aside class="dmg-side" id="dmgSide"></aside>
+
   <div class="main-col">
   <header class="topbar">
     <div class="wave-block">
@@ -49,7 +52,7 @@
   </div>
   </div><!-- /.main-col -->
 
-  <!-- 实时装备/属性侧边栏（屏幕右侧，不遮挡游戏画面） -->
+  <!-- 实时属性侧边栏（屏幕右侧，不遮挡游戏画面；装备模块已移除） -->
   <aside class="eq-side" id="eqSide"></aside>
 </div>
 
@@ -70,7 +73,6 @@
       <span class="cur-item"><i>⚔</i> 攻击 <b id="curAtk">14</b></span>
       <span class="cur-item"><i>🛡</i> 防御 <b id="curDef">4</b></span>
     </div>
-    <div class="eq-panel" id="eqPanel"></div>
   </div>
 </div>
 
@@ -89,6 +91,7 @@
     </div>
     <div class="over-kills" id="overKills">击败 0 个敌人</div>
     <div class="over-best" id="overBest">最佳纪录：存活 0 分钟</div>
+    <div class="over-dmg" id="overDmg"></div>
     <button class="btn btn-again" id="againBtn">再次挑战</button>
   </div>
 </div>
@@ -107,27 +110,27 @@
 </div>
 
 <!-- ========== 脚本：按依赖顺序加载（经典脚本，file:// 直接可跑） ========== -->
-<script src="js/core/config.js?v=917"></script>
-<script src="js/core/utils.js?v=917"></script>
-<script src="js/core/audio.js?v=917"></script>
-<script src="js/core/engine.js?v=917"></script>
+<script src="js/core/config.js?v=919"></script>
+<script src="js/core/utils.js?v=919"></script>
+<script src="js/core/audio.js?v=919"></script>
+<script src="js/core/engine.js?v=919"></script>
 
-<script src="js/game/equipment.js?v=917"></script>
-<script src="js/game/skills.js?v=917"></script>
-<script src="js/game/state.js?v=917"></script>
-<script src="js/game/combat.js?v=917"></script>
-<script src="js/game/bullets.js?v=917"></script>
-<script src="js/game/player.js?v=917"></script>
-<script src="js/game/enemies.js?v=917"></script>
-<script src="js/game/waves.js?v=917"></script>
-<script src="js/game/loot.js?v=917"></script>
-<script src="js/game/cards.js?v=917"></script>
-<script src="js/game/events.js?v=917"></script>
-<script src="js/game/hazards.js?v=917"></script>
-<script src="js/game/flow.js?v=917"></script>
+<script src="js/game/equipment.js?v=919"></script>
+<script src="js/game/skills.js?v=919"></script>
+<script src="js/game/state.js?v=919"></script>
+<script src="js/game/combat.js?v=919"></script>
+<script src="js/game/bullets.js?v=919"></script>
+<script src="js/game/player.js?v=919"></script>
+<script src="js/game/enemies.js?v=919"></script>
+<script src="js/game/waves.js?v=919"></script>
+<script src="js/game/loot.js?v=919"></script>
+<script src="js/game/cards.js?v=919"></script>
+<script src="js/game/events.js?v=919"></script>
+<script src="js/game/hazards.js?v=919"></script>
+<script src="js/game/flow.js?v=919"></script>
 
-<script src="js/ui/ui.js?v=917"></script>
-<script src="js/render/render.js?v=917"></script>
-<script src="js/main.js?v=917"></script>
+<script src="js/ui/ui.js?v=919"></script>
+<script src="js/render/render.js?v=919"></script>
+<script src="js/main.js?v=919"></script>
 </body>
 </html>
