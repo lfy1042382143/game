@@ -450,9 +450,11 @@ function featureTests() {
   const pRic = G.state.player;
   pRic.bounce = 1;
   G.state.foes = [];
+  pRic.atkCd = 999;                         // 禁用期间玩家持续开火，避免干扰反弹弹幕观测
   pRic.x = G.CFG.world.w / 2; pRic.y = G.CFG.world.h / 2;
+  G.state.bullets = [];
   G.state.bullets.push({ x: G.CFG.world.w - 40, y: pRic.y, vx: 600, vy: 0, r: 4, dmg: 1, side: 'p', life: 2, hit: [] });
-  run(0.5);
+  run(0.25);
   const bounced = G.state.bullets.filter(b => b.side === 'p' && b.vx < 0);
   assert(bounced.length > 0, 'T26a 弹幕碰右墙后反弹（vx 反向）', G.state.bullets.length);
   // 超出反弹次数后消散
