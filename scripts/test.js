@@ -1196,6 +1196,15 @@ function featureTests() {
   const plan = G.planFor(weak29);
   assert(plan.mode !== 'swap', 'T29f 弱装备不会替换强装备', { mode: plan.mode });
 
+  // T29g 升级选卡期间游戏完全暂停
+  reset();
+  G.gainXp(G.xpNeed(1));
+  G.update(1 / 60);
+  const tPause = G.state.time, foesPause = G.state.foes.length;
+  G.update(1 / 60); G.update(1 / 60);
+  assert(G.state.phase === 'levelup' && G.state.time === tPause && G.state.foes.length === foesPause,
+    'T29g 升级弹窗期间 update 不推进游戏', { phase: G.state.phase, dt: G.state.time - tPause });
+
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;
 }
