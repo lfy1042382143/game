@@ -153,8 +153,9 @@
     m.speed = CFG.mimic.crawl;
     m.name = '宝箱怪';
     m.emoji = '🎁';
-    m.baseHp = Math.round(m.baseHp * 1.6);
-    m.baseAtk = Math.round(m.baseAtk * 1.15);
+    // 血薄攻高的刺客型突袭者（数据驱动：CFG.mimic.hpMul / atkMul）
+    m.baseHp = Math.round(m.baseHp * CFG.mimic.hpMul);
+    m.baseAtk = Math.round(m.baseAtk * CFG.mimic.atkMul);
     m.xp = Math.round(m.xp * 2);          // 惩罚风险，奖励经验
     m.mimic = true;
     m.lungeT = 1.1;                        // 首次跳扑延迟

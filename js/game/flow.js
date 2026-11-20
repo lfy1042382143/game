@@ -114,7 +114,7 @@
           const idx = enemyIdx + i;
           const roll = idx % 10;
           const wouldBeMage = roll >= 8;
-          const forceType = wouldBeMage && aliveMages >= CFG.spawn.mageCap ? 'ranged' : undefined;
+          const forceType = wouldBeMage && aliveMages >= CFG.spawn.mageCap ? 'melee' : undefined;
           state.foes.push(G.makeEnemy(minute, idx, forceType));
         }
       }

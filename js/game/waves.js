@@ -10,10 +10,11 @@
 
   const { state, CFG, pick } = G;
 
-  /** 平衡曲线（参数为分钟阶段） */
-  function curveHp(m) { return CFG.mon.hp0 + CFG.mon.hpK * (m - 1) + CFG.mon.hpQ * (m - 1) * (m - 1); }
-  function curveAtk(m) { return CFG.mon.atk0 + CFG.mon.atkK * (m - 1) + CFG.mon.atkQ * (m - 1) * (m - 1); }
-  function curveDef(m) { return CFG.mon.def0 + CFG.mon.defK * (m - 1); }
+  /** 平衡曲线（两分钟一档：档内恒定，跨档跳增） */
+  function curveTier(m) { return Math.floor((m - 1) / CFG.mon.tier); }
+  function curveHp(m) { return CFG.mon.hp0 + curveTier(m) * CFG.mon.hpStep; }
+  function curveAtk(m) { return CFG.mon.atk0 + curveTier(m) * CFG.mon.atkStep; }
+  function curveDef(m) { return CFG.mon.dr0 + curveTier(m) * CFG.mon.drStep; }   // 减伤率%（敌人专用）
 
   /** 当前刷怪间隔（随分钟缩短） */
   function spawnInterval(minute) {
@@ -90,15 +91,16 @@
     const cfgT = CFG[type];
     const pos = spawnNearPlayer();
 
-    let hp = curveHp(minute) * boost * trap.hp;
+    let hp = curveHp(minute) * boost * trap.hp * (cfgT.hpMul || 1);
     let atk = curveAtk(minute) * boost * trap.atk * (cfgT.atkMul || 1);
     if (state.pendingRage && type === 'melee') atk *= 1.3;   // 泉水事件副作用
-    const def = Math.round(curveDef(minute) * (cfgT.defMul || 1));
+    // 减伤率%（敌人 def 即减伤率，上限 60% 由 combat 裁剪）
+    const dr = Math.round(curveDef(minute) * (cfgT.defMul || 1));
 
     const u = G.makeUnit({
       hp: Math.round(hp),
       atk: Math.max(1, Math.round(atk)),
-      def,
+      def: dr,
       r: Math.round(cfgT.r * sizeScale(hp) * 10) / 10,
       speed: cfgT.speed,
       type,
@@ -108,8 +110,8 @@
       x: pos.x, y: pos.y
     });
 
-    // 击杀经验：近战为基准，远程 ×1.3，法师 ×1.6
-    u.xp = Math.round((6 + minute * 1.6) * (type === 'ranged' ? 1.3 : type === 'mage' ? 1.6 : 1));
+    // 击杀经验按血量给：血厚的怪经验更多（法师 ×2 高威胁高回报）
+    u.xp = Math.round((u.hp / 5 + 2 * minute) * (type === 'ranged' ? 1.3 : type === 'mage' ? 2 : 1));
     u.strafeDir = Math.random() < 0.5 ? 1 : -1;
 
     const affix = affixFor(minute, idx);
@@ -138,18 +140,22 @@
     const type = boss ? 'boss' : (minute % 2 === 1 ? 'melee' : 'ranged');
     const cfgT = CFG[type];
 
-    let hp = curveHp(minute) * E.hpMul * boost * (opts.hpMul || 1) * trap.hp;
-    let atk = curveAtk(minute) * E.atkMul * boost * (opts.atkMul || 1) * trap.atk;
+    // 精英 ×2.0、BOSS ×1.8（BOSS 战不该拖太久）
+    const hpScale = boss ? 1.8 : E.hpMul;
+    let hp = curveHp(minute) * hpScale * boost * (opts.hpMul || 1) * trap.hp * (cfgT.hpMul || 1);
+    let atk = curveAtk(minute) * E.atkMul * boost * (opts.atkMul || 1) * trap.atk * (cfgT.atkMul || 1);
     if (state.pendingRage) atk *= 1.3;
-    if (boss) { hp *= 1.2; }
 
     const meta = boss ? pick(G.BOSS_POOL) : pick(G.MONSTER_POOL);
     const pos = spawnNearPlayer();
 
+    // 精英/BOSS 减伤率：类型减伤 ×1.4，上限 60%（避免后期刮痧）
+    const dr = Math.min(60, Math.round(curveDef(minute) * (cfgT.defMul || 1) * 1.4));
+
     const u = G.makeUnit({
       hp: Math.round(hp),
       atk: Math.max(1, Math.round(atk)),
-      def: Math.round(curveDef(minute) * 1.4),
+      def: dr,
       r: Math.round(cfgT.r * sizeScale(hp) * 10) / 10,
       speed: cfgT.speed,
       type,
@@ -176,5 +182,5 @@
     return u;
   }
 
-  Object.assign(G, { curveHp, curveAtk, spawnInterval, aliveCap, isBossMinute, makeEnemy, makeElite, spawnNearPlayer, sizeScale });
+  Object.assign(G, { curveHp, curveAtk, curveDef, spawnInterval, aliveCap, isBossMinute, makeEnemy, makeElite, spawnNearPlayer, sizeScale });
 })(window.ABYSS = window.ABYSS || {});

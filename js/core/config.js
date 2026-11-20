@@ -46,11 +46,13 @@
     // 精英怪：每分钟整点出现一只；每 bossEvery 分钟为 BOSS
     elite: {
       every: 60,          // 精英出现间隔（秒）
-      hpMul: 2.4,         // 精英生命倍率
-      atkMul: 1.4,        // 精英攻击倍率
+      hpMul: 2.0,         // 精英生命倍率
+      atkMul: 1.3,        // 精英攻击倍率
       xpMul: 5,           // 精英经验倍率
       bossXpMul: 12,      // BOSS 经验倍率（远高于精英，击杀应显著升级）
-      bossEvery: 5        // 每 N 分钟出现 BOSS（代替精英）
+      bossEvery: 5,       // 每 N 分钟出现 BOSS（代替精英）
+      auraRadius: 200,    // 精英光环半径：周围小怪攻击提升
+      auraAtkMul: 1.15    // 精英光环攻击倍率（温和版 +15%）
     },
 
     // 宝箱：精英击杀后原地掉落（装备唯一来源），开局送一个引导宝箱
@@ -100,41 +102,47 @@
                 anchors: 12 }                                           // 熔岩裂隙：坠落火球（12 个固定锚点）
     },
 
-    // 怪物成长曲线（按「分钟」缩放：minute = floor(存活时间/60)+1）
+    // 怪物成长曲线：两分钟一档，档内恒定、跨档跳增（与经验十级一档呼应）
     mon: {
-      hp0: 26, hpK: 24, hpQ: 0.24,
-      atk0: 9, atkK: 1.9, atkQ: 0.06,
-      def0: 1, defK: 0.55,
+      tier: 2,             // 每 N 分钟跨一档
+      hp0: 26, hpStep: 30, // 生命：1-2分钟26，每跨档 +30（10分钟约146）
+      atk0: 9, atkStep: 3.2, // 攻击：1-2分钟9，每跨档 +3.2（10分钟约22）
+      dr0: 5, drStep: 4,   // 减伤率%：1-2分钟5%，每跨档 +4%（10分钟约21%）
       eqLvEvery: 6,
       rarK: 0.2,
       mapBoost: 0.12       // 每张新地图敌人 hp/atk +12%
     },
 
-    // 近战敌人：重装步兵——移速慢、伤害高、防御高（接触缠斗威胁大）
-    melee: { r: 15, speed: 92, atkCd: 1.5, reach: 3, atkMul: 1.2, defMul: 1.25 },
+    // 近战敌人：重装步兵——移速慢、伤害高、减伤高（接触缠斗威胁大）
+    melee: { r: 15, speed: 80, atkCd: 1.6, reach: 3, atkMul: 1.2, hpMul: 1.15, defMul: 1.8 },
 
-    // 远程敌人：游击射手——移速快、伤害低、防御低（风筝型骚扰）
+    // 远程敌人：游击射手——移速快、伤害低、血薄（风筝型骚扰）
     ranged: {
-      r: 13, speed: 116,
-      shootCd: 3.0, bulletSpeed: 150,
+      r: 13, speed: 124,
+      shootCd: 2.6, bulletSpeed: 150,
       keepMin: 200, keepMax: 320,
-      atkMul: 0.6, defMul: 0.55
+      atkMul: 0.55, hpMul: 0.75, defMul: 0
     },
 
-    // 法师敌人：原地咏唱小范围 AoE（预警圈后爆发），完全不能移动
-    mage: { r: 14, speed: 0, castCd: 3.4, aoeR: 52, warn: 1.1, atkMul: 1.25, defMul: 0.8 },
+    // 法师敌人：高威胁站桩炮台——血薄、伤害高、咏唱短，不清就持续掉血
+    mage: { r: 14, speed: 0, castCd: 3.2, aoeR: 52, warn: 1.1, atkMul: 1.4, hpMul: 0.7, defMul: 0 },
 
-    // 宝箱怪：平时缓慢爬行，锁定后沿直线预警 → 跳扑突进
-    mimic: { tele: 0.75, dashSpd: 440, dashDur: 0.42, cd: 1.9, crawl: 30, triggerDist: 330 },
+    // 宝箱怪：血薄攻高的刺客型突袭者
+    mimic: { tele: 0.75, dashSpd: 440, dashDur: 0.42, cd: 1.9, crawl: 30, triggerDist: 330, hpMul: 0.8, atkMul: 1.5 },
 
-    // BOSS：技能轮换（扇形弹幕 → 全向环射 → 预警冲撞 → 召唤援军）
+    // BOSS：技能轮换（扇形弹幕 → 全向环射 → 预警冲撞 → 召唤援军），半血进入狂暴
     boss: {
-      r: 24, speed: 74, atkMul: 1.2, defMul: 1.4,
+      r: 24, speed: 74, atkMul: 1.3, defMul: 2.5,
       skillCd: 2.4,          // 技能间隔（秒）
       bulletSpeed: 170, spread: 5, spreadGap: 0.24,   // 扇形弹幕
       ringCount: 16,         // 全向环射弹数
       dashTele: 0.7, dashSpd: 330, dashDur: 0.55, dashDmgMul: 1.25,  // 预警冲撞
-      summonCount: 2, summonCap: 8   // 召唤援军（场上总数上限）
+      summonCount: 2, summonCap: 8,   // 召唤援军（场上总数上限）
+      rageAt: 0.5,           // 半血触发狂暴
+      rageSkillMul: 0.6,     // 技能间隔 ×0.6
+      rageRingAdd: 4,        // 环射弹数 +4
+      rageSpeedMul: 1.25,    // 移速 ×1.25
+      rageAtkMul: 1.15       // 攻击 ×1.15
     },
 
     // 体型随击杀难度：r = 基础半径 × (击杀箭数/refShots)^k，上下限裁剪（越难杀体型越大）
@@ -299,28 +307,33 @@
   const AFFIXES = [
     {
       key: 'armored', name: '重甲', icon: '🛡️',
-      desc: '防御 ×1.8，但生命 −20%',
-      apply(u) { u.baseDef = Math.round(u.baseDef * 1.8); u.baseHp = Math.round(u.baseHp * 0.8); }
+      desc: '减伤 ×1.8，但生命 −20%',
+      data: { defMul: 1.8, hpPenalty: 0.8 },
+      apply(u) { u.affixData = this.data; u.baseDef = Math.round(u.baseDef * this.data.defMul); u.baseHp = Math.round(u.baseHp * this.data.hpPenalty); }
     },
     {
       key: 'swift', name: '迅捷', icon: '⚡',
       desc: '移速 +45%，但生命 −25%',
-      apply(u) { u.baseHp = Math.round(u.baseHp * 0.75); }
+      data: { speedMul: 1.45, hpPenalty: 0.75 },
+      apply(u) { u.affixData = this.data; u.baseHp = Math.round(u.baseHp * this.data.hpPenalty); }
     },
     {
       key: 'frenzy', name: '狂怒', icon: '🔥',
-      desc: '血量越低攻击越高（最高 +80%），但防御 −40%',
-      apply(u) { u.baseDef = Math.round(u.baseDef * 0.6); }
+      desc: '血量越低攻击越高（最高 +80%），但减伤 −40%',
+      data: { maxAtkBonus: 0.8, defPenalty: 0.6 },
+      apply(u) { u.affixData = this.data; u.baseDef = Math.round(u.baseDef * this.data.defPenalty); }
     },
     {
       key: 'regen', name: '再生', icon: '🌿',
       desc: '每 3 秒回复 8% 生命，但攻击 −30%',
-      apply(u) { u.baseAtk = Math.round(u.baseAtk * 0.7); }
+      data: { every: 3, pct: 0.08, atkPenalty: 0.7 },
+      apply(u) { u.affixData = this.data; u.baseAtk = Math.round(u.baseAtk * this.data.atkPenalty); }
     },
     {
       key: 'spikes', name: '尖刺', icon: '🦔',
-      desc: '被命中反弹 3 点伤害，但防御 −40%',
-      apply(u) { u.baseDef = Math.round(u.baseDef * 0.6); }
+      desc: '被命中反弹 3 点伤害，但减伤 −40%',
+      data: { thorn: 3, defPenalty: 0.6 },
+      apply(u) { u.affixData = this.data; u.baseDef = Math.round(u.baseDef * this.data.defPenalty); }
     }
   ];
 

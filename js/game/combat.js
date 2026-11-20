@@ -48,13 +48,22 @@
 
     let dmg = amt;
 
+    // 精英光环：半径内小怪攻击提升（发射时已锁 dmg 的弹幕也在此统一结算）
+    if (src && src.isMon && src.auraAtkMul && src.auraAtkMul > 1) dmg *= src.auraAtkMul;
+
     // 防御减免（flat 词缀如反伤不受防御影响）
+    // 玩家：减法防御（装备 flat def）；敌人：减伤率百分比（def 即减伤%），破甲按比例削减
     if (!opts.flat) {
       const pierce = opts.pierce !== undefined
         ? opts.pierce
         : (src && src.agg ? src.agg.pierce : 0);
-      const effDef = Math.max(0, tgt.def * (1 - clamp(pierce, 0, 80) / 100));
-      dmg = Math.max(1, dmg - effDef);
+      if (tgt.isMon) {
+        const dr = clamp(tgt.def, 0, 60) * (1 - clamp(pierce, 0, 80) / 100);
+        dmg *= 1 - dr / 100;
+      } else {
+        const effDef = Math.max(0, tgt.def * (1 - clamp(pierce, 0, 80) / 100));
+        dmg = Math.max(1, dmg - effDef);
+      }
     }
 
     // 减伤（龙鳞甲）
@@ -97,7 +106,8 @@
 
     // 反伤（尖刺词缀 / 荆棘甲）：反弹固定值，不受防御，不再连锁
     if (!opts.noThorn && src && !src.dead && dmg > 0) {
-      const affixThorn = tgt.affix && tgt.affix.key === 'spikes' ? 3 : 0;
+      const aThorn = affixDataOf(tgt);
+      const affixThorn = aThorn && aThorn.thorn ? aThorn.thorn : 0;
       const thorn = Math.max(tgt.agg ? Math.round(tgt.agg.thorn) : 0, affixThorn);
       if (thorn > 0) dealDamage(tgt, src, thorn, { flat: true, noThorn: true, ignoreIframes: false });
     }
@@ -193,12 +203,22 @@
   }
 
   /* =========================================================
-     狂怒词缀：血量越低攻击越高（最高 +80%）
+     词缀数据统一读取：兼容 apply() 生成的 affixData 与直接赋 affix 的情况
+     ========================================================= */
+  function affixDataOf(u) {
+    if (u.affixData) return u.affixData;
+    return (u.affix && u.affix.data) || null;
+  }
+
+  /* =========================================================
+     狂怒词缀：血量越低攻击越高
      ========================================================= */
   function frenzyMul(u) {
     if (!u.affix || u.affix.key !== 'frenzy') return 1;
-    return 1 + 0.8 * (1 - u.hp / Math.max(1, u.maxHp));
+    const D = affixDataOf(u);
+    const bonus = D && D.maxAtkBonus ? D.maxAtkBonus : 0.8;
+    return 1 + bonus * (1 - u.hp / Math.max(1, u.maxHp));
   }
 
-  Object.assign(G, { floatText, healUnit, dealDamage, damagePlayer, applyBleed, tickBleeds, frenzyMul, xpNeed, gainXp, levelUp });
+  Object.assign(G, { floatText, healUnit, dealDamage, damagePlayer, applyBleed, tickBleeds, frenzyMul, affixDataOf, xpNeed, gainXp, levelUp });
 })(window.ABYSS = window.ABYSS || {});

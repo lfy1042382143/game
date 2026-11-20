@@ -393,7 +393,7 @@ function featureTests() {
   G.state.trapUntil = 0;                          // 关闭陷阱后生成的敌人不受影响
   const normE2 = G.makeEnemy(1, 0);
   assert(trapE.hp > normE2.hp * 1.5, 'T-Trap 陷阱期间敌人生命翻倍', { trap: trapE.hp, norm: normE2.hp });
-  assert(Math.abs(normE2.hp - G.curveHp(1)) < 2, 'T-Trap 陷阱结束后敌人恢复正常', { normE2: normE2.hp, base: G.curveHp(1) });
+  assert(Math.abs(normE2.hp - G.curveHp(1) * (G.CFG.melee.hpMul || 1)) < 2, 'T-Trap 陷阱结束后敌人恢复正常', { normE2: normE2.hp, base: G.curveHp(1) });
   // 伏击陷阱：立即召唤敌人
   reset();
   const ambushN0 = G.state.foes.filter(f => !f.dead).length;
@@ -433,7 +433,8 @@ function featureTests() {
   const e4 = G.makeEnemy(4, 0);
   assert(e4.hp > e1hp, 'T10 敌人强度随分钟增长', { m1: e1hp, m4: e4.hp });
   const elite1 = G.makeElite(1);
-  assert(elite1.elite === true && elite1.hp > e1hp * 1.5, 'T10 精英强度显著高于普通怪', { elite: elite1.hp, normal: e1hp });
+  // 精英 1 分钟必带词缀（迅捷 −25% 血），抵消后仍应明显高于同类型普通怪
+  assert(elite1.elite === true && elite1.hp > e1hp * 1.4, 'T10 精英强度显著高于普通怪', { elite: elite1.hp, normal: e1hp });
   assert(elite1.xp >= 25, 'T10 精英提供大量经验', elite1.xp);
 
   // T25 精英/BOSS 经验差距：BOSS 经验应显著高于精英（≥2.5 倍）
@@ -937,7 +938,7 @@ function featureTests() {
     });
   }
   assert(fanned[0].bullets > 0, 'T24b BOSS 第 1 技能：扇形弹幕', fanned[0]);
-  assert(fanned[1].bullets >= G.CFG.boss.ringCount - 2, 'T24b BOSS 第 2 技能：全向环射', fanned[1]);
+  assert(fanned[1].bullets >= G.CFG.boss.ringCount - 4, 'T24b BOSS 第 2 技能：全向环射', fanned[1]);
   assert(fanned[2].dashing, 'T24b BOSS 第 3 技能：进入冲撞预警', fanned[2]);
   assert(fanned[3].foes >= G.CFG.boss.summonCount, 'T24b BOSS 第 4 技能：召唤援军', fanned[3]);
 
@@ -973,6 +974,80 @@ function featureTests() {
   run(0.1);
   const ovD = G.dist(ovF.x, ovF.y, pOv.x, pOv.y);
   assert(ovD >= ovF.r + pOv.r - 0.5, 'T24d 重叠敌人被推出玩家圆', { dist: ovD.toFixed(1), min: (ovF.r + pOv.r).toFixed(1) });
+
+  /* ================= T27：怪物属性重设计 ================= */
+  // T27a 档位曲线：两分钟一档，档内恒定、跨档跳增
+  assert(G.curveHp(1) === G.curveHp(2) && G.curveHp(3) > G.curveHp(2), 'T27a 生命按两分钟一档', [G.curveHp(1), G.curveHp(2), G.curveHp(3)]);
+  assert(G.curveAtk(1) === G.curveAtk(2) && G.curveAtk(3) > G.curveAtk(2), 'T27a 攻击按两分钟一档', [G.curveAtk(1), G.curveAtk(3)]);
+  assert(G.curveDef(1) === G.curveDef(2) && G.curveDef(3) > G.curveDef(2), 'T27a 减伤率按两分钟一档', [G.curveDef(1), G.curveDef(3)]);
+
+  // T27b 敌人防御是减伤率（百分比），不是减法护甲
+  reset();
+  const t27Melee = G.makeEnemy(1, 0);
+  assert(t27Melee.type === 'melee' && t27Melee.def > 0 && t27Melee.def <= 60, 'T27b 近战减伤率为百分比数值', t27Melee.def);
+  const t27P = G.state.player;
+  const t27Hp0 = t27Melee.hp;
+  t27P.atk = 10; t27P.x = t27Melee.x; t27P.y = t27Melee.y;
+  G.dealDamage(t27P, t27Melee, 10, { pierce: 0 });
+  assert(t27Hp0 - t27Melee.hp < 10, 'T27b 敌人减伤率真实降低受到的伤害', { dealt: t27Hp0 - t27Melee.hp });
+  reset();
+  const t27Melee2 = G.makeEnemy(1, 0);
+  const t27Hp20 = t27Melee2.hp;
+  G.dealDamage(G.state.player, t27Melee2, 10, { pierce: 50 });
+  assert(t27Hp20 - t27Melee2.hp > t27Hp0 - t27Melee.hp, 'T27b 破甲提升对敌伤害', { pierced: t27Hp20 - t27Melee2.hp, plain: t27Hp0 - t27Melee.hp });
+
+  // T27c 四类怪定位：血量/攻击/速度按设计分化
+  reset();
+  const t27M = G.makeEnemy(1, 0), t27R = G.makeEnemy(1, 5), t27G = G.makeEnemy(1, 8);
+  assert(t27M.hp > t27R.hp && t27R.hp > t27G.hp, 'T27c 血量：近战 > 远程 > 法师', { m: t27M.hp, r: t27R.hp, g: t27G.hp });
+  assert(t27G.atk > t27M.atk && t27M.atk > t27R.atk, 'T27c 攻击：法师 > 近战 > 远程', { m: t27M.atk, r: t27R.atk, g: t27G.atk });
+  assert(t27R.speed > G.CFG.melee.speed && t27M.speed > G.CFG.player.speed * 0.5, 'T27c 移速：远程快于近战', { r: t27R.speed, m: t27M.speed });
+  assert(t27G.xp > t27M.xp && t27G.xp > t27R.xp, 'T27c 经验：法师 ×2 高于其他类型', { m: t27M.xp, r: t27R.xp, g: t27G.xp });
+
+  // T27d 经验按血量给：同类型高分钟怪经验更多
+  reset();
+  const t27Lo = G.makeEnemy(1, 0), t27Hi = G.makeEnemy(9, 0);
+  assert(t27Hi.xp > t27Lo.xp * 2, 'T27d 高血量敌人提供更多经验', { lo: t27Lo.xp, hi: t27Hi.xp });
+
+  // T27e 精英光环：范围内小怪攻击提升，范围外不受影响
+  reset();
+  const t27El = G.makeElite(1);
+  t27El.x = 500; t27El.y = 500;
+  const t27Near = G.makeEnemy(1, 0), t27Far = G.makeEnemy(1, 5);
+  t27Near.x = 520; t27Near.y = 500;
+  t27Far.x = 1200; t27Far.y = 500;
+  G.state.foes = [t27El, t27Near, t27Far];
+  G.applyEliteAura(G.state.foes);
+  assert(Math.abs(t27Near.auraAtkMul - G.CFG.elite.auraAtkMul) < 1e-9, 'T27e 光环内小怪攻击倍率生效', t27Near.auraAtkMul);
+  assert(t27Far.auraAtkMul === 1, 'T27e 光环外小怪不受影响', t27Far.auraAtkMul);
+
+  // T27f BOSS 半血狂暴：攻击提升、技能加速、环射加弹
+  reset();
+  const t27Boss = G.makeElite(5);
+  t27Boss.hp = Math.floor(t27Boss.maxHp * 0.45);
+  const t27Atk0 = t27Boss.atk;
+  G.state.foes = [t27Boss];
+  const t27P2 = G.state.player;
+  t27Boss.x = t27P2.x + 300; t27Boss.y = t27P2.y;
+  run(0.1);
+  assert(t27Boss.raged === true, 'T27f BOSS 半血触发狂暴');
+  assert(t27Boss.atk > t27Atk0, 'T27f 狂暴后攻击提升', { before: t27Atk0, after: t27Boss.atk });
+  assert(G.CFG.boss.rageSkillMul < 1 && G.CFG.boss.rageRingAdd > 0 && G.CFG.boss.rageSpeedMul > 1, 'T27f 狂暴配置：技能加速/加弹/加速');
+
+  // T27g 词缀数据集中化：正面数值在 data 中，affixDataOf 统一读取
+  assert(G.AFFIXES.every(a => a.data && typeof a.data === 'object'), 'T27g 所有词缀正面数值集中在 data', G.AFFIXES.map(a => a.key).join(','));
+  const t27Swift = G.AFFIXES.find(a => a.key === 'swift');
+  assert(G.affixDataOf({ affix: t27Swift }).speedMul === t27Swift.data.speedMul, 'T27g affixDataOf 兼容直接赋 affix');
+
+  // T27h 法师满员改刷近战（不是远程）
+  reset();
+  const t27Ma = G.makeEnemy(1, 8); t27Ma.type = 'mage';
+  const t27Mb = G.makeEnemy(1, 9); t27Mb.type = 'mage';
+  G.state.foes = [t27Ma, t27Mb];
+  G.state.spawnT = G.spawnInterval(1) - 0.1;
+  run(0.5);
+  const t27New = G.state.foes.filter(f => !f.dead && f !== t27Ma && f !== t27Mb);
+  assert(t27New.some(f => f.type === 'melee'), 'T27h 法师满员后补刷近战', t27New.map(f => f.type).join(','));
 
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;

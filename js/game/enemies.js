@@ -86,7 +86,8 @@
   function updateMelee(e, dt) {
     const p = state.player;
     if (!p) return;
-    const mul = e.affix && e.affix.key === 'swift' ? 1.45 : 1;
+    const AD = G.affixDataOf(e);
+    const mul = AD && AD.speedMul ? AD.speedMul : 1;
     const n = G.norm(p.x - e.x, p.y - e.y);
     moveEnemy(e, n, dt, mul);
     tryMeleeHit(e, dt, CFG.melee.reach);
@@ -97,7 +98,8 @@
     if (!p) return;
     const C = CFG.ranged;
     const d = G.dist(e.x, e.y, p.x, p.y);
-    const mul = e.affix && e.affix.key === 'swift' ? 1.45 : 1;
+    const AD = G.affixDataOf(e);
+    const mul = AD && AD.speedMul ? AD.speedMul : 1;
 
     let n;
     if (d > C.keepMax + 140) {
@@ -242,6 +244,14 @@
     if (!p) return;
     const C = CFG.boss;
 
+    // 半血狂暴：一次性触发，攻击/移速/技能频率全面强化
+    if (!e.raged && e.hp <= e.maxHp * C.rageAt) {
+      e.raged = true;
+      e.atk = Math.round(e.atk * C.rageAtkMul);
+      if (G.floatText) G.floatText(e, '狂暴!', '#f87171', true);
+    }
+    const raged = !!e.raged;
+
     /* ---- 冲撞阶段 ---- */
     if (e.bossDash) {
       // 蓄力预警：原地硬直（方向已锁定，玩家可侧移）
@@ -258,12 +268,13 @@
         e.bossDash.hitDone = true;
       }
       e.bossDash.t -= dt;
-      if (e.bossDash.t <= 0) { e.bossDash = null; e.atkCd = C.skillCd; }
+      if (e.bossDash.t <= 0) { e.bossDash = null; e.atkCd = C.skillCd * (raged ? C.rageSkillMul : 1); }
       return;
     }
 
     /* ---- 常规：缓慢追击 + 近身攻击 ---- */
-    const mul = e.affix && e.affix.key === 'swift' ? 1.3 : 1;
+    const BAD = G.affixDataOf(e);
+    const mul = (BAD && BAD.speedMul ? BAD.speedMul : 1) * (raged ? C.rageSpeedMul : 1);
     const n = G.norm(p.x - e.x, p.y - e.y);
     moveEnemy(e, n, dt, mul);
     tryMeleeHit(e, dt, 4);
@@ -274,12 +285,13 @@
     e.skillIdx = ((e.skillIdx || 0) + 1) % 4;
 
     if (e.skillIdx === 1) {
-      // 全向环射：一圈 16 发
-      for (let i = 0; i < C.ringCount; i++) {
-        const a = (i / C.ringCount) * Math.PI * 2;
+      // 全向环射：狂暴时 +4 发
+      const count = C.ringCount + (raged ? C.rageRingAdd : 0);
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2;
         G.fireEnemyBullet(e, e.x + Math.cos(a) * 100, e.y + Math.sin(a) * 100, C.bulletSpeed);
       }
-      e.atkCd = C.skillCd;
+      e.atkCd = C.skillCd * (raged ? C.rageSkillMul : 1);
     } else if (e.skillIdx === 2) {
       // 预警冲撞：锁定当前朝向，蓄力后直线冲
       e.bossDash = { tele: C.dashTele, n: G.norm(p.x - e.x, p.y - e.y), t: C.dashDur, hitDone: false };
@@ -296,7 +308,7 @@
         }
         G.floatText(e, '召援!', '#f0abfc', true);
       }
-      e.atkCd = C.skillCd;
+      e.atkCd = C.skillCd * (raged ? C.rageSkillMul : 1);
     } else {
       // 扇形弹幕（开场即放，之后每轮回归）
       const base = Math.atan2(p.y - e.y, p.x - e.x);
@@ -304,7 +316,24 @@
         const a = base + (i - (C.spread - 1) / 2) * C.spreadGap;
         G.fireEnemyBullet(e, e.x + Math.cos(a) * 100, e.y + Math.sin(a) * 100, C.bulletSpeed);
       }
-      e.atkCd = C.skillCd;
+      e.atkCd = C.skillCd * (raged ? C.rageSkillMul : 1);
+    }
+  }
+
+  /* =========================================================
+     精英光环：精英存活时，半径内的小怪攻击提升（每帧刷新）
+     ========================================================= */
+  function applyEliteAura(foes) {
+    const E = CFG.elite;
+    const elites = foes.filter(f => !f.dead && f.elite);
+    const r2 = E.auraRadius * E.auraRadius;
+    for (const e of foes) {
+      if (e.dead || e.elite) continue;
+      let buff = 1;
+      for (const a of elites) {
+        if (G.dist(e.x, e.y, a.x, a.y) < E.auraRadius) { buff = E.auraAtkMul; break; }
+      }
+      e.auraAtkMul = buff;
     }
   }
 
@@ -315,16 +344,19 @@
     const alive = state.foes.filter(f => !f.dead);
     if (!alive.length) return;
 
+    applyEliteAura(alive);
+
     for (const e of alive) {
       // 记录本帧移动前的位置（供玩家预判瞄准用）
       e.lx = e.x; e.ly = e.y;
 
-      // 再生词缀：每 3 秒回复 8% 生命
-      if (e.affix && e.affix.key === 'regen') {
+      // 再生词缀：数据驱动的回血节拍与比例
+      const AD = G.affixDataOf(e);
+      if (AD && AD.pct) {
         e.regenT = (e.regenT || 0) + dt;
-        if (e.regenT >= 3) {
-          e.regenT -= 3;
-          healUnit(e, Math.max(1, Math.round(e.maxHp * 0.08)));
+        if (e.regenT >= AD.every) {
+          e.regenT -= AD.every;
+          healUnit(e, Math.max(1, Math.round(e.maxHp * AD.pct)));
         }
       }
       G.tickBleeds(e, dt);
@@ -346,5 +378,5 @@
     separateFromPlayer(alive);
   }
 
-  Object.assign(G, { updateEnemies, updateMageAoes, updateMimic, updateMage, separateFromPlayer });
+  Object.assign(G, { updateEnemies, updateMageAoes, updateMimic, updateMage, separateFromPlayer, applyEliteAura });
 })(window.ABYSS = window.ABYSS || {});
