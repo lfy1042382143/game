@@ -69,35 +69,83 @@
       }
     }
 
-    // 动态障碍物（世界坐标）
+    // 动态障碍物：连绵不规则岩脉（按地图主题变形）
+    const theme = ['rock', 'bone', 'lava', 'crystal', 'mud'][state.mapIdx % 5];
     state.obstacles.forEach(o => {
+      if (!o.pts) return;   // 兼容旧矩形（正常不会出现）
+      ctx.beginPath();
+      ctx.moveTo(o.pts[0].x, o.pts[0].y);
+      for (let i = 1; i < o.pts.length; i++) ctx.lineTo(o.pts[i].x, o.pts[i].y);
+      ctx.closePath();
       ctx.fillStyle = map.ob;
-      ctx.fillRect(o.x, o.y, o.w, o.h);
+      ctx.fill();
       ctx.strokeStyle = map.obEdge;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(o.x, o.y, o.w, o.h);
-      ctx.fillStyle = map.obInner;
-      ctx.fillRect(o.x + 6, o.y + 6, o.w - 12, o.h - 12);
+      ctx.lineWidth = theme === 'bone' ? 3 : 2;
+      ctx.stroke();
 
-      // 伪装陷阱触发瞬间：红色尖刺从障碍物边缘弹出
+      // 内部纹理：按主题变化
+      ctx.save();
+      ctx.clip();
+      if (theme === 'lava') {
+        // 熔岩：发光裂缝
+        ctx.strokeStyle = 'rgba(251,146,60,0.55)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(o.x - o.r * 0.6, o.y - o.r * 0.2);
+        ctx.lineTo(o.x, o.y + o.r * 0.2);
+        ctx.lineTo(o.x + o.r * 0.5, o.y - o.r * 0.3);
+        ctx.stroke();
+      } else if (theme === 'bone') {
+        // 骨林：平行骨纹
+        ctx.strokeStyle = map.obInner;
+        ctx.lineWidth = 3;
+        for (let k = -1; k <= 1; k++) {
+          ctx.beginPath();
+          ctx.moveTo(o.x - o.r, o.y + k * o.r * 0.35);
+          ctx.lineTo(o.x + o.r, o.y + k * o.r * 0.35 + 4);
+          ctx.stroke();
+        }
+      } else if (theme === 'crystal') {
+        // 虚空：晶面高光
+        ctx.fillStyle = 'rgba(167,180,255,0.10)';
+        ctx.beginPath();
+        ctx.moveTo(o.x, o.y - o.r);
+        ctx.lineTo(o.x + o.r * 0.5, o.y);
+        ctx.lineTo(o.x, o.y + o.r * 0.7);
+        ctx.closePath();
+        ctx.fill();
+      } else if (theme === 'mud') {
+        // 沼泽：泥泡
+        ctx.fillStyle = 'rgba(134,230,170,0.12)';
+        for (let k = 0; k < 3; k++) {
+          ctx.beginPath();
+          ctx.arc(o.x + (k - 1) * o.r * 0.4, o.y + Math.sin(k) * o.r * 0.3, o.r * 0.12, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        // 深渊岩石：内圈阴影
+        ctx.fillStyle = map.obInner;
+        ctx.fillRect(o.x - o.r, o.y - o.r, o.r * 2, o.r * 2);
+      }
+      ctx.restore();
+
+      // 伪装陷阱触发瞬间：红色尖刺沿多边形边缘长出
       if (o.trap && o.trap.trigT > 0) {
         const k = clamp(o.trap.trigT / CFG.obstacles.trigT, 0, 1);
         ctx.globalAlpha = k;
         ctx.fillStyle = '#f87171';
         ctx.strokeStyle = 'rgba(252,165,165,0.9)';
         ctx.lineWidth = 1;
-        const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
-        const spikes = 5;
-        for (let i = 0; i < spikes; i++) {
-          const sx = o.x + 8 + (o.w - 16) * (i / (spikes - 1));
+        for (let i = 0; i < o.pts.length; i++) {
+          const a = o.pts[i], b = o.pts[(i + 1) % o.pts.length];
+          const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+          const nx = mx - o.x, ny = my - o.y;
+          const nl = Math.hypot(nx, ny) || 1;
           const hgt = (12 + (i % 2) * 8) * k;
+          const ex = mx + (nx / nl) * hgt, ey = my + (ny / nl) * hgt;
           ctx.beginPath();
-          ctx.moveTo(sx - 5, cy + hgt * 0.4);
-          ctx.lineTo(sx, cy - hgt * 0.6);
-          ctx.lineTo(sx + 5, cy + hgt * 0.4);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
+          ctx.moveTo(mx - 5, my); ctx.lineTo(ex, ey); ctx.lineTo(mx + 5, my);
+          ctx.closePath(); ctx.fill(); ctx.stroke();
         }
         ctx.globalAlpha = 1;
       }
@@ -396,6 +444,75 @@
   }
 
   /* =========================================================
+     技能特效：浮游炮 / 地雷 / 震荡波 / 连锁闪电
+     ========================================================= */
+  function drawSkills() {
+    const p = state.player;
+
+    // 浮游炮本体
+    if (p && p.droneLv > 0 && !p.dead) {
+      const n = p.sk.drone.count;
+      for (let i = 0; i < n; i++) {
+        const d = G.dronePos(p, i, n);
+        ctx.save();
+        ctx.translate(d.x, d.y);
+        ctx.rotate(state.time * 3);
+        ctx.fillStyle = '#c4b5fd';
+        ctx.shadowColor = '#a78bfa';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(0, 0, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#4c1d95';
+        ctx.fillRect(-2, -2, 4, 4);
+        ctx.restore();
+      }
+    }
+
+    // 感应地雷
+    (state.mines || []).forEach(m => {
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, 9, 0, Math.PI * 2);
+      ctx.fillStyle = m.armed > 0 ? 'rgba(148,163,184,0.6)' : '#f59e0b';
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 8;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(251,191,36,0.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+
+    // 技能特效
+    (state.skillFx || []).forEach(fx => {
+      if (fx.delay > 0) return;
+      const k = clamp(fx.t / fx.dur, 0, 1);
+      if (fx.kind === 'shock' || fx.kind === 'mine') {
+        const r = fx.r * (0.3 + k * 0.7);
+        ctx.beginPath();
+        ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
+        ctx.strokeStyle = fx.kind === 'mine'
+          ? 'rgba(251,191,36,' + (1 - k) + ')'
+          : 'rgba(125,211,252,' + (1 - k) + ')';
+        ctx.lineWidth = 4 * (1 - k) + 1;
+        ctx.stroke();
+      } else if (fx.kind === 'chain') {
+        ctx.beginPath();
+        ctx.moveTo(fx.pts[0].x, fx.pts[0].y);
+        for (let i = 1; i < fx.pts.length; i++) ctx.lineTo(fx.pts[i].x, fx.pts[i].y);
+        ctx.strokeStyle = 'rgba(196,181,253,' + (1 - k) + ')';
+        ctx.shadowColor = '#a78bfa';
+        ctx.shadowBlur = 12;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+    });
+  }
+
+  /* =========================================================
      飘字与横幅
      ========================================================= */
   function drawFloaters() {
@@ -507,7 +624,7 @@
 
     ctx.fillStyle = 'rgba(126,138,180,0.35)';
     state.obstacles.forEach(o => {
-      if (inView(o.x, o.y)) ctx.fillRect(X(o.x), Y(o.y), Math.max(2, o.w * sx), Math.max(2, o.h * sx));
+      if (inView(o.x, o.y)) ctx.fillRect(X(o.x - o.r), Y(o.y - o.r), Math.max(2, o.r * 2 * sx), Math.max(2, o.r * 2 * sx));
     });
 
     state.sites.forEach(s => {
@@ -552,6 +669,7 @@
     drawSites();
     drawChests();
     drawOrbitBlades();
+    drawSkills();
     drawBullets();
     drawMimicTelegraphs();
     state.foes.forEach(f => drawUnit(f, false));

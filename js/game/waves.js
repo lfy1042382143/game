@@ -54,7 +54,7 @@
       const d = minD + Math.random() * (maxD - minD);
       const x = Math.max(60, Math.min(W.w - 60, pc.x + Math.cos(a) * d));
       const y = Math.max(60, Math.min(W.h - 60, pc.y + Math.sin(a) * d));
-      const onObstacle = state.obstacles.some(o => G.circleRect(x, y, 40, o));
+      const onObstacle = state.obstacles.some(o => G.circlePoly(x, y, 40, o));
       if (!onObstacle) return { x, y };
     }
     return { x: pc.x + minD, y: pc.y };
@@ -148,8 +148,8 @@
     const type = boss ? 'boss' : (minute % 2 === 1 ? 'melee' : 'ranged');
     const cfgT = CFG[type];
 
-    // 精英 ×2.0、BOSS ×2.2（BOSS 体型与威胁都要显著高于普通怪）
-    const hpScale = boss ? 2.2 : E.hpMul;
+    // 精英 ×2.0、BOSS ×8（BOSS 必须是持久战：高血量 + 狂暴阶段才有压迫感）
+    const hpScale = boss ? (E.bossHpMul || 8) : E.hpMul;
     let hp = curveHp(minute) * hpScale * boost * (opts.hpMul || 1) * trap.hp * (cfgT.hpMul || 1);
     let atk = curveAtk(minute) * E.atkMul * boost * (opts.atkMul || 1) * trap.atk * (cfgT.atkMul || 1);
     if (state.pendingRage) atk *= 1.3;

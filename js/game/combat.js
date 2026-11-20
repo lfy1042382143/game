@@ -45,8 +45,19 @@
 
     // 玩家无敌帧：受击后的躲避窗口
     if (tgt === state.player && tgt.iframes > 0 && !opts.ignoreIframes) return 0;
+    // 影遁甲：概率完全闪避（只在玩家受击时掷骰）
+    if (tgt === state.player && !opts.flat && tgt.agg && tgt.agg.dodge > 0 && Math.random() * 100 < tgt.agg.dodge) {
+      floatText(tgt, '闪避', '#a5b4fc');
+      return 0;
+    }
 
     let dmg = amt;
+
+    // 碎骨刃：对残血敌人的处决加成
+    if (src && src === state.player && tgt.isMon && src.agg && src.agg.execute > 0
+        && tgt.hp / Math.max(1, tgt.maxHp) < 0.35) {
+      dmg *= 1 + src.agg.execute / 100;
+    }
 
     // 精英光环：半径内小怪攻击提升（发射时已锁 dmg 的弹幕也在此统一结算）
     if (src && src.isMon && src.auraAtkMul && src.auraAtkMul > 1) dmg *= src.auraAtkMul;
@@ -54,9 +65,10 @@
     // 防御减免（flat 词缀如反伤不受防御影响）
     // 玩家：减法防御（装备 flat def）；敌人：减伤率百分比（def 即减伤%），破甲按比例削减
     if (!opts.flat) {
+      const rend = (src && src === state.player && src.agg && src.agg.rend) || 0;
       const pierce = opts.pierce !== undefined
         ? opts.pierce
-        : (src && src.agg ? src.agg.pierce : 0);
+        : ((src && src.agg ? src.agg.pierce : 0) + rend);
       if (tgt.isMon) {
         const dr = clamp(tgt.def, 0, 60) * (1 - clamp(pierce, 0, 80) / 100);
         dmg *= 1 - dr / 100;
@@ -69,6 +81,10 @@
     // 减伤（龙鳞甲）
     if (tgt.agg && tgt.agg.bulwark > 0) {
       dmg *= 1 - Math.min(60, tgt.agg.bulwark) / 100;
+    }
+    // 坚韧盔：濒死减伤
+    if (tgt === state.player && tgt.agg && tgt.agg.tough > 0 && tgt.hp / Math.max(1, tgt.maxHp) < 0.35) {
+      dmg *= 1 - Math.min(60, tgt.agg.tough) / 100;
     }
     dmg = Math.max(1, Math.round(dmg));
 
@@ -92,16 +108,19 @@
       floatText(tgt, dmg, opts.crit ? '#fbbf24' : (tgt === state.player ? '#f87171' : '#fff'), opts.crit);
     }
 
-    // 吸血（攻击方）
-    if (src && src.agg && dmg > 0) {
-      const leech = Math.round(dmg * clamp(src.agg.leech, 0, 100) / 100);
-      if (leech > 0) healUnit(src, leech);
+    // 回响头盔：受击后短时间加速（不再回血）
+    if (dmg > 0 && tgt === state.player) {
+      tgt.hurtT = 3;   // 蓄能甲：脱战计时重置
+      if (tgt.agg && tgt.agg.haste > 0) tgt.hasteT = tgt.agg.hasteDur;
     }
 
-    // 受击回复（回响头盔）：受伤后按受到的伤害比例回血
-    if (dmg > 0 && tgt === state.player && tgt.agg && tgt.agg.vamp > 0) {
-      const back = Math.round(dmg * clamp(tgt.agg.vamp, 0, 100) / 100);
-      if (back > 0) healUnit(tgt, back);
+    // 余震甲：受击时对周围敌人造成范围伤害
+    if (!opts.noShock && tgt === state.player && dmg > 0 && tgt.agg && tgt.agg.shock > 0) {
+      const R = tgt.agg.shockR;
+      for (const f of state.foes) {
+        if (f.dead || G.dist(f.x, f.y, tgt.x, tgt.y) > R) continue;
+        dealDamage(tgt, f, tgt.agg.shock, { flat: true, noThorn: true, noShock: true });
+      }
     }
 
     // 反伤（尖刺词缀 / 荆棘甲）：反弹固定值，不受防御，不再连锁
@@ -120,6 +139,15 @@
     if (tgt.hp <= 0 && !tgt.dead) {
       tgt.hp = 0;
       tgt.dead = true;
+      // 回响刃：击杀时向周围溅射（不连锁，避免递归爆炸）
+      if (!opts.noSplash && tgt !== state.player && src === state.player && src.agg && src.agg.splash > 0) {
+        const R = src.agg.splashR;
+        for (const f of state.foes) {
+          if (f.dead || f === tgt || G.dist(f.x, f.y, tgt.x, tgt.y) > R) continue;
+          dealDamage(src, f, Math.max(1, Math.round(src.atk * src.agg.splash / 100)),
+            { noThorn: true, noShock: true, noSplash: true });
+        }
+      }
       if (tgt !== state.player) {
         state.kills++;
         floatText(tgt, '✦', '#fbbf24', true);
@@ -177,7 +205,8 @@
   function gainXp(amount) {
     const p = state.player;
     if (!p || !amount) return;
-    const gain = Math.max(1, Math.round(amount * (p.xpMul || 1)));   // 升级效率卡：经验获取加成
+    const clarity = (p.agg && p.agg.clarity) || 0;   // 清醒盔：经验加成
+    const gain = Math.max(1, Math.round(amount * (p.xpMul || 1) * (1 + clarity / 100)));
     p.xp += gain;
     floatText(p, '+' + gain + ' XP', '#c4b5fd');
     while (p.xp >= xpNeed(p.level)) {

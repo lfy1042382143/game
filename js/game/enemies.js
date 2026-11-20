@@ -9,7 +9,7 @@
 (function (G) {
   'use strict';
 
-  const { state, CFG, clamp, pushOutOfRect, dealDamage, healUnit } = G;
+  const { state, CFG, clamp, pushOutOfPoly, dealDamage, healUnit } = G;
 
   /* =========================================================
      敌人之间的分离（避免叠成一团）
@@ -64,7 +64,7 @@
     e.y += n.y * spd * dt;
     e.x = clamp(e.x, e.r, A.w - e.r);
     e.y = clamp(e.y, e.r, A.h - e.r);
-    for (const o of state.obstacles) pushOutOfRect(e, o);
+    for (const o of state.obstacles) pushOutOfPoly(e, o);
   }
 
   /* =========================================================
@@ -143,7 +143,7 @@
       const x = p.x + Math.cos(a) * d;
       const y = p.y + Math.sin(a) * d;
       if (x < 60 || y < 60 || x > A.w - 60 || y > A.h - 60) continue;
-      if (state.obstacles.some(o => G.circleRect(x, y, e.r + 12, o))) continue;
+      if (state.obstacles.some(o => G.circlePoly(x, y, e.r + 12, o))) continue;
       let crowded = false;
       for (const f of state.foes) {
         if (f === e || f.dead) continue;

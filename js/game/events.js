@@ -142,7 +142,7 @@
       const d = C.minDist + Math.random() * (C.maxDist - C.minDist);
       const x = Math.max(50, Math.min(W.w - 50, (p ? p.x : W.w / 2) + Math.cos(a) * d));
       const y = Math.max(50, Math.min(W.h - 50, (p ? p.y : W.h / 2) + Math.sin(a) * d));
-      if (state.obstacles.some(o => G.circleRect(x, y, 48, o))) continue;
+      if (state.obstacles.some(o => G.circlePoly(x, y, 48, o))) continue;
       if (state.chests.some(c => G.dist(x, y, c.x, c.y) < 160)) continue;
       if (state.sites.some(s => G.dist(x, y, s.x, s.y) < 220)) continue;
       state.sites.push({ x, y, evt, used: false });

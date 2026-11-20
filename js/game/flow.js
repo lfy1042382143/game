@@ -36,6 +36,8 @@
     state.spawnT = 0;
     state.eliteT = 0;
     state.mageAoes = [];
+    state.skillFx = [];
+    state.mines = [];
     state.mapIdx = 0;
     state.obsT = 0;
     state.player = G.makePlayer();
@@ -179,6 +181,7 @@
     if (state.player.dead) { gameOver(); return; }
 
     G.updateEnemies(dt);
+    G.updateSkills(dt);
     cullDistantFoes();
     G.updateBullets(dt);
     G.tickBleeds(state.player, dt);

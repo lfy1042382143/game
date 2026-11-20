@@ -82,7 +82,7 @@ const ctx = vm.createContext(sandbox);
 
 const SCRIPTS = [
   'js/core/config.js', 'js/core/utils.js', 'js/core/audio.js', 'js/core/engine.js',
-  'js/game/equipment.js', 'js/game/state.js', 'js/game/combat.js',
+  'js/game/equipment.js', 'js/game/skills.js', 'js/game/state.js', 'js/game/combat.js',
   'js/game/bullets.js', 'js/game/player.js', 'js/game/enemies.js', 'js/game/waves.js',
   'js/game/loot.js', 'js/game/cards.js', 'js/game/events.js', 'js/game/hazards.js', 'js/game/flow.js',
   'js/ui/ui.js', 'js/render/render.js', 'js/main.js'
@@ -226,37 +226,46 @@ function featureTests() {
   assert(p15.baseAtk === atk0 && p15.baseHp === hp0b, 'T15 升级不再自动成长三维', { atk0, atk1: p15.baseAtk });
   assert(G.state.pendingLevelUps === 1, 'T15 升级累积待处理选项', G.state.pendingLevelUps);
 
-  // T16 攻击方式卡池（MODE_POOL）与新卡效果；属性卡池（ATTR_POOL）
+  // T16 六条攻击方式技能线（每条 5 级）
   const modeByKey = k => G.MODE_POOL.find(c => c.key === k);
+  const skillCard = k => G.SKILL_CARDS.find(c => c.skill === k);
+  assert(G.SKILL_KEYS.length === 6 && G.SKILL_CARDS.length === 6, 'T16 六条攻击方式升级线', G.SKILL_KEYS);
   assert(!modeByKey('homing'), 'T16 追踪箭已从卡池删除');
-  const haste = modeByKey('haste'), multi = modeByKey('multi'), orbit = modeByKey('orbit'), rangeC = modeByKey('range');
-  haste.apply(p15);
-  multi.apply(p15);
-  orbit.apply(p15);
-  const rng0 = p15.range;
-  rangeC.apply(p15);
-  assert(Math.abs(G.effAtkCd(p15) - G.CFG.player.atkCd * 0.82) < 0.01, 'T16 攻速提升卡生效', G.effAtkCd(p15));
-  assert(p15.shots === 2, 'T16 散射箭卡生效', p15.shots);
-  assert(p15.orbits === 2, 'T16 环绕飞刃卡生效', p15.orbits);
-  assert(p15.range > rng0, 'T16 射程提升卡生效', { rng0, rng1: p15.range });
+  // 箭矢线：Lv1 基础 → Lv2 双箭 → Lv3 穿透 → Lv4 攻速 → Lv5 反弹满伤
+  const arrowCard = skillCard('arrow');
+  arrowCard.apply(p15);  // Lv2
+  assert(p15.shots === 2 && Math.abs(p15.shotDmgMul - 0.85) < 1e-9, 'T16 箭矢 Lv2 双箭85%', { shots: p15.shots, mul: p15.shotDmgMul });
+  arrowCard.apply(p15);  // Lv3
+  assert(p15.pierce === 1, 'T16 箭矢 Lv3 穿透', p15.pierce);
+  arrowCard.apply(p15);  // Lv4
+  assert(Math.abs(p15.atkCdMul - 0.85) < 1e-9, 'T16 箭矢 Lv4 攻速提升', p15.atkCdMul);
+  arrowCard.apply(p15);  // Lv5
+  assert(p15.bounce === 1 && p15.shotDmgMul === 1, 'T16 箭矢 Lv5 反弹满伤', { bounce: p15.bounce, mul: p15.shotDmgMul });
+  assert(arrowCard.max(p15), 'T16 箭矢满级后不再入池');
+  // 飞刃线 Lv2 → 4 枚
+  const orbitCard = skillCard('orbit');
+  orbitCard.apply(p15);
+  assert(p15.orbits === 2, 'T16 飞刃 Lv1 为 2 枚', p15.orbits);
+  // 新技能线：震荡波/闪电/浮游炮/地雷 解锁与升级
+  ['shock', 'chain', 'drone', 'mine'].forEach(k => {
+    const c = skillCard(k);
+    c.apply(p15);
+    assert((p15.skills[k] || 0) === 1, 'T16 解锁 ' + G.SKILLS[k].name, p15.skills[k]);
+  });
 
-  // T16b 新攻击方式卡：暴击节奏 / 弹速 / 吸血箭 / 减速箭 / 护盾生成
-  const critC = modeByKey('crit'), veloC = modeByKey('velocity'), leechC = modeByKey('leech'), slowC = modeByKey('slow'), aegisC = modeByKey('aegis');
-  critC.apply(p15);
-  assert(p15.critEvery === 4 && p15.critMult === 2.2, 'T16b 暴击节奏卡生效', { every: p15.critEvery, mult: p15.critMult });
-  veloC.apply(p15);
-  assert(p15.bulletSpeedMul > 1, 'T16b 弹速提升卡生效', p15.bulletSpeedMul);
-  leechC.apply(p15);
-  assert(p15.cardLeech === 6, 'T16b 吸血箭卡生效', p15.cardLeech);
+  // T16b 通用辅助卡：减速箭 / 护盾生成 / 幸运
+  const slowC = modeByKey('slow'), aegisC = modeByKey('aegis'), luckCard16 = modeByKey('luck');
   slowC.apply(p15);
   assert(p15.cardSlow === 1, 'T16b 减速箭卡生效', p15.cardSlow);
   aegisC.apply(p15);
   assert(p15.shieldEvery === 8 && p15.shieldVal === 10, 'T16b 护盾生成卡生效', { every: p15.shieldEvery, val: p15.shieldVal });
+  const luck0 = p15.luck; luckCard16.apply(p15);
+  assert(p15.luck === luck0 + 1, 'T16b 幸运卡生效', p15.luck);
 
-  // 减速箭命中减速 + 吸血箭回血（先扣血避免满血钳制）
+  // 减速箭命中减速（吸血已删除）
   reset();
   const p16 = G.state.player;
-  p16.cardSlow = 1; p16.cardLeech = 20;
+  p16.cardSlow = 1;
   p16.hp = Math.max(1, p16.hp - 30);
   const sf16 = G.makeEnemy(1, 0);
   G.state.foes.push(sf16);
@@ -266,7 +275,7 @@ function featureTests() {
   run(0.5);
   assert(sf16.hp < sf16hp0, 'T16b 箭矢命中敌人', { sf16hp0, sf16hp1: sf16.hp });
   assert(sf16.slowT > 0 && sf16.slowMul < 1, 'T16b 减速箭命中后敌人减速', { slowT: sf16.slowT, slowMul: sf16.slowMul });
-  assert(G.state.player.hp > p16hp0, 'T16b 吸血箭命中后回血', { p16hp0, p16hp1: G.state.player.hp });
+  assert(G.state.player.hp === p16hp0, 'T16b 已删除吸血：命中不回血', { before: p16hp0, after: G.state.player.hp });
 
   // 散射：一次 volley 生成 2 支箭，箭矢寿命 = 射程/弹速（含弹速乘算）
   reset();
@@ -288,7 +297,8 @@ function featureTests() {
   const cards3 = G.makeLevelCards(p16d);
   const keys = cards3.map(c => c.key || c.attr);
   assert(cards3.length === 3 && new Set(keys).size === 3, 'T16c 每次升级 3 张不重复卡', keys.join(','));
-  assert(cards3.every(c => c.kind === 'attr' || c.kind === 'mode'), 'T16c 卡牌只含属性/强化两类', cards3.map(c => c.kind).join(','));
+  assert(cards3.every(c => c.kind === 'attr' || c.kind === 'mode' || c.kind === 'skill'),
+    'T16c 卡牌含属性/强化/技能三类', cards3.map(c => c.kind).join(','));
 
   // T17 等级里程碑解锁新地图（每 3 级一档：4/7/10 级解锁）
   reset();
@@ -302,12 +312,13 @@ function featureTests() {
   reset();
   const obs0 = G.state.obstacles.length;
   for (let i = 0; i < 8; i++) G.spawnObstacleNearPlayer();
-  assert(G.state.obstacles.length > obs0, 'T18 障碍物随玩家移动生成', { obs0, obs1: G.state.obstacles.length });
-  assert(G.state.obstacles.length <= G.CFG.obstacles.cap, 'T18 障碍物数量有上限', G.state.obstacles.length);
+  assert(G.state.obstacles.length > obs0, 'T18 岩脉随玩家移动生成', { obs0, obs1: G.state.obstacles.length });
+  // 一条岩脉 3~5 块，数量上限按 cap×4（每脉最多 4 块）
+  assert(G.state.obstacles.length <= G.CFG.obstacles.cap * 4 + 4, 'T18 岩脉块数有上限', G.state.obstacles.length);
   // 移走后应被清除
   G.state.player.x = 100; G.state.player.y = 1300;
   G.cullObstacles();
-  const farAll = G.state.obstacles.every(o => G.dist(100, 1300, o.x + o.w / 2, o.y + o.h / 2) <= G.CFG.obstacles.cullDist);
+  const farAll = G.state.obstacles.every(o => G.dist(100, 1300, o.x, o.y) <= G.CFG.obstacles.cullDist);
   assert(farAll, 'T18 远处障碍物被移除');
 
   // T19 敌人随机出现在玩家附近
@@ -477,7 +488,7 @@ function featureTests() {
   G.gainXp(G.xpNeed(pGd.level));
   assert(pGd.shield >= guardVal, 'T26c 升级时刷新壁垒甲护盾', { shield: pGd.shield, guardVal });
 
-  // T26d 回响头盔：受击后按伤害比例回血
+  // T26d 回响头盔：受击后短时加速（不再回血）
   reset();
   const pVp = G.state.player;
   const vampItem = G.buildItem('helm', 0, 3, 1);     // 回响头盔（史诗）
@@ -487,13 +498,14 @@ function featureTests() {
   const hpVp0 = pVp.hp;
   const dmgIn = 20;
   G.dealDamage(null, pVp, dmgIn, { flat: true, noThorn: true, ignoreIframes: true });
-  const healed = pVp.hp - (hpVp0 - dmgIn);
-  assert(healed > 0, 'T26d 受击后按比例回血', { healed, pct: Math.round(pVp.agg.vamp) });
+  assert(pVp.hasteT > 0 && pVp.agg.haste > 0, 'T26d 受击后获得短时加速', { hasteT: pVp.hasteT, pct: pVp.agg.haste });
+  assert(pVp.hp === hpVp0 - dmgIn, 'T26d 已删除受击回血', { hp: pVp.hp });
 
   // T26e 再生头环：持续回血
   reset();
   const pRg = G.state.player;
-  const regenItem = G.buildItem('helm', 1, 3, 1);    // 再生头环（史诗）
+  const regenIdx = G.ITEM_DEFS.helm.findIndex(d => d.k === 'regen');
+  const regenItem = G.buildItem('helm', regenIdx, 3, 1);    // 再生头环（史诗）
   pRg.items.push(regenItem);
   G.refresh(pRg);
   pRg.hp = Math.max(1, pRg.maxHp - 50);
@@ -618,15 +630,15 @@ function featureTests() {
   assert(fd2 < fd1, 'T21b 穿透伤害衰减（第二目标 < 首目标）', { fd1, fd2 });
   assert(Math.abs(fd2 - Math.round(fd1 * 0.7)) <= 1, 'T21b 衰减系数为 0.7', { fd1, fd2 });
 
-  // T21c 环绕飞刃：第二张卡后单枚伤害降低
+  // T21c 环绕飞刃技能线：升级到 Lv2 → 4 枚
   reset();
   const p21c = G.state.player;
-  p21c.orbits = 2; p21c.orbitDmgMul = 0.6; p21c.atk = 10;
+  G.upgradeSkill(p21c, 'orbit');   // Lv1 = 2 枚
   const mul1 = p21c.orbitDmgMul;
-  const orbitCard = G.MODE_POOL.find(c => c.key === 'orbit');
-  orbitCard.apply(p21c);
-  assert(p21c.orbits === 4, 'T21c 飞刃 +2');
-  assert(p21c.orbitDmgMul < mul1, 'T21c 飞刃伤害系数递减', { mul1, mul2: p21c.orbitDmgMul });
+  const orbitCard21c = G.SKILL_CARDS.find(c => c.skill === 'orbit');
+  orbitCard21c.apply(p21c);
+  assert(p21c.orbits === 4, 'T21c 飞刃 Lv2 为 4 枚', p21c.orbits);
+  assert(p21c.orbitDmgMul >= mul1, 'T21c 飞刃 Lv4 伤害提升（不再递减）', { mul1, mul2: p21c.orbitDmgMul });
 
   // T21d 幸运值系统
   // T21d1 幸运卡在 5 级池中且可叠加、有上限
@@ -760,9 +772,9 @@ function featureTests() {
   reset();
   assert(G.state.zones.length === 0 && G.state.hazards.length === 0 && G.hazardKind() === null,
     'T15a 初始地图（深渊洞窟）无陷阱', { zones: G.state.zones.length, kind: G.hazardKind() });
-  // T15a2 掩体数量下调
-  assert(G.state.obstacles.length <= 4 && G.CFG.obstacles.cap === 8,
-    'T15a2 掩体数量下调（初始 ≤4 / 上限 8）', { n: G.state.obstacles.length, cap: G.CFG.obstacles.cap });
+  // T15a2 岩脉掩体数量（4 条初始，最多 cap=8 条，每脉 3~5 块）
+  assert(G.state.obstacles.length <= 4 * 5 && G.CFG.obstacles.cap === 8,
+    'T15a2 初始岩脉数量受控', { blocks: G.state.obstacles.length, veins: new Set(G.state.obstacles.map(o => o.veinId)).size });
 
   // T15b 熔岩裂隙：火球预警 → 爆发伤害
   reset();
@@ -823,8 +835,8 @@ function featureTests() {
 
   // T16 升级卡池混合化：属性/攻击方式/幸运/升级效率每级一同随机出现
   const M16 = G.ATTR_META;
-  assert(M16.hp.vals[4] === 108 && M16.atk.vals[4] === 25 && M16.def.vals[4] === 10,
-    'T16a 属性卡数值已削弱', { hp: M16.hp.vals[4], atk: M16.atk.vals[4], def: M16.def.vals[4] });
+  assert(M16.hp.vals[4] === 62 && M16.atk.vals[4] === 14 && M16.def.vals[4] === 6,
+    'T16a 属性卡数值再次削弱（单张不再过强）', { hp: M16.hp.vals[4], atk: M16.atk.vals[4], def: M16.def.vals[4] });
   reset();
   {
     const pm = G.state.player;
@@ -1116,7 +1128,73 @@ function featureTests() {
     'T28g 怪物后期血量/攻击指数增长（跟上高等级玩家）',
     { hp: [t28Hp11, t28Hp21], atk: [t28Atk11, t28Atk21] });
   const xp11 = G.makeEnemy(11, 0).xp, xp21 = G.makeEnemy(21, 0).xp;
-  assert(xp21 < xp11 * 2.5, 'T28g 击杀经验按血量开方，不随怪物指数暴涨', { xp11, xp21 });
+  assert(xp21 < xp11 * 3, 'T28g 击杀经验按血量开方，不随怪物指数暴涨', { xp11, xp21 });
+
+  /* ================= T29：吸血删除 / 装备扩充 / 岩脉 / 技能线 / BOSS ================= */
+  // T29a 吸血全部移除
+  reset();
+  assert(!G.MODE_POOL.some(c => c.key === 'leech') && !G.ITEM_DEFS.weapon.some(d => d.k === 'leech'),
+    'T29a 吸血箭卡与噬血剑已删除');
+  assert(!('leech' in G.state.player.agg) && !('vamp' in G.state.player.agg),
+    'T29a 装备聚合不再含吸血词条', Object.keys(G.state.player.agg).join(','));
+  const pHp0 = G.state.player.hp;
+  G.dealDamage(null, G.state.player, 10, { flat: true, noThorn: true, ignoreIframes: true });
+  assert(G.state.player.hp === pHp0 - 10, 'T29a 受击不再吸血回血');
+
+  // T29b 装备扩至 24 件
+  const slotCounts = Object.values(G.ITEM_DEFS).map(a => a.length);
+  assert(slotCounts.length === 4 && slotCounts.every(n => n === 6) && slotCounts.reduce((a, b) => a + b, 0) === 24,
+    'T29b 四槽位共 24 件装备', slotCounts);
+  reset();
+  const extraKeys = ['execute', 'splash', 'dodge', 'shock', 'charger', 'eagle', 'tough', 'clarity', 'hastestone', 'resonance', 'greed'];
+  extraKeys.forEach(k => {
+    const slot = Object.keys(G.ITEM_DEFS).find(s => G.ITEM_DEFS[s].some(d => d.k === k));
+    assert(!!slot, 'T29b 新词条 ' + k + ' 已定义');
+  });
+
+  // T29c 不规则岩脉
+  reset();
+  const rocks = G.state.obstacles;
+  assert(rocks.length > 0 && rocks.every(o => Array.isArray(o.pts) && o.pts.length >= 5),
+    'T29c 障碍物为不规则多边形', rocks.length);
+  assert(new Set(rocks.map(o => o.veinId)).size >= 1 && rocks.some(o => o.veinId),
+    'T29c 多边形组成岩脉', [...new Set(rocks.map(o => o.veinId))].length);
+
+  // T29d 六条技能线实际生效
+  reset();
+  const p29 = G.state.player;
+  G.upgradeSkill(p29, 'shock'); G.upgradeSkill(p29, 'chain');
+  G.upgradeSkill(p29, 'drone'); G.upgradeSkill(p29, 'mine');
+  const foe29 = G.makeEnemy(1, 0);
+  foe29.x = p29.x + 100; foe29.y = p29.y;
+  p29.shockLv = 1; p29.sk.shock.t = 0;
+  const hp29 = foe29.hp;
+  G.state.foes = [foe29];
+  run(0.1);
+  assert(G.state.skillFx.some(f => f.kind === 'shock'), 'T29d 震荡波触发特效');
+  // 直接测连锁/地雷的结算函数（不用等计时）
+  G.explodeMineForTest ? 0 : 0;
+  assert(p29.skills.shock === 1 && p29.skills.chain === 1 && p29.skills.drone === 1 && p29.skills.mine === 1,
+    'T29d 四条新技能线各升 1 级', p29.skills);
+
+  // T29e BOSS 血量压迫感
+  const boss29 = G.makeElite(5);
+  const norm29 = G.makeEnemy(5, 0);
+  assert(boss29.hp > norm29.hp * 8, 'T29e BOSS 血量远高于同期普通怪（持久战）', { boss: boss29.hp, norm: norm29.hp });
+  assert(G.CFG.elite.bossHpMul >= 8, 'T29e BOSS 血量倍率配置', G.CFG.elite.bossHpMul);
+
+  // T29f 装备评分替换：弱装不替换强装
+  const weak29 = G.buildItem('weapon', 0, 0, 1);   // 普通 Lv1
+  const strong29 = G.buildItem('weapon', 1, 4, 5); // 传说 Lv5
+  assert(G.itemScore(strong29) > G.itemScore(weak29) * 2, 'T29f 装备评分区分强弱',
+    { weak: G.itemScore(weak29), strong: G.itemScore(strong29) });
+  reset();
+  const p29b = G.state.player;
+  p29b.items = [strong29]; G.refresh(p29b);
+  const weakLoot = { item: weak29, slot: 'weapon', done: false };
+  G.state.loots = [weakLoot];
+  const plan = G.planFor(weak29);
+  assert(plan.mode !== 'swap', 'T29f 弱装备不会替换强装备', { mode: plan.mode });
 
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;

@@ -17,6 +17,18 @@
     return state.loots.reduce((n, e) => n + (e.done ? 0 : 1), 0);
   }
 
+  /** 装备综合评分：稀有度(权重最高) + 锻造等级 + 主属性 + 词条强度
+      用于「不同款装备」的比较：只有明显更强才允许替换，否则拆解为强化材料 */
+  function itemScore(it) {
+    if (!it) return 0;
+    const rarW = [10, 26, 48, 78, 120][it.rarity] || 0;
+    const lvW = (it.level - 1) * 14;
+    const stat = (it.statV || 0) * (it.statK === 'hp' ? 0.12 : 1);
+    // 词条强度按稀有度粗略估算（具体 eff 数值量纲不同，用稀有度×固定系数平衡）
+    const effW = it.def && it.def.mk ? [10, 16, 24, 34, 46][it.rarity] || 0 : 0;
+    return rarW + lvW + stat + effW;
+  }
+
   /** 判断这件战利品落到当前槽位会发生什么 */
   function planFor(loot) {
     const cur = itemAt(state.player, loot.slot);
@@ -27,7 +39,12 @@
       if (path.kind === 'max') return { mode: 'max', cur };
       return { mode: path.kind, cur, next: path.item };
     }
-    return { mode: 'swap', cur };
+    // 不同款：按综合分比较，新装明显更强（>5%）才替换，否则拆解为强化材料
+    const curScore = itemScore(cur), newScore = itemScore(loot);
+    if (newScore > curScore * 1.05) return { mode: 'swap', cur, better: true, curScore, newScore };
+    const salvage = upgradePath(cur);
+    if (salvage.kind !== 'max') return { mode: 'salvage', cur, next: salvage.item, curScore, newScore };
+    return { mode: 'reject', cur, curScore, newScore };
   }
 
   function planLabel(plan) {
@@ -35,7 +52,9 @@
       case 'new': return '空置槽位 · 直接装备';
       case 'upgrade': return '与现有装备同款 · 吸收强化 <b>Lv.' + plan.cur.level + ' → Lv.' + plan.next.level + '</b>';
       case 'ascend': return '与现有装备同款且已满级 · 吸收升华 <b>' + rarOf(plan.cur.rarity).name + ' → ' + rarOf(plan.cur.rarity + 1).name + '</b>';
-      case 'swap': return '现有 <b>' + plan.cur.name + ' Lv.' + plan.cur.level + '</b>（' + rarOf(plan.cur.rarity).name + '），替换后旧装备丢弃';
+      case 'swap': return '现有 <b>' + plan.cur.name + ' Lv.' + plan.cur.level + '</b>（' + rarOf(plan.cur.rarity).name + '），新装更强（' + plan.curScore + '→' + plan.newScore + '），替换后旧装丢弃';
+      case 'salvage': return '新装较弱（' + plan.newScore + '≤' + plan.curScore + '），拆解为材料：<b>' + plan.cur.name + '</b> 强化至 Lv.' + plan.next.level;
+      case 'reject': return '新装较弱且现有装备已满级，拆解为材料后丢弃';
       case 'max': return '该槽位已是满级传说，无法再提升';
     }
     return '';
@@ -46,6 +65,8 @@
     if (plan.mode === 'upgrade') return '吸收强化';
     if (plan.mode === 'ascend') return '吸收升华';
     if (plan.mode === 'swap') return '替 换';
+    if (plan.mode === 'salvage') return '拆解强化';
+    if (plan.mode === 'reject') return '拆 解';
     return '已满级';
   }
 
@@ -62,7 +83,8 @@
     const M = CFG.mon;
     const slot = G.SLOTS[Math.floor(Math.random() * G.SLOTS.length)].key;
     const maxRar = Math.min(4, Math.floor(state.wave * CFG.chests.rarCapK));
-    let rar = Math.floor(state.wave * M.rarK) + (Math.random() < 0.25 ? 1 : 0) + (rarBonus || 0);
+    const greed = (state.player && state.player.agg && state.player.agg.greed) || 0;  // 贪婪符
+    let rar = Math.floor(state.wave * M.rarK) + (Math.random() < 0.25 ? 1 : 0) + (rarBonus || 0) + greed;
     rar = Math.min(rar, maxRar);
     const lv = Math.min(CFG.forge.maxLevel, 1 + Math.floor((state.wave - 1) / M.eqLvEvery));
     return G.buildItem(slot, Math.floor(Math.random() * G.ITEM_DEFS[slot].length), rar, lv);
@@ -77,7 +99,7 @@
       const d = C.minDist + Math.random() * (C.maxDist - C.minDist);
       const x = Math.max(50, Math.min(W.w - 50, (p ? p.x : W.w / 2) + Math.cos(a) * d));
       const y = Math.max(50, Math.min(W.h - 50, (p ? p.y : W.h / 2) + Math.sin(a) * d));
-      if (state.obstacles.some(o => G.circleRect(x, y, 40, o))) continue;
+      if (state.obstacles.some(o => G.circlePoly(x, y, 40, o))) continue;
       if (state.sites.some(s => G.dist(x, y, s.x, s.y) < 160)) continue;
       if (state.chests.some(c => G.dist(x, y, c.x, c.y) < 200)) continue;
       state.chests.push({ x, y, opened: false, rarBonus: 0, t: Math.random() * 6, mimic: false });
@@ -332,12 +354,16 @@
     if (plan.mode === 'new') {
       p.items.push(loot);
       text = '已装备 <b>' + loot.name + '</b> Lv.' + loot.level;
-    } else if (plan.mode === 'upgrade' || plan.mode === 'ascend') {
+    } else if (plan.mode === 'upgrade' || plan.mode === 'ascend' || plan.mode === 'salvage') {
       const i = p.items.indexOf(plan.cur);
       p.items[i] = plan.next;
-      text = plan.mode === 'upgrade'
-        ? '<b>' + plan.next.name + '</b> 强化至 Lv.' + plan.next.level
-        : '<b>' + plan.next.name + '</b> 升华至 ' + rarOf(plan.next.rarity).name + ' · Lv.1';
+      text = plan.mode === 'salvage'
+        ? '较弱装备拆解：<b>' + plan.next.name + '</b> 强化至 Lv.' + plan.next.level
+        : plan.mode === 'upgrade'
+          ? '<b>' + plan.next.name + '</b> 强化至 Lv.' + plan.next.level
+          : '<b>' + plan.next.name + '</b> 升华至 ' + rarOf(plan.next.rarity).name + ' · Lv.1';
+    } else if (plan.mode === 'reject') {
+      text = '新装较弱，已拆解丢弃';
     } else {
       const i = p.items.indexOf(plan.cur);
       p.items[i] = loot;
@@ -394,7 +420,7 @@
   Object.assign(G, {
     rollChestItem, spawnChest, dropEliteLoot, checkChests, openChest,
     spawnMimic, dropMimicLoot,
-    lootPending, planFor, renderLoot,
+    lootPending, itemScore, planFor, renderLoot,
     takeLoot, skipLoot, skipAll, clearLoot,
     showLoot, continueLoot
   });

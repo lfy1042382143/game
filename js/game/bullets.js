@@ -5,7 +5,7 @@
 (function (G) {
   'use strict';
 
-  const { state, CFG, clamp, circleRect, dealDamage, applyBleed } = G;
+  const { state, CFG, clamp, circlePoly, dealDamage, applyBleed } = G;
 
   /* =========================================================
      发射
@@ -26,7 +26,7 @@
      ========================================================= */
   function hitObstacle(b) {
     for (const o of state.obstacles) {
-      if (circleRect(b.x, b.y, b.r, o)) return true;
+      if (circlePoly(b.x, b.y, b.r, o)) return true;
     }
     return false;
   }
@@ -34,23 +34,36 @@
   /** 反弹箭：弹幕从障碍物上弹开（沿最近面法线反射，并把弹幕推出碰撞） */
   function reflectOffObstacle(b) {
     for (const o of state.obstacles) {
-      const cx = clamp(b.x, o.x, o.x + o.w);
-      const cy = clamp(b.y, o.y, o.y + o.h);
-      const dx = b.x - cx, dy = b.y - cy;
-      const d2 = dx * dx + dy * dy;
-      if (d2 >= b.r * b.r) continue;
-      if (d2 > 0.0001) {
-        const d = Math.sqrt(d2);
-        b.x = cx + (dx / d) * (b.r + 2);
-        b.y = cy + (dy / d) * (b.r + 2);
-        if (Math.abs(dx) > Math.abs(dy)) b.vx = -b.vx;
-        else b.vy = -b.vy;
+      if (!circlePoly(b.x, b.y, b.r, o)) continue;
+      if (o.pts) {
+        // 不规则多边形：取最近边的法线反射
+        const near = G.nearestOnPoly(b.x, b.y, o.pts);
+        let nx = b.x - near.x, ny = b.y - near.y;
+        let d = Math.hypot(nx, ny);
+        if (d < 0.0001) { nx = b.x - o.x; ny = b.y - o.y; d = Math.hypot(nx, ny) || 1; }
+        nx /= d; ny /= d;
+        b.x = near.x + nx * (b.r + 2);
+        b.y = near.y + ny * (b.r + 2);
+        const dot = b.vx * nx + b.vy * ny;
+        b.vx -= 2 * dot * nx;
+        b.vy -= 2 * dot * ny;
       } else {
-        // 圆心已进入矩形内部：沿来路退回并反转速度主导轴
-        b.x -= b.vx * 0.03;
-        b.y -= b.vy * 0.03;
-        if (Math.abs(b.vx) > Math.abs(b.vy)) b.vx = -b.vx;
-        else b.vy = -b.vy;
+        // 兼容旧矩形
+        const cx = clamp(b.x, o.x, o.x + o.w);
+        const cy = clamp(b.y, o.y, o.y + o.h);
+        const dx = b.x - cx, dy = b.y - cy;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > 0.0001) {
+          const d = Math.sqrt(d2);
+          b.x = cx + (dx / d) * (b.r + 2);
+          b.y = cy + (dy / d) * (b.r + 2);
+          if (Math.abs(dx) > Math.abs(dy)) b.vx = -b.vx;
+          else b.vy = -b.vy;
+        } else {
+          b.x -= b.vx * 0.03; b.y -= b.vy * 0.03;
+          if (Math.abs(b.vx) > Math.abs(b.vy)) b.vx = -b.vx;
+          else b.vy = -b.vy;
+        }
       }
       return true;
     }
@@ -103,12 +116,17 @@
             const dealt = dealDamage(p, f, Math.max(1, Math.round(b.dmg * falloff)), { crit: b.crit });
             // 血刃：命中附加流血（多件只取最强，聚合时已处理）
             if (dealt > 0 && p.agg.bleed) applyBleed(f, p.agg.bleed);
-            // 吸血箭：命中按伤害比例回血
-            if (dealt > 0 && p.cardLeech > 0) G.healUnit(p, Math.max(1, Math.round(dealt * p.cardLeech / 100)));
-            // 减速箭：命中减速
+            // 霜刃：命中使敌人减速（装备词条，自动生效）
+            const frost = p.agg && p.agg.frost;
+            if (dealt > 0 && frost) {
+              f.slowT = 1.6;
+              f.slowMul = 1 - frost / 100;
+            }
+            // 减速箭（技能卡，可叠加在装备霜刃上，取更强者）
             if (dealt > 0 && p.cardSlow > 0) {
               f.slowT = 1.6;
-              f.slowMul = 1 - p.cardSlow * 0.18;
+              const cardMul = 1 - p.cardSlow * 0.18;
+              f.slowMul = Math.min(f.slowMul === undefined ? 1 : f.slowMul, cardMul);
             }
 
             if (b.pierceLeft > 0) {

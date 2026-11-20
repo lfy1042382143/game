@@ -5,10 +5,11 @@
 (function (G) {
   'use strict';
 
-  const { state, CFG, clamp, pushOutOfRect } = G;
+  const { state, CFG, clamp, pushOutOfPoly } = G;
 
   function effAtkCd(p) {
-    return Math.max(0.18, CFG.player.atkCd * p.atkCdMul);
+    const haste = (p.agg && p.agg.hastestone) || 0;   // 迅捷符：射击间隔缩短
+    return Math.max(0.18, CFG.player.atkCd * p.atkCdMul * (1 - haste / 100));
   }
 
   function updatePlayer(dt) {
@@ -22,7 +23,8 @@
       const n = G.norm(mv.dx, mv.dy);
       // 减速泥潭（沼泽地图陷阱）：在泥潭中移动变慢
       const zslow = G.zoneSlowMul ? G.zoneSlowMul(p.x, p.y) : 1;
-      const spd = p.speed * (1 + clamp(p.agg.swiftstep, 0, 40) / 100) * zslow;
+      const haste = p.hasteT > 0 ? (1 + clamp(p.agg && p.agg.haste ? p.agg.haste : 0, 0, 100) / 100) : 1;
+      const spd = p.speed * (1 + clamp(p.agg.swiftstep, 0, 40) / 100) * haste * zslow;
       p.x += n.x * spd * dt;
       p.y += n.y * spd * dt;
     }
@@ -32,13 +34,13 @@
     p.y = clamp(p.y, p.r, W.h - p.r);
 
     // 障碍物碰撞
-    for (const o of state.obstacles) pushOutOfRect(p, o);
+    for (const o of state.obstacles) pushOutOfPoly(p, o);
 
     // 伪装陷阱障碍：靠近时尖刺弹出（伤害固定值、现形后失效）
     for (const o of state.obstacles) {
       const t = o.trap;
       if (!t || !t.armed) continue;
-      if (G.circleRect(p.x, p.y, p.r + 6, o)) {
+      if (G.circlePoly(p.x, p.y, p.r + 6, o)) {
         t.armed = false;
         t.trigT = CFG.obstacles.trigT;
         const dmg = Math.round(CFG.obstacles.trapDmg0 + (state.wave - 1) * CFG.obstacles.trapDmgK);
@@ -49,6 +51,13 @@
 
     /* ---------- 无敌帧 ---------- */
     if (p.iframes > 0) p.iframes -= dt;
+    if (p.hasteT > 0) p.hasteT -= dt;   // 回响头盔受击加速剩余时间
+
+    /* ---------- 蓄能甲：脱战 3 秒后回盾（上限 60） ---------- */
+    if (p.agg && p.agg.charger > 0) {
+      if (p.hurtT > 0) p.hurtT -= dt;
+      else if (p.shield < 60) p.shield = Math.min(60, p.shield + p.agg.charger * dt);
+    }
 
     /* ---------- 再生头环：每秒回复固定生命 ---------- */
     if (p.agg && p.agg.regen > 0 && p.hp < p.maxHp) {
@@ -122,6 +131,10 @@
       crit = true;
       mult = Math.max(mult, p.critMult);
     }
+    // 鹰眼盔：暴击伤害加成
+    if (crit && p.agg && p.agg.eagle > 0) {
+      mult *= 1 + p.agg.eagle / 100;
+    }
 
     const bSpd = CFG.player.bulletSpeed * p.bulletSpeedMul;
     const aim = aimPoint(p);
@@ -147,8 +160,6 @@
   /* =========================================================
      环绕飞刃：绕玩家旋转，接触敌人造成伤害（每个敌人独立冷却）
      ========================================================= */
-  const ORBIT_R = 64;
-  const ORBIT_SPD = 2.6;
   const ORBIT_CD = 0.5;
 
   function updateOrbitBlades(p, dt) {
@@ -170,9 +181,24 @@
 
   function orbitPositions(p) {
     const out = [];
-    for (let i = 0; i < p.orbits; i++) {
-      const a = state.time * ORBIT_SPD + (i / p.orbits) * Math.PI * 2;
-      out.push({ x: p.x + Math.cos(a) * ORBIT_R, y: p.y + Math.sin(a) * ORBIT_R });
+    const n = p.orbits;
+    const R = p.orbitR || 64;
+    const spd = p.orbitSpd || 2.6;
+    if (p.orbitDual) {
+      // 双层：外圈 + 内圈各 6 枚
+      for (let i = 0; i < n; i++) {
+        const outer = i < n / 2;
+        const idx = outer ? i : i - n / 2;
+        const cnt = n / 2;
+        const rr = outer ? R : R * 0.55;
+        const a = state.time * spd * (outer ? 1 : -1.35) + (idx / cnt) * Math.PI * 2;
+        out.push({ x: p.x + Math.cos(a) * rr, y: p.y + Math.sin(a) * rr });
+      }
+      return out;
+    }
+    for (let i = 0; i < n; i++) {
+      const a = state.time * spd + (i / n) * Math.PI * 2;
+      out.push({ x: p.x + Math.cos(a) * R, y: p.y + Math.sin(a) * R });
     }
     return out;
   }

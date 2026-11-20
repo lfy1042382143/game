@@ -55,5 +55,76 @@
     }
   }
 
-  Object.assign(G, { $, sleep, pick, clamp, fmt, dist, norm, circleRect, pushOutOfRect });
+  /* ---------- 不规则多边形障碍（岩脉）---------- */
+  /** 点到线段最近点 */
+  function nearestOnSeg(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const l2 = dx * dx + dy * dy;
+    const t = l2 > 0 ? clamp(((px - ax) * dx + (py - ay) * dy) / l2, 0, 1) : 0;
+    return { x: ax + dx * t, y: ay + dy * t };
+  }
+
+  /** 点是否在多边形内（射线法） */
+  function pointInPoly(px, py, pts) {
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const a = pts[i], b = pts[j];
+      if ((a.y > py) !== (b.y > py) && px < (b.x - a.x) * (py - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+  }
+
+  /** 点到多边形边界最近点 + 距离平方 */
+  function nearestOnPoly(px, py, pts) {
+    let best = null, bestD2 = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      const q = nearestOnSeg(px, py, a.x, a.y, b.x, b.y);
+      const d2 = (px - q.x) * (px - q.x) + (py - q.y) * (py - q.y);
+      if (d2 < bestD2) { bestD2 = d2; best = q; }
+    }
+    return { x: best.x, y: best.y, d2: bestD2 };
+  }
+
+  /** 圆与多边形障碍是否相交（兼容旧矩形 rect） */
+  function circlePoly(cx, cy, r, o) {
+    if (o.pts) {
+      if (pointInPoly(cx, cy, o.pts)) return true;
+      return nearestOnPoly(cx, cy, o.pts).d2 < r * r;
+    }
+    return circleRect(cx, cy, r, o);
+  }
+
+  /** 把圆推出多边形障碍（兼容旧矩形） */
+  function pushOutOfPoly(u, o) {
+    if (!o.pts) { pushOutOfRect(u, o); return; }
+    const near = nearestOnPoly(u.x, u.y, o.pts);
+    const inside = pointInPoly(u.x, u.y, o.pts);
+    if (!inside && near.d2 >= u.r * u.r) return;
+    let nx = u.x - near.x, ny = u.y - near.y;
+    let d = Math.sqrt(near.d2);
+    if (inside || d < 0.0001) {
+      // 圆心在多边形内：朝远离形心的方向推出到最近边外
+      nx = near.x - o.x; ny = near.y - o.y;
+      d = Math.hypot(nx, ny) || 1;
+      u.x = near.x + (nx / d) * u.r;
+      u.y = near.y + (ny / d) * u.r;
+    } else {
+      u.x = near.x + (nx / d) * u.r;
+      u.y = near.y + (ny / d) * u.r;
+    }
+  }
+
+  /** 多边形包围盒（用于生成避让 / 小地图） */
+  function polyBounds(pts) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const p of pts) {
+      if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+      if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+    }
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+
+  Object.assign(G, { $, sleep, pick, clamp, fmt, dist, norm, circleRect, pushOutOfRect,
+    nearestOnSeg, pointInPoly, nearestOnPoly, circlePoly, pushOutOfPoly, polyBounds });
 })(window.ABYSS = window.ABYSS || {});

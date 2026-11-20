@@ -67,8 +67,12 @@
   function aggregate(items) {
     const A = {
       atkFlat: 0, defFlat: 0, hpFlat: 0,
-      bleed: null, crit: 0, critMult: 1.6, leech: 0, thorn: 0,
-      guard: 0, bulwark: 0, vamp: 0, regen: 0, swiftstep: 0, pierce: 0
+      bleed: null, crit: 0, critMult: 1.6, frost: 0, thorn: 0,
+      guard: 0, bulwark: 0, haste: 0, hasteDur: 3, regen: 0, swiftstep: 0, pierce: 0,
+      execute: 0, splash: 0, splashR: 90, rend: 0,
+      dodge: 0, shock: 0, shockR: 100, charger: 0,
+      eagle: 0, tough: 0, clarity: 0,
+      hastestone: 0, resonance: 0, greed: 0
     };
     items.forEach(it => {
       if (it.statK === 'atk') A.atkFlat += it.statV;
@@ -84,14 +88,26 @@
           A.crit = A.crit ? Math.min(A.crit, e.every) : e.every;
           A.critMult = Math.max(A.critMult, e.mult);
           break;
-        case 'leech': A.leech += e.pct; break;
+        case 'frost': A.frost = Math.max(A.frost, e.slow); break;
         case 'thorn': A.thorn += e.dmg; break;
         case 'guard': A.guard += e.shield; break;
         case 'bulwark': A.bulwark += e.pct; break;
-        case 'vamp': A.vamp += e.pct; break;
+        case 'haste': A.haste = Math.max(A.haste, e.pct); A.hasteDur = e.dur; break;
         case 'regen': A.regen += e.val; break;
         case 'swiftstep': A.swiftstep += e.pct; break;
         case 'pierce': A.pierce += e.pct; break;
+        case 'hastestone': A.hastestone = Math.max(A.hastestone, e.pct); break;
+        case 'resonance': A.resonance = Math.max(A.resonance, e.pct); break;
+        case 'greed': A.greed = Math.max(A.greed, e.rar); break;
+        case 'execute': A.execute = Math.max(A.execute, e.pct); break;
+        case 'rend': A.rend = Math.max(A.rend, e.pct); break;
+        case 'splash': A.splash = Math.max(A.splash, e.pct); A.splashR = e.radius; break;
+        case 'dodge': A.dodge = Math.max(A.dodge, e.pct); break;
+        case 'shock': A.shock = Math.max(A.shock, e.dmg); A.shockR = e.radius; break;
+        case 'charger': A.charger = Math.max(A.charger, e.val); break;
+        case 'eagle': A.eagle = Math.max(A.eagle, e.pct); break;
+        case 'tough': A.tough = Math.max(A.tough, e.pct); break;
+        case 'clarity': A.clarity = Math.max(A.clarity, e.pct); break;
       }
     });
     return A;

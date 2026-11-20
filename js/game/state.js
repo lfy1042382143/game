@@ -6,7 +6,7 @@
 (function (G) {
   'use strict';
 
-  const { aggregate, recalc, CFG, pick } = G;
+  const { aggregate, recalc, CFG, pick, polyBounds } = G;
 
   /* =========================================================
      状态
@@ -120,8 +120,10 @@
     p.critMult = 1;        // 暴击倍率
     p.bulletSpeedMul = 1;  // 弹速乘算系数（弹速提升卡）
     p.bounce = 0;          // 弹幕碰墙反弹次数（反弹箭卡）
-    p.cardLeech = 0;       // 吸血箭：箭矢伤害回血百分比
+    p.hasteT = 0;          // 回响头盔：受击后加速剩余时间
+    p.hurtT = 0;           // 蓄能甲：脱战计时
     p.cardSlow = 0;        // 减速箭：命中减速层数
+    if (G.initSkills) G.initSkills(p);   // 六条攻击方式升级线
     p.shieldEvery = 0;     // 护盾生成节拍（0 = 无；每 N 秒）
     p.shieldVal = 0;       // 护盾生成量
     p.shieldT = 0;         // 护盾生成计时
@@ -132,6 +134,50 @@
   /* =========================================================
      动态障碍物
      ========================================================= */
+  /** 生成一枚不规则凸多边形（岩块）：形心 cx,cy，半径 r，顶点数 n */
+  function makePoly(cx, cy, r, n) {
+    const pts = [];
+    const rot = Math.random() * Math.PI * 2;
+    for (let i = 0; i < n; i++) {
+      const a = rot + (i / n) * Math.PI * 2;
+      const rr = r * (0.72 + Math.random() * 0.42);
+      pts.push({ x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr });
+    }
+    const b = polyBounds(pts);
+    return { x: cx, y: cy, pts, r, w: b.w, h: b.h };
+  }
+
+  /** 生成一条连绵岩脉：沿随机折线排布 3~5 枚相互重叠的岩块 */
+  function makeVein(cx, cy) {
+    const C = CFG.obstacles;
+    const count = 3 + Math.floor(Math.random() * 3);
+    const baseR = C.sizeMin * 0.55 + Math.random() * (C.sizeMax - C.sizeMin) * 0.3;
+    const dir = Math.random() * Math.PI * 2;
+    const curve = (Math.random() - 0.5) * 1.2;
+    const veinId = 'v' + (state.veinSeq = (state.veinSeq || 0) + 1);
+    const out = [];
+    let x = cx, y = cy, a = dir;
+    for (let i = 0; i < count; i++) {
+      const r = baseR * (0.8 + Math.random() * 0.5);
+      const poly = makePoly(x, y, r, 5 + Math.floor(Math.random() * 3));
+      poly.veinId = veinId;
+      out.push(poly);
+      a += curve + (Math.random() - 0.5) * 0.5;
+      const step = r * 1.15;   // 略微重叠，形成连绵感
+      x += Math.cos(a) * step;
+      y += Math.sin(a) * step;
+    }
+    return out;
+  }
+
+  /** 岩块是否与已有障碍/实体冲突（包围盒快速判断 + 距离） */
+  function polyConflict(poly, minGap) {
+    return state.obstacles.some(o => {
+      const dx = poly.x - o.x, dy = poly.y - o.y;
+      return dx * dx + dy * dy < (poly.r + (o.r || Math.max(o.w, o.h) / 2) + (minGap || 0)) ** 2;
+    });
+  }
+
   function rectsOverlap(a, b, gap) {
     gap = gap || 0;
     return a.x - gap < b.x + b.w && a.x + a.w + gap > b.x &&
@@ -142,63 +188,52 @@
     return state.obstacles.some(o => rectsOverlap(rect, o, 40));
   }
 
-  /** 新障碍物按概率携带尖刺陷阱（外观与普通掩体完全一致，靠近才触发） */
-  function maybeTrap(rect) {
+  /** 新岩脉按概率携带尖刺陷阱（外观与普通岩块完全一致，靠近才触发） */
+  function maybeTrap(poly) {
     const C = CFG.obstacles;
     if (Math.random() < (C.trapChance || 0)) {
-      rect.trap = { armed: true, trigT: 0 };
+      poly.trap = { armed: true, trigT: 0 };
     }
   }
 
-  /** 在玩家附近生成 n 个障碍物（无边界地图：不再按世界尺寸满图撒点） */
+  /** 在玩家附近生成 n 条岩脉（无边界地图：不再按世界尺寸满图撒点） */
   function spawnObstaclesRandom(n) {
     const W = CFG.world;
-    const C = CFG.obstacles;
     const p = state.player;
     const cx = p ? p.x : W.w / 2;
     const cy = p ? p.y : W.h / 2;
     let made = 0, tries = 0;
     while (made < n && tries++ < 200) {
-      const size = C.sizeMin + Math.random() * (C.sizeMax - C.sizeMin);
       const a = Math.random() * Math.PI * 2;
-      const d = C.minDist + Math.random() * (C.maxDist - C.minDist);
-      const rect = {
-        x: Math.max(20, Math.min(W.w - size - 20, cx + Math.cos(a) * d - size / 2)),
-        y: Math.max(20, Math.min(W.h - size - 20, cy + Math.sin(a) * d - size / 2)),
-        w: size, h: size
-      };
-      if (p && G.circleRect(p.x, p.y, 250, rect)) continue;
-      if (conflictsObstacles(rect)) continue;
-      maybeTrap(rect);
-      state.obstacles.push(rect);
+      const d = CFG.obstacles.minDist + Math.random() * (CFG.obstacles.maxDist - CFG.obstacles.minDist);
+      const vx = Math.max(120, Math.min(W.w - 120, cx + Math.cos(a) * d));
+      const vy = Math.max(120, Math.min(W.h - 120, cy + Math.sin(a) * d));
+      const vein = makeVein(vx, vy);
+      if (p && G.circlePoly(p.x, p.y, 250, vein[0])) continue;
+      if (polyConflict(vein[0], 40)) continue;
+      vein.forEach(poly => { maybeTrap(poly); state.obstacles.push(poly); });
       made++;
     }
     return made;
   }
 
-  /** 玩家移动后：在附近随机生成一个障碍物（失败返回 false） */
+  /** 玩家移动后：在附近生成一条新岩脉（失败返回 false） */
   function spawnObstacleNearPlayer() {
     const W = CFG.world;
     const C = CFG.obstacles;
     const p = state.player;
-    if (!p || state.obstacles.length >= C.cap) return false;
+    if (!p || state.obstacles.length >= C.cap * 4) return false;
 
     for (let tries = 0; tries < 12; tries++) {
-      const size = C.sizeMin + Math.random() * (C.sizeMax - C.sizeMin);
       const a = Math.random() * Math.PI * 2;
       const d = C.minDist + Math.random() * (C.maxDist - C.minDist);
-      const cx = p.x + Math.cos(a) * d;
-      const cy = p.y + Math.sin(a) * d;
-      const rect = {
-        x: Math.max(60, Math.min(W.w - 60 - size, cx - size / 2)),
-        y: Math.max(60, Math.min(W.h - 60 - size, cy - size / 2)),
-        w: size, h: size
-      };
-      if (G.circleRect(p.x, p.y, C.minDist * 0.7, rect)) continue;
-      if (state.foes.some(f => !f.dead && G.circleRect(f.x, f.y, f.r + 50, rect))) continue;
-      if (conflictsObstacles(rect)) continue;
-      maybeTrap(rect);
-      state.obstacles.push(rect);
+      const vx = Math.max(120, Math.min(W.w - 120, p.x + Math.cos(a) * d));
+      const vy = Math.max(120, Math.min(W.h - 120, p.y + Math.sin(a) * d));
+      const vein = makeVein(vx, vy);
+      if (G.circlePoly(p.x, p.y, C.minDist * 0.7, vein[0])) continue;
+      if (state.foes.some(f => !f.dead && G.circlePoly(f.x, f.y, f.r + 50, vein[0]))) continue;
+      if (polyConflict(vein[0], 40)) continue;
+      vein.forEach(poly => { maybeTrap(poly); state.obstacles.push(poly); });
       return true;
     }
     return false;
@@ -218,6 +253,7 @@
 
   Object.assign(G, {
     state, saveBest, makeUnit, makePlayer,
-    spawnObstaclesRandom, spawnObstacleNearPlayer, cullObstacles, rectsOverlap, maybeTrap
+    spawnObstaclesRandom, spawnObstacleNearPlayer, cullObstacles, rectsOverlap, maybeTrap,
+    makePoly, makeVein, polyConflict
   });
 })(window.ABYSS = window.ABYSS || {});

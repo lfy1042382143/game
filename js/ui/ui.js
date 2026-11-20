@@ -42,28 +42,13 @@
     el.lvNum.textContent = p.level;
     el.xpFill.style.width = Math.min(100, p.xp / need * 100) + '%';
     if (el.mapName) el.mapName.textContent = G.MAPS[state.mapIdx].name;
-    el.statHp.textContent = Math.max(0, Math.round(p.hp)) + '/' + Math.round(p.maxHp);
-    el.statAtk.textContent = Math.round(p.atk);
-    el.statDef.textContent = Math.round(p.def);
+    if (el.statHp) {
+      el.statHp.textContent = Math.max(0, Math.round(p.hp)) + '/' + Math.round(p.maxHp);
+      el.statAtk.textContent = Math.round(p.atk);
+      el.statDef.textContent = Math.round(p.def);
+    }
     el.recordNum.textContent = state.best;
-
-    // 装备行
-    el.eqRow.innerHTML = '';
-    SLOTS.forEach(slot => {
-      const it = p.items.find(i => i.slot === slot.key);
-      const cell = document.createElement('span');
-      cell.className = 'eq-chip' + (it ? '' : ' empty');
-      if (it) {
-        const rar = rarOf(it.rarity);
-        cell.style.setProperty('--c', rar.c);
-        cell.title = it.name + ' Lv.' + it.level + '（' + rar.name + '）\n' + itemDescText(it);
-        cell.innerHTML = '<i>' + it.icon + '</i><b>Lv.' + it.level + '</b>';
-      } else {
-        cell.title = slot.name + '空置';
-        cell.innerHTML = '<i>' + slot.icon + '</i>';
-      }
-      el.eqRow.appendChild(cell);
-    });
+    // 顶部属性/装备行已移除：三维与装备统一在右侧边栏显示
 
     syncEqPanel();
   }
@@ -82,13 +67,13 @@
     const sig = [
       p.items.map(i => i.slot + ':' + i.key + ':' + i.rarity + ':' + i.level).join(','),
       Math.round(p.maxHp), Math.round(p.atk), Math.round(p.def),
-      p.shots, p.orbits, p.pierce, p.cardLeech, p.cardSlow,
+      p.shots, p.orbits, p.pierce, p.cardSlow,
       p.critEvery, p.atkCdMul.toFixed(2), Math.round(p.range), p.luck, (p.xpMul || 1).toFixed(2)
     ].join('|');
     if (sig === lastEqSig) return;
     lastEqSig = sig;
 
-    const A = p.agg || { crit: 0, critMult: 1.6, leech: 0, thorn: 0, bulwark: 0, pierce: 0, swiftstep: 0, vamp: 0, regen: 0, bleed: null, guard: 0 };
+    const A = p.agg || { crit: 0, critMult: 1.6, frost: 0, thorn: 0, bulwark: 0, pierce: 0, swiftstep: 0, haste: 0, regen: 0, bleed: null, guard: 0 };
 
     // 三维（含装备加成来源）
     let html =
@@ -101,9 +86,9 @@
         '<span class="eq-stat"><i>🍀</i><b>' + (p.luck || 0) + '</b><small>幸运</small></span>';
     // 装备词条
     const extras = [];
-    if (A.leech) extras.push(['🩸', '吸血', A.leech + '%']);
     if (p.xpMul > 1) extras.push(['✨', '经验加成', '+' + Math.round((p.xpMul - 1) * 100) + '%']);
-    if (A.vamp) extras.push(['🩹', '受击回复', A.vamp + '%']);
+    if (A.haste) extras.push(['💨', '受击加速', '+' + A.haste + '%']);
+    if (A.frost) extras.push(['❄️', '霜刃减速', A.frost + '%']);
     if (A.thorn) extras.push(['🌵', '反伤', A.thorn]);
     if (A.bulwark) extras.push(['🐉', '减伤', A.bulwark + '%']);
     if (A.pierce) extras.push(['🔮', '破甲', A.pierce + '%']);
@@ -112,13 +97,24 @@
     if (A.guard) extras.push(['🛡️', '护盾', A.guard]);
     if (A.crit) extras.push(['💥', '暴击', '每' + A.crit + '发×' + A.critMult.toFixed(1)]);
     if (A.bleed) extras.push(['🗡️', '流血', A.bleed.dmg + '×' + A.bleed.turns + 's']);
+    if (A.execute) extras.push(['🦴', '处决', '+' + A.execute + '%']);
+    if (A.rend) extras.push(['🔪', '裂甲', A.rend + '%']);
+    if (A.splash) extras.push(['🔊', '溅射', A.splash + '%']);
+    if (A.dodge) extras.push(['🌑', '闪避', A.dodge + '%']);
+    if (A.shock) extras.push(['⚡', '余震', A.shock]);
+    if (A.charger) extras.push(['🔋', '回盾', A.charger + '/s']);
+    if (A.eagle) extras.push(['🦅', '暴伤', '+' + A.eagle + '%']);
+    if (A.tough) extras.push(['🧱', '濒死减伤', A.tough + '%']);
+    if (A.clarity) extras.push(['🧠', '经验', '+' + A.clarity + '%']);
+    if (A.hastestone) extras.push(['⏩', '攻速符', '+' + A.hastestone + '%']);
+    if (A.resonance) extras.push(['🎼', '技能', '+' + A.resonance + '%']);
+    if (A.greed) extras.push(['💎', '稀有度', '+' + A.greed]);
     // 卡片能力
     if (p.atkCdMul < 1) extras.push(['⚡', '攻速', CFG.player.atkCd * p.atkCdMul < 0.2 ? 'MAX' : (CFG.player.atkCd * p.atkCdMul).toFixed(2) + 's/发']);
     if (p.shots > 1) extras.push(['🏹', '散射', '×' + p.shots]);
     if (p.pierce) extras.push(['🎯', '贯穿', p.pierce]);
     if (p.orbits) extras.push(['🌀', '飞刃', p.orbits]);
     if (p.critEvery) extras.push(['💥', '节拍暴击', '每' + p.critEvery + '发×' + p.critMult.toFixed(1)]);
-    if (p.cardLeech) extras.push(['🩸', '吸血箭', p.cardLeech + '%']);
     if (p.cardSlow) extras.push(['🕸️', '减速箭', '−' + Math.round(p.cardSlow * 18) + '%']);
     if (p.shieldEvery) extras.push(['🔵', '护盾', p.shieldVal + '/' + p.shieldEvery + 's']);
     extras.slice(0, 8).forEach(e => {

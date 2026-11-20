@@ -37,12 +37,12 @@
 
     // 源源不断刷怪（无波次）：开局稍缓给发育窗口，后期密度持续上升
     spawn: {
-      interval0: 2.2,     // 第 1 分钟的刷怪间隔（秒）
-      intervalMin: 0.38,  // 间隔下限
+      interval0: 2.0,     // 第 1 分钟的刷怪间隔（秒）
+      intervalMin: 0.32,  // 间隔下限
       intervalK: 0.1,     // 每分钟缩短量
-      capBase: 4,         // 第 1 分钟的场上存活上限
-      capMax: 34,         // 存活上限（后期怪海，原 18）
-      capK: 1.6,          // 每分钟上限增量
+      capBase: 5,         // 第 1 分钟的场上存活上限
+      capMax: 48,         // 存活上限（后期怪海）
+      capK: 2.0,          // 每分钟上限增量
       offscreen: 90,      // 出生点超出视口对角线的额外距离（确保屏幕外刷新）
       offscreenSpan: 300, // 屏幕外环带厚度
       mageCap: 2          // 场上法师数量上限（不占存活名额，但防止无限堆积）
@@ -59,7 +59,8 @@
     // 精英怪：每分钟整点出现一只；每 bossEvery 分钟为 BOSS
     elite: {
       every: 60,          // 精英出现间隔（秒）
-      hpMul: 2.0,         // 精英生命倍率
+      hpMul: 2.4,         // 精英生命倍率
+      bossHpMul: 8.0,     // BOSS 生命倍率（持久战，配合半血狂暴）
       atkMul: 1.3,        // 精英攻击倍率
       xpMul: 5,           // 精英经验倍率
       bossXpMul: 12,      // BOSS 经验倍率（远高于精英，击杀应显著升级）
@@ -120,8 +121,8 @@
     // 10 分钟（tier 4）：血量 26×1.5⁴≈132、攻击 9×1.35⁴≈30；20 分钟（tier 9）：血量≈994、攻击≈143
     mon: {
       tier: 2,
-      hp0: 26, hpGrowth: 1.5,
-      atk0: 9, atkGrowth: 1.35,
+      hp0: 26, hpGrowth: 1.55,
+      atk0: 9, atkGrowth: 1.4,
       dr0: 5, drStep: 4,
       eqLvEvery: 6,
       rarK: 0.2,
@@ -234,10 +235,28 @@
         tag: v => '每 ' + v.every + ' 击 ×' + v.mult
       },
       {
-        k: 'leech', name: '噬血剑', icon: '🩸', stat: [2, 3, 5, 8, 12], step: 2,
-        mk: (r, L0) => ({ pct: [8, 12, 17, 23, 30][r] + 3 * L0 }),
-        desc: v => '造成伤害的 <em>' + v.pct + '%</em> 转化为自身治疗',
-        tag: v => '吸血 ' + v.pct + '%'
+        k: 'frost', name: '霜刃', icon: '❄️', stat: [2, 3, 5, 8, 12], step: 2,
+        mk: (r, L0) => ({ slow: Math.min(65, [12, 16, 21, 27, 34][r] + 2 * L0) }),
+        desc: v => '命中使敌人减速 <em>' + v.slow + '%</em>，持续 1.6 秒',
+        tag: v => '减速 ' + v.slow + '%'
+      },
+      {
+        k: 'execute', name: '碎骨刃', icon: '🦴', stat: [2, 3, 5, 8, 12], step: 2,
+        mk: (r, L0) => ({ pct: [15, 22, 30, 40, 52][r] + 4 * L0 }),
+        desc: v => '对生命低于 <em>35%</em> 的敌人伤害提高 <em>' + v.pct + '%</em>',
+        tag: v => '处决 +' + v.pct + '%'
+      },
+      {
+        k: 'splash', name: '回响刃', icon: '🔊', stat: [2, 3, 5, 8, 12], step: 2,
+        mk: (r, L0) => ({ pct: [10, 14, 19, 25, 32][r] + 2 * L0, radius: 90 }),
+        desc: v => '击杀敌人时向周围溅射 <em>' + v.pct + '%</em> 攻击力伤害',
+        tag: v => '溅射 ' + v.pct + '%'
+      },
+      {
+        k: 'rend', name: '裂甲刃', icon: '🔪', stat: [2, 3, 5, 8, 12], step: 2,
+        mk: (r, L0) => ({ pct: Math.min(80, [12, 18, 25, 33, 42][r] + 3 * L0) }),
+        desc: v => '攻击时额外无视目标 <em>' + v.pct + '%</em> 减伤率',
+        tag: v => '裂甲 ' + v.pct + '%'
       }
     ],
     armor: [
@@ -258,14 +277,32 @@
         mk: (r, L0) => ({ pct: Math.min(60, [6, 9, 13, 18, 24][r] + 3 * L0) }),
         desc: v => '受到的伤害降低 <em>' + v.pct + '%</em>',
         tag: v => '减伤 ' + v.pct + '%'
+      },
+      {
+        k: 'dodge', name: '影遁甲', icon: '🌑', stat: [1, 2, 3, 4, 6], step: 1,
+        mk: (r, L0) => ({ pct: Math.min(45, [8, 12, 17, 23, 30][r] + 2 * L0) }),
+        desc: v => '<em>' + v.pct + '%</em> 概率完全闪避一次伤害',
+        tag: v => '闪避 ' + v.pct + '%'
+      },
+      {
+        k: 'shock', name: '余震甲', icon: '⚡', stat: [1, 2, 3, 4, 6], step: 1,
+        mk: (r, L0) => ({ dmg: Math.round([3, 5, 7, 10, 14][r] + 2 * L0), radius: 100 }),
+        desc: v => '受击时对周围敌人造成 <em>' + v.dmg + '</em> 点范围伤害',
+        tag: v => '余震 ' + v.dmg
+      },
+      {
+        k: 'charger', name: '蓄能甲', icon: '🔋', stat: [1, 2, 3, 4, 6], step: 1,
+        mk: (r, L0) => ({ val: Math.round([3, 5, 7, 10, 14][r] + 2 * L0) }),
+        desc: v => '脱战 3 秒后每秒回复 <em>' + v.val + '</em> 点护盾（上限 60）',
+        tag: v => '回盾 ' + v.val + '/s'
       }
     ],
     helm: [
       {
-        k: 'vamp', name: '回响头盔', icon: '🩹', stat: [10, 16, 24, 36, 52], step: 8,
-        mk: (r, L0) => ({ pct: [10, 14, 18, 24, 30][r] + 2 * L0 }),
-        desc: v => '受到伤害后回复该次伤害的 <em>' + v.pct + '%</em>',
-        tag: v => '受击回复 ' + v.pct + '%'
+        k: 'haste', name: '回响头盔', icon: '💨', stat: [10, 16, 24, 36, 52], step: 8,
+        mk: (r, L0) => ({ pct: [18, 24, 30, 38, 48][r] + 3 * L0, dur: 3 }),
+        desc: v => '受击后 <em>' + v.dur + '</em> 秒内移速提高 <em>' + v.pct + '%</em>',
+        tag: v => '受击加速 ' + v.pct + '%'
       },
       {
         k: 'regen', name: '再生头环', icon: '🌿', stat: [10, 16, 24, 36, 52], step: 8,
@@ -278,6 +315,24 @@
         mk: (r, L0) => ({ pct: [6, 9, 12, 16, 20][r] + 2 * L0 }),
         desc: v => '移动速度提高 <em>' + v.pct + '%</em>',
         tag: v => '移速 +' + v.pct + '%'
+      },
+      {
+        k: 'eagle', name: '鹰眼盔', icon: '🦅', stat: [10, 16, 24, 36, 52], step: 8,
+        mk: (r, L0) => ({ pct: [20, 30, 42, 56, 72][r] + 5 * L0 }),
+        desc: v => '暴击伤害提高 <em>' + v.pct + '%</em>',
+        tag: v => '暴伤 +' + v.pct + '%'
+      },
+      {
+        k: 'tough', name: '坚韧盔', icon: '🧱', stat: [10, 16, 24, 36, 52], step: 8,
+        mk: (r, L0) => ({ pct: Math.min(60, [10, 15, 21, 28, 36][r] + 3 * L0) }),
+        desc: v => '生命低于 35% 时受到的伤害降低 <em>' + v.pct + '%</em>',
+        tag: v => '濒死减伤 ' + v.pct + '%'
+      },
+      {
+        k: 'clarity', name: '清醒盔', icon: '🧠', stat: [10, 16, 24, 36, 52], step: 8,
+        mk: (r, L0) => ({ pct: [6, 9, 13, 18, 24][r] + 2 * L0 }),
+        desc: v => '获得的经验提高 <em>' + v.pct + '%</em>',
+        tag: v => '经验 +' + v.pct + '%'
       }
     ],
     trinket: [
@@ -298,6 +353,24 @@
         mk: () => ({}),
         desc: (v, it) => '防御力提高 <em>+' + it.statV + '</em>',
         tag: (v, it) => '防御 +' + it.statV
+      },
+      {
+        k: 'hastestone', name: '迅捷符', icon: '⏩', stat: null,
+        mk: (r, L0) => ({ pct: Math.min(50, [8, 12, 17, 23, 30][r] + 2 * L0) }),
+        desc: v => '射击间隔缩短 <em>' + v.pct + '%</em>',
+        tag: v => '攻速 +' + v.pct + '%'
+      },
+      {
+        k: 'resonance', name: '共鸣符', icon: '🎼', stat: null,
+        mk: (r, L0) => ({ pct: [12, 18, 25, 34, 45][r] + 3 * L0 }),
+        desc: v => '技能伤害（震荡波/闪电/浮游炮/地雷）提高 <em>' + v.pct + '%</em>',
+        tag: v => '技能 +' + v.pct + '%'
+      },
+      {
+        k: 'greed', name: '贪婪符', icon: '💎', stat: null,
+        mk: (r, L0) => ({ rar: Math.min(2, 1 + Math.floor(L0 / 2)) }),
+        desc: v => '宝箱掉落稀有度 <em>+' + v.rar + '</em>',
+        tag: v => '稀有度 +' + v.rar
       }
     ]
   };
