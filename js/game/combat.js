@@ -166,10 +166,12 @@
      - 跨过等级里程碑时解锁新地图（见 flow.switchMap）
      ========================================================= */
   function xpNeed(level) {
-    // 十级一档：1-10 级一个挡位、11-20 级一个挡位……档内需求恒定，跨档递增
+    // 十级一档、档内恒定；跨档二次加速（怪物同步指数成长，等级高也有对应挑战）
     const X = CFG.xp;
     const tier = Math.floor((level - 1) / (X.tierSize || 10));
-    return (X.tierBase || 40) + tier * (X.tierStep || 45);
+    return (X.tierBase || 30)
+      + tier * (X.tierStep || 14)
+      + tier * tier * (X.tierAccel || 14);
   }
 
   function gainXp(amount) {

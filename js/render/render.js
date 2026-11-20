@@ -50,15 +50,24 @@
     for (let y = gy0; y <= cam.y + V.h + 48; y += 48) { ctx.moveTo(cam.x, y); ctx.lineTo(cam.x + V.w, y); }
     ctx.stroke();
 
-    // 世界边界墙（世界坐标）
-    ctx.strokeStyle = map.wall;
-    ctx.lineWidth = 5;
-    ctx.strokeRect(0, 0, W.w, W.h);
-
-    // 视口外遮挡提示（世界边缘之外画暗色）
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    if (cam.x + V.w > W.w) ctx.fillRect(W.w, cam.y, cam.x + V.w - W.w, V.h);
-    if (cam.y + V.h > W.h) ctx.fillRect(cam.x, W.h, V.w, cam.y + V.h - W.h);
+    // 随机地形斑块：按世界坐标哈希确定性生成，随相机移动自然换入换出（无边界地图）
+    const TC = 320;
+    const tcx0 = Math.floor(cam.x / TC) - 1, tcx1 = Math.floor((cam.x + V.w) / TC) + 1;
+    const tcy0 = Math.floor(cam.y / TC) - 1, tcy1 = Math.floor((cam.y + V.h) / TC) + 1;
+    for (let gx = tcx0; gx <= tcx1; gx++) {
+      for (let gy = tcy0; gy <= tcy1; gy++) {
+        if (!G.cellHash) break;
+        const h = G.cellHash(gx, gy, 777);
+        if (h < 0.45) continue;
+        const x = gx * TC + G.cellHash(gx, gy, 778) * TC;
+        const y = gy * TC + G.cellHash(gx, gy, 779) * TC;
+        const r = 40 + G.cellHash(gx, gy, 780) * 100;
+        ctx.beginPath();
+        ctx.ellipse(x, y, r, r * (0.5 + G.cellHash(gx, gy, 781) * 0.5), 0, 0, Math.PI * 2);
+        ctx.fillStyle = map.obInner;
+        ctx.fill();
+      }
+    }
 
     // 动态障碍物（世界坐标）
     state.obstacles.forEach(o => {
@@ -309,6 +318,17 @@
       ctx.stroke();
     }
 
+    // 法师闪现前摇：紫色虚线圈
+    if (u.blinkWarnT > 0) {
+      ctx.beginPath();
+      ctx.arc(x, y, u.r + 9, 0, Math.PI * 2);
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = 'rgba(192,132,252,0.9)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
     // 血条
     const bw = u.r * 2.2, bh = 4;
     const bx = x - bw / 2, by = y - u.r - 14;
@@ -460,50 +480,57 @@
   }
 
   /* =========================================================
-     小地图（视口右下角）：世界轮廓 + 玩家/敌人/宝箱/地点
+     小地图（视口右下角）：无边界地图 → 显示玩家周围的局部雷达
      ========================================================= */
   function drawMinimap() {
-    const V = CFG.viewport, W = CFG.world;
-    const mw = 130, mh = Math.round(130 * W.h / W.w);
-    const mx = V.w - mw - 14, my = V.h - mh - 14;
-    const sx = mw / W.w, sy = mh / W.h;
+    const V = CFG.viewport, p = state.player;
+    const size = 130;
+    const mx = V.w - size - 14, my = V.h - size - 14;
+    const cx = mx + size / 2, cy = my + size / 2;
+    const R = (CFG.terrain && CFG.terrain.activeRadius) || 1800;
+    const sx = size / (2 * R);
+    const px = p ? p.x : 0, py = p ? p.y : 0;
+    const X = x => cx + (x - px) * sx;
+    const Y = y => cy + (y - py) * sx;
+    const inView = (x, y) => Math.abs(x - px) < R && Math.abs(y - py) < R;
 
     ctx.fillStyle = 'rgba(10,10,18,0.6)';
-    ctx.fillRect(mx, my, mw, mh);
+    ctx.fillRect(mx, my, size, size);
     ctx.strokeStyle = 'rgba(126,138,180,0.4)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(mx, my, mw, mh);
+    ctx.strokeRect(mx, my, size, size);
+    ctx.strokeStyle = 'rgba(126,138,180,0.14)';
+    ctx.beginPath();
+    ctx.moveTo(cx, my); ctx.lineTo(cx, my + size);
+    ctx.moveTo(mx, cy); ctx.lineTo(mx + size, cy);
+    ctx.stroke();
 
-    // 障碍物
     ctx.fillStyle = 'rgba(126,138,180,0.35)';
     state.obstacles.forEach(o => {
-      ctx.fillRect(mx + o.x * sx, my + o.y * sy, Math.max(2, o.w * sx), Math.max(2, o.h * sy));
+      if (inView(o.x, o.y)) ctx.fillRect(X(o.x), Y(o.y), Math.max(2, o.w * sx), Math.max(2, o.h * sx));
     });
 
-    // 事件地点（紫色）
     state.sites.forEach(s => {
-      if (s.used) return;
+      if (s.used || !inView(s.x, s.y)) return;
       ctx.fillStyle = '#a78bfa';
-      ctx.fillRect(mx + s.x * sx - 2, my + s.y * sy - 2, 4, 4);
+      ctx.fillRect(X(s.x) - 2, Y(s.y) - 2, 4, 4);
     });
 
-    // 宝箱（金色）
     state.chests.forEach(c => {
+      if (!inView(c.x, c.y)) return;
       ctx.fillStyle = '#fbbf24';
-      ctx.fillRect(mx + c.x * sx - 2, my + c.y * sy - 2, 4, 4);
+      ctx.fillRect(X(c.x) - 2, Y(c.y) - 2, 4, 4);
     });
 
-    // 敌人
     state.foes.forEach(f => {
-      if (f.dead) return;
+      if (f.dead || !inView(f.x, f.y)) return;
       ctx.fillStyle = f.type === 'boss' ? '#fca5a5' : '#fb7185';
-      ctx.fillRect(mx + f.x * sx - 2, my + f.y * sy - 2, 4, 4);
+      ctx.fillRect(X(f.x) - 2, Y(f.y) - 2, 4, 4);
     });
 
-    // 玩家
-    if (state.player) {
+    if (p) {
       ctx.fillStyle = '#7dd3fc';
-      ctx.fillRect(mx + state.player.x * sx - 2.5, my + state.player.y * sy - 2.5, 5, 5);
+      ctx.fillRect(cx - 2.5, cy - 2.5, 5, 5);
     }
   }
 

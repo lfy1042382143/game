@@ -92,6 +92,20 @@
     }
   }
 
+  /** 无边界地图：远离玩家的普通敌人回收（不给经验/掉落），防止旧怪堆积占名额 */
+  function cullDistantFoes() {
+    const p = state.player;
+    if (!p) return;
+    const D = CFG.terrain.cullFoeDist;
+    const d2 = D * D;
+    for (const f of state.foes) {
+      if (f.dead || f.elite || f.type === 'boss') continue;
+      if ((f.x - p.x) * (f.x - p.x) + (f.y - p.y) * (f.y - p.y) > d2) {
+        f.dead = true;   // 静默移除（不计击杀、不掉宝箱）
+      }
+    }
+  }
+
   /* =========================================================
      敌人生成：普通敌人按间隔刷 + 分钟整点精英
      ========================================================= */
@@ -99,7 +113,7 @@
     const minute = state.wave;
     const enemyIdx = state.kills;   // 词缀轮换用
 
-    // 普通敌人：存活数低于上限时按间隔刷新（缺口大时一次补 2 只，快速填场）
+    // 普通敌人：存活数低于上限时按间隔刷新（缺口大时一次补 2~3 只，快速填场）
     // 法师是站桩炮台，不计入存活上限（否则会挤占近战/远程的刷新名额），
     // 但有独立的场上数量上限 mageCap，防止不清理时无限堆积
     const alive = state.foes.filter(f => !f.dead && f.type !== 'mage').length;
@@ -109,7 +123,7 @@
       state.spawnT = 0;
       const deficit = G.aliveCap(minute) - alive;
       if (deficit > 0) {
-        const batch = deficit >= 3 ? 2 : 1;
+        const batch = deficit >= 8 ? 3 : deficit >= 3 ? 2 : 1;
         for (let i = 0; i < batch && i < deficit; i++) {
           const idx = enemyIdx + i;
           const roll = idx % 10;
@@ -165,6 +179,7 @@
     if (state.player.dead) { gameOver(); return; }
 
     G.updateEnemies(dt);
+    cullDistantFoes();
     G.updateBullets(dt);
     G.tickBleeds(state.player, dt);
     updateObstacles(dt);
@@ -216,5 +231,5 @@
     G.ui.showGameOver();
   }
 
-  Object.assign(G, { startRun, switchMap, update, gameOver, updateObstacles, updateSpawns, tickMinute });
+  Object.assign(G, { startRun, switchMap, update, gameOver, updateObstacles, updateSpawns, cullDistantFoes, tickMinute });
 })(window.ABYSS = window.ABYSS || {});

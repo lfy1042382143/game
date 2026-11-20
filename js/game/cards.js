@@ -40,14 +40,14 @@
     { key: 'def', name: '防御', icon: '🛡', kind: 'attr', attr: 'def' }
   ];
 
-  /** 升级效率卡：每 2 级加入属性池（击杀经验 +15%，可叠加） */
+  /** 升级效率卡：随机混入卡池（击杀经验 +20%，上限 1.6 防止后期升级过快） */
   const XP_CARD = {
     key: 'xpgain', name: '升级效率', icon: '✨', kind: 'mode',
-    max: p => (p.xpMul || 1) >= 2.5,
+    max: p => (p.xpMul || 1) >= CFG.levelup.xpMulCap,
     desc: p => (p.xpMul || 1) > 1
       ? '获得经验再 +20%（当前 +' + Math.round((p.xpMul - 1) * 100) + '%）· 升级更快'
-      : '击杀获得的经验 +20% · 升级更快（可叠加）',
-    apply(p) { p.xpMul = Math.min(2.5, (p.xpMul || 1) + 0.2); }
+      : '击杀获得的经验 +20% · 升级更快（最多 +60%）',
+    apply(p) { p.xpMul = Math.min(CFG.levelup.xpMulCap, (p.xpMul || 1) + 0.2); }
   };
 
   /* =========================================================

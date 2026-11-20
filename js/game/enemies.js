@@ -131,19 +131,69 @@
   }
 
   /* =========================================================
-     法师：完全不动，原地咏唱小范围 AoE
-     咏唱 → 玩家当前位置出现预警圈 → warn 后爆发（对圈内所有单位）
+     法师：不能移动，但会周期性「闪现」到玩家附近的落点
+     闪现有紫色预警前摇，位移后继续原地咏唱 AoE
      ========================================================= */
+  /** 在玩家周围找一个不压障碍/不重叠其他敌人的闪现落点 */
+  function findBlinkSpot(e) {
+    const p = state.player, M = CFG.mage, A = CFG.world;
+    for (let i = 0; i < 14; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = M.blinkMin + Math.random() * (M.blinkMax - M.blinkMin);
+      const x = p.x + Math.cos(a) * d;
+      const y = p.y + Math.sin(a) * d;
+      if (x < 60 || y < 60 || x > A.w - 60 || y > A.h - 60) continue;
+      if (state.obstacles.some(o => G.circleRect(x, y, e.r + 12, o))) continue;
+      let crowded = false;
+      for (const f of state.foes) {
+        if (f === e || f.dead) continue;
+        if (G.dist(x, y, f.x, f.y) < f.r + e.r + 10) { crowded = true; break; }
+      }
+      if (!crowded) return { x, y };
+    }
+    return null;
+  }
+
   function updateMage(e, dt) {
     const p = state.player;
     if (!p || p.dead) return;
+    const M = CFG.mage;
+
+    /* ---- 闪现前摇：预警期间不施法，结束后瞬移到锁定落点 ---- */
+    if (e.blinkWarnT > 0) {
+      e.blinkWarnT -= dt;
+      if (e.blinkWarnT <= 0) {
+        if (e.blinkTo) {
+          e.x = e.blinkTo.x; e.y = e.blinkTo.y;
+          e.lx = e.x; e.ly = e.y;   // 避免瞬移被记成超高速度（影响玩家预判）
+          e.blinkTo = null;
+          if (G.floatText) G.floatText(e, '闪现', '#c4b5fd', true);
+        }
+        e.blinkT = M.blinkCd;
+      }
+      return;
+    }
+
+    /* ---- 闪现判定：玩家跑出威胁环带时重新定位 ---- */
+    if (e.blinkT === undefined) e.blinkT = M.blinkCd * (0.4 + Math.random() * 0.6);
+    e.blinkT -= dt;
+    if (e.blinkT <= 0) {
+      const d = G.dist(e.x, e.y, p.x, p.y);
+      if (d > M.blinkMax || d < M.blinkMin) {
+        const spot = findBlinkSpot(e);
+        if (spot) { e.blinkTo = spot; e.blinkWarnT = M.blinkWarn; return; }
+      }
+      e.blinkT = 1;   // 落点被占：稍后再试
+    }
+
+    /* ---- 原地咏唱 ---- */
     e.atkCd -= dt;
     if (e.atkCd <= 0) {
-      e.atkCd = CFG.mage.castCd;
+      e.atkCd = M.castCd;
       state.mageAoes.push({
         x: p.x, y: p.y,
-        r: CFG.mage.aoeR,
-        warn: CFG.mage.warn,
+        r: M.aoeR,
+        warn: M.warn,
         t: 0,
         dmg: e.atk,
         owner: e
@@ -378,5 +428,5 @@
     separateFromPlayer(alive);
   }
 
-  Object.assign(G, { updateEnemies, updateMageAoes, updateMimic, updateMage, separateFromPlayer, applyEliteAura });
+  Object.assign(G, { updateEnemies, updateMageAoes, updateMimic, updateMage, findBlinkSpot, separateFromPlayer, applyEliteAura });
 })(window.ABYSS = window.ABYSS || {});

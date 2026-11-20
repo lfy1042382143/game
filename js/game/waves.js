@@ -10,10 +10,10 @@
 
   const { state, CFG, pick } = G;
 
-  /** 平衡曲线（两分钟一档：档内恒定，跨档跳增） */
+  /** 平衡曲线（两分钟一档：档内恒定，怪物血量/攻击跨档指数增长，跟上玩家后期成长） */
   function curveTier(m) { return Math.floor((m - 1) / CFG.mon.tier); }
-  function curveHp(m) { return CFG.mon.hp0 + curveTier(m) * CFG.mon.hpStep; }
-  function curveAtk(m) { return CFG.mon.atk0 + curveTier(m) * CFG.mon.atkStep; }
+  function curveHp(m) { return Math.round(CFG.mon.hp0 * Math.pow(CFG.mon.hpGrowth, curveTier(m))); }
+  function curveAtk(m) { return Math.round(CFG.mon.atk0 * Math.pow(CFG.mon.atkGrowth, curveTier(m))); }
   function curveDef(m) { return CFG.mon.dr0 + curveTier(m) * CFG.mon.drStep; }   // 减伤率%（敌人专用）
 
   /** 当前刷怪间隔（随分钟缩短） */
@@ -39,23 +39,25 @@
   }
 
   /* =========================================================
-     出生点位：玩家周围随机环带（随机出现）
+     出生点位：玩家「视口之外」的随机环带（生成后向玩家移动）
+     环带内半径 > 视口对角线的一半 → 出生点必定在屏幕外
      ========================================================= */
   function spawnNearPlayer() {
-    const W = CFG.world;
+    const W = CFG.world, V = CFG.viewport, S = CFG.spawn;
     const p = state.player;
     const pc = p || { x: W.w / 2, y: W.h / 2 };
-    const minD = 380, maxD = 680;
+    const minD = Math.hypot(V.w / 2, V.h / 2) + (S.offscreen || 90);
+    const maxD = minD + (S.offscreenSpan || 300);
 
     for (let tries = 0; tries < 16; tries++) {
       const a = Math.random() * Math.PI * 2;
       const d = minD + Math.random() * (maxD - minD);
-      const x = Math.max(40, Math.min(W.w - 40, pc.x + Math.cos(a) * d));
-      const y = Math.max(40, Math.min(W.h - 40, pc.y + Math.sin(a) * d));
+      const x = Math.max(60, Math.min(W.w - 60, pc.x + Math.cos(a) * d));
+      const y = Math.max(60, Math.min(W.h - 60, pc.y + Math.sin(a) * d));
       const onObstacle = state.obstacles.some(o => G.circleRect(x, y, 40, o));
       if (!onObstacle) return { x, y };
     }
-    return { x: W.w / 2, y: 80 };
+    return { x: pc.x + minD, y: pc.y };
   }
 
   /* =========================================================
@@ -110,9 +112,15 @@
       x: pos.x, y: pos.y
     });
 
-    // 击杀经验按血量给：血厚的怪经验更多（法师 ×2 高威胁高回报）
-    u.xp = Math.round((u.hp / 5 + 2 * minute) * (type === 'ranged' ? 1.3 : type === 'mage' ? 2 : 1));
+    // 击杀经验：血量开方（怪物后期指数变强时经验不至于同步爆炸）+ 分钟加成；法师 ×2
+    u.xp = Math.round((Math.sqrt(u.hp) * 1.6 + 1.2 * minute) * (type === 'ranged' ? 1.3 : type === 'mage' ? 2 : 1));
     u.strafeDir = Math.random() < 0.5 ? 1 : -1;
+    // 法师闪现：错开初始冷却，避免所有法师同时瞬移
+    if (type === 'mage') {
+      u.blinkT = CFG.mage.blinkCd * (0.4 + Math.random() * 0.6);
+      u.blinkWarnT = 0;
+      u.blinkTo = null;
+    }
 
     const affix = affixFor(minute, idx);
     if (affix) {
@@ -140,8 +148,8 @@
     const type = boss ? 'boss' : (minute % 2 === 1 ? 'melee' : 'ranged');
     const cfgT = CFG[type];
 
-    // 精英 ×2.0、BOSS ×1.8（BOSS 战不该拖太久）
-    const hpScale = boss ? 1.8 : E.hpMul;
+    // 精英 ×2.0、BOSS ×2.2（BOSS 体型与威胁都要显著高于普通怪）
+    const hpScale = boss ? 2.2 : E.hpMul;
     let hp = curveHp(minute) * hpScale * boost * (opts.hpMul || 1) * trap.hp * (cfgT.hpMul || 1);
     let atk = curveAtk(minute) * E.atkMul * boost * (opts.atkMul || 1) * trap.atk * (cfgT.atkMul || 1);
     if (state.pendingRage) atk *= 1.3;

@@ -150,17 +150,21 @@
     }
   }
 
-  /** 在世界内随机生成 n 个障碍物（避开玩家与现有障碍） */
+  /** 在玩家附近生成 n 个障碍物（无边界地图：不再按世界尺寸满图撒点） */
   function spawnObstaclesRandom(n) {
     const W = CFG.world;
     const C = CFG.obstacles;
     const p = state.player;
+    const cx = p ? p.x : W.w / 2;
+    const cy = p ? p.y : W.h / 2;
     let made = 0, tries = 0;
     while (made < n && tries++ < 200) {
       const size = C.sizeMin + Math.random() * (C.sizeMax - C.sizeMin);
+      const a = Math.random() * Math.PI * 2;
+      const d = C.minDist + Math.random() * (C.maxDist - C.minDist);
       const rect = {
-        x: 60 + Math.random() * (W.w - 120 - size),
-        y: 60 + Math.random() * (W.h - 120 - size),
+        x: Math.max(20, Math.min(W.w - size - 20, cx + Math.cos(a) * d - size / 2)),
+        y: Math.max(20, Math.min(W.h - size - 20, cy + Math.sin(a) * d - size / 2)),
         w: size, h: size
       };
       if (p && G.circleRect(p.x, p.y, 250, rect)) continue;

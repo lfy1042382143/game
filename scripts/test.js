@@ -153,23 +153,22 @@ function featureTests() {
   assert(G.state.chests.length === 1, 'T1 开局有一个引导宝箱', G.state.chests.length);
   assert(G.state.sites.length === 1, 'T1 开局只有一个事件地点', G.state.sites.length);
   assert(G.state.obstacles.length >= 4, 'T1 初始世界有随机障碍物', G.state.obstacles.length);
-  assert(G.CFG.world.w === 2000 && G.CFG.world.h === 1400, 'T1 大世界尺寸 2000×1400');
+  assert(G.CFG.world.w >= 50000 && G.CFG.world.h >= 50000, 'T1 巨大地图（模拟无边界）', G.CFG.world);
   const alive0 = G.state.foes.length;
   run(10);
   assert(G.state.foes.length > alive0, 'T1 敌人源源不断刷新', { t0: alive0, t10s: G.state.foes.length });
   assert(G.state.foes.length <= G.aliveCap(1), 'T1 存活数不超过上限', { n: G.state.foes.length, cap: G.aliveCap(1) });
 
-  // T2 WASD 移动 + 世界边界
+  // T2 世界边界仅在极远处存在（正常游玩触不到）
   reset();
-  const y0 = G.state.player.y;
-  engineKeys.add('w');
-  run(1);
-  engineKeys.delete('w');
-  assert(G.state.player.y < y0 - 80, 'T2 W 键向上移动', { y0, y1: G.state.player.y });
+  const pEdge = G.state.player;
+  pEdge.x = G.CFG.world.w - 300; pEdge.y = G.CFG.world.h / 2;
+  const edgeX0 = pEdge.x;
   engineKeys.add('d');
-  run(3);
+  run(1);
   engineKeys.delete('d');
-  assert(G.state.player.x <= 2000 - 13, 'T2 世界边界约束生效', G.state.player.x);
+  assert(pEdge.x > edgeX0 + 80 && pEdge.x <= G.CFG.world.w - pEdge.r + 0.01,
+    'T2 玩家可自由移动，仅在极远世界边缘受限', { x0: edgeX0, x1: pEdge.x });
 
   // T3 近战敌人追击（重装型：慢速但持续逼近）
   reset();
@@ -315,7 +314,7 @@ function featureTests() {
   reset();
   const f19 = G.makeEnemy(1, 0);
   const d19 = G.dist(f19.x, f19.y, G.state.player.x, G.state.player.y);
-  assert(d19 >= 300 && d19 <= 750, 'T19 敌人刷新在玩家周围环带', Math.round(d19));
+  assert(d19 >= 620 && d19 <= 980, 'T19 敌人刷新在视口之外的环带', Math.round(d19));
 
   // T-E1 分钟整点出现精英怪
   reset();
@@ -401,12 +400,15 @@ function featureTests() {
   assert(G.state.foes.filter(f => !f.dead).length >= ambushN0 + G.CFG.traps.ambushCount, 'T-Trap 伏击陷阱立即召唤敌人', G.state.foes.length);
   G.CFG.events.trapChance = trapChanceBak;
 
-  // T9a 经验需求十级一档：档内恒定，跨档跳增
+  // T9a 经验需求十级一档：档内恒定，跨档跳增且后期加速
   const n1 = G.xpNeed(1), n2 = G.xpNeed(2), n10 = G.xpNeed(10), n11 = G.xpNeed(11), n20 = G.xpNeed(20), n21 = G.xpNeed(21);
   assert(n1 === n2 && n2 === n10, 'T9a 1-10 级同挡（每级恒定）', { n1, n2, n10 });
   assert(n11 === G.xpNeed(20) && n11 > n10, 'T9a 11-20 级新挡且高于上一档', { n10, n11, n20 });
   assert(n21 > n11, 'T9a 21 级起再进下一挡', { n11, n21 });
-  assert(n1 === 40, 'T9a 首挡每级 40 经验', n1);
+  assert(n1 === 30, 'T9a 首挡每级 30 经验（前期更快）', n1);
+  // 后期加速：相邻档增量本身随档数扩大（第 10 档 ≈ 第 2 档的 5 倍）
+  const d2 = n21 - n11, d10 = G.xpNeed(91) - G.xpNeed(81);
+  assert(d10 > d2 * 4, 'T9a 后期档位跳增明显放大（抑制后期升级过快）', { earlyJump: d2, lateJump: d10 });
 
   // T9b 真实卡池选卡（含无 apply 的属性卡）不能卡死流程
   reset();
@@ -451,7 +453,7 @@ function featureTests() {
   pRic.bounce = 1;
   G.state.foes = [];
   pRic.atkCd = 999;                         // 禁用期间玩家持续开火，避免干扰反弹弹幕观测
-  pRic.x = G.CFG.world.w / 2; pRic.y = G.CFG.world.h / 2;
+  pRic.x = G.CFG.world.w - 300; pRic.y = G.CFG.world.h / 2;   // 靠近极远的世界边缘测试墙壁反弹
   G.state.bullets = [];
   G.state.bullets.push({ x: G.CFG.world.w - 40, y: pRic.y, vx: 600, vy: 0, r: 4, dmg: 1, side: 'p', life: 2, hit: [] });
   run(0.25);
@@ -765,7 +767,9 @@ function featureTests() {
   // T15b 熔岩裂隙：火球预警 → 爆发伤害
   reset();
   G.switchMap(2);
+  G.ensureTerrainAroundPlayer();      // 无边界地图：陷阱按地块按需生成
   assert(G.hazardKind() === 'fire', 'T15b 熔岩裂隙陷阱种类为 fire');
+  assert(G.state.hazAnchors.length > 0, 'T15b 玩家附近已生成火球固定锚点', G.state.hazAnchors.length);
   const f15 = G.makeEnemy(1, 0);
   G.state.foes.push(f15);
   const hp15 = f15.hp;
@@ -778,6 +782,7 @@ function featureTests() {
   // T15c 腐雾沼泽：减速泥潭同时影响玩家与敌人
   reset();
   G.switchMap(4);
+  G.ensureTerrainAroundPlayer();
   assert(G.hazardKind() === 'swamp', 'T15c 腐雾沼泽陷阱种类为 swamp');
   assert(G.state.zones.length > 0, 'T15c 泥潭区域已布置', G.state.zones.length);
   const psw = G.state.player;
@@ -789,23 +794,23 @@ function featureTests() {
   reset();
   G.switchMap(3);
   assert(G.hazardKind() === 'vortex', 'T15d 虚空回廊陷阱种类为 vortex');
-  G.state.zones = [{ kind: 'vortex', x: 400, y: 400, r: 200 }];
+  G.state.zones = [{ kind: 'vortex', x: G.state.player.x, y: G.state.player.y, r: 200 }];
   const vf = G.makeEnemy(1, 0);
   vf.type = 'melee';
   vf.speed = 0;          // 静止敌人：排除追击 AI 干扰，只验证引力
-  vf.x = 480; vf.y = 400;
+  vf.x = G.state.player.x + 80; vf.y = G.state.player.y;
   G.state.foes = [vf];
-  const dv0 = G.dist(vf.x, vf.y, 400, 400);
+  const dv0 = G.dist(vf.x, vf.y, G.state.player.x, G.state.player.y);
   run(0.5);
-  const dv1 = G.dist(vf.x, vf.y, 400, 400);
+  const dv1 = G.dist(vf.x, vf.y, G.state.player.x, G.state.player.y);
   assert(dv1 < dv0 - 20, 'T15d 裂隙把敌人拉向中心', { d0: dv0.toFixed(1), d1: dv1.toFixed(1) });
   // 玩家同样被拉拽
   const pvx = G.state.player;
   G.state.foes = [];
-  pvx.x = 480; pvx.y = 400;
-  const dp0 = G.dist(pvx.x, pvx.y, 400, 400);
+  pvx.x = G.state.player.x + 80; pvx.y = G.state.player.y;
+  const dp0 = G.dist(pvx.x, pvx.y, G.state.zones[0].x, G.state.zones[0].y);
   run(0.5);
-  const dp1 = G.dist(pvx.x, pvx.y, 400, 400);
+  const dp1 = G.dist(pvx.x, pvx.y, G.state.zones[0].x, G.state.zones[0].y);
   assert(dp1 < dp0 - 20, 'T15d 裂隙把玩家拉向中心', { d0: dp0.toFixed(1), d1: dp1.toFixed(1) });
 
   // T15e 荒芜骨林：骨刺周期生成
@@ -834,7 +839,7 @@ function featureTests() {
   reset();
   {
     const pm = G.state.player;
-    pm.xpMul = 2.5;   // 升级效率达上限 → 不再入池
+    pm.xpMul = G.CFG.levelup.xpMulCap;   // 升级效率达上限 → 不再入池
     let xpShown = false;
     for (let i = 0; i < 60; i++) {
       if (G.makeLevelCards(pm).some(c => c.key === 'xpgain')) xpShown = true;
@@ -944,27 +949,34 @@ function featureTests() {
   assert(fanned[2].dashing, 'T24b BOSS 第 3 技能：进入冲撞预警', fanned[2]);
   assert(fanned[3].foes >= G.CFG.boss.summonCount, 'T24b BOSS 第 4 技能：召唤援军', fanned[3]);
 
-  // T24c 固定陷阱：同一地图布局确定（zones 与锚点可复现）
+  // T24c 固定陷阱：地块哈希确定性（同一世界坐标每次生成位置一致）
   reset();
   G.state.mapIdx = 4;                    // 沼泽（zones）
-  G.setupHazards();
+  G.setupHazards(); G.ensureTerrainAroundPlayer();
   const swampZones1 = JSON.stringify(G.state.zones.map(z => [Math.round(z.x), Math.round(z.y), Math.round(z.r)]));
-  G.setupHazards();
+  G.setupHazards(); G.ensureTerrainAroundPlayer();
   const swampZones2 = JSON.stringify(G.state.zones.map(z => [Math.round(z.x), Math.round(z.y), Math.round(z.r)]));
-  assert(swampZones1 === swampZones2 && G.state.zones.length > 0, 'T24c 泥潭位置每次进入完全一致');
+  assert(swampZones1 === swampZones2 && G.state.zones.length > 0, 'T24c 泥潭位置按地块确定性生成', G.state.zones.length);
   G.state.mapIdx = 2;                    // 熔岩（锚点）
-  G.setupHazards();
+  G.setupHazards(); G.ensureTerrainAroundPlayer();
   const anchors1 = JSON.stringify(G.state.hazAnchors.map(a => [Math.round(a.x), Math.round(a.y)]));
-  G.setupHazards();
+  G.setupHazards(); G.ensureTerrainAroundPlayer();
   const anchors2 = JSON.stringify(G.state.hazAnchors.map(a => [Math.round(a.x), Math.round(a.y)]));
-  assert(anchors1 === anchors2 && G.state.hazAnchors.length === G.CFG.hazards.fire.anchors, 'T24c 火球落点锚点固定');
-  // 爆发按锚点顺序轮换
-  const firstBurst = [];
+  assert(anchors1 === anchors2 && G.state.hazAnchors.length > 0, 'T24c 火球落点锚点按地块确定性生成', G.state.hazAnchors.length);
+  // 无边界地形换入换出：玩家远行后生成全新地块的锚点
+  const px24c = G.state.player.x;
+  G.state.player.x += 5000;
+  G.ensureTerrainAroundPlayer();
+  const anchorsFar = JSON.stringify(G.state.hazAnchors.map(a => [Math.round(a.x), Math.round(a.y)]));
+  assert(anchorsFar !== anchors2 && G.state.hazAnchors.length > 0, 'T24c 玩家远行后地形按地块换入换出', G.state.hazAnchors.length);
+  // 爆发按玩家附近锚点顺序轮换
+  const nearAnchors = G.state.hazAnchors.filter(a => G.dist(a.x, a.y, G.state.player.x, G.state.player.y) < G.CFG.terrain.activeRadius);
+  G.state.hazards = [];
   G.spawnBurst('fire', 1); G.spawnBurst('fire', 1);
-  firstBurst.push([G.state.hazards[0].x, G.state.hazards[0].y]);
-  firstBurst.push([G.state.hazards[1].x, G.state.hazards[1].y]);
-  const m1 = G.state.hazAnchors[0], m2 = G.state.hazAnchors[1];
-  assert(firstBurst[0][0] === m1.x && firstBurst[1][0] === m2.x, 'T24c 爆发落点严格按锚点顺序');
+  const firstBurst = [G.state.hazards[0], G.state.hazards[1]];
+  assert(firstBurst[0].x === nearAnchors[0].x && firstBurst[1].x === nearAnchors[1].x,
+    'T24c 爆发落点按附近锚点顺序轮换', { got: firstBurst.map(h => h.x), want: nearAnchors.slice(0, 2).map(a => a.x) });
+  G.state.player.x = px24c;
 
   // T24d 敌人不与玩家重叠
   reset();
@@ -1050,6 +1062,61 @@ function featureTests() {
   run(0.5);
   const t27New = G.state.foes.filter(f => !f.dead && f !== t27Ma && f !== t27Mb);
   assert(t27New.some(f => f.type === 'melee'), 'T27h 法师满员后补刷近战', t27New.map(f => f.type).join(','));
+
+  // T28 无边界地图 / 屏幕外刷怪 / 法师闪现 / 后期曲线
+  reset();
+  {
+    const V = G.CFG.viewport;
+    let allOut = true, minD = Infinity;
+    for (let i = 0; i < 30; i++) {
+      const s = G.spawnNearPlayer();
+      const dx = Math.abs(s.x - G.state.player.x), dy = Math.abs(s.y - G.state.player.y);
+      const d = Math.hypot(dx, dy);
+      minD = Math.min(minD, d);
+      if (!(dx > V.w / 2 || dy > V.h / 2)) allOut = false;
+    }
+    assert(allOut && minD > Math.hypot(V.w / 2, V.h / 2), 'T28a 敌人刷新点始终在视口之外', { minD: Math.round(minD) });
+  }
+
+  reset();
+  {
+    const pBlink = G.state.player, M = G.CFG.mage;
+    const mage = G.makeEnemy(1, 8);
+    mage.type = 'mage'; mage.speed = 0; mage.x = pBlink.x + 1200; mage.y = pBlink.y;
+    mage.blinkT = 0; mage.blinkWarnT = 0; mage.blinkTo = null;
+    G.state.foes = [mage];
+    run(0.1);
+    const warned = mage.blinkWarnT > 0 && !!mage.blinkTo;
+    run(0.5);
+    const bd = G.dist(mage.x, mage.y, pBlink.x, pBlink.y);
+    assert(warned && bd >= M.blinkMin - 30 && bd <= M.blinkMax + 30,
+      'T28b 法师远离玩家后预警闪现到玩家周围（不移动）', { warned, bd: Math.round(bd) });
+  }
+
+  assert(G.CFG.world.w >= 50000 && G.CFG.world.h >= 50000, 'T28c 巨大地图模拟无边界');
+  assert(G.cellHash(3, 7, 11) === G.cellHash(3, 7, 11) && G.cellHash(3, 7, 11) !== G.cellHash(4, 7, 11),
+    'T28c 地形地块哈希确定且随坐标变化');
+
+  assert(G.xpNeed(11) < 85 && G.xpNeed(91) > G.xpNeed(11) * 18,
+    'T28d 前期经验降低、后期需求增大', { early: G.xpNeed(11), late: G.xpNeed(91) });
+  assert(G.aliveCap(20) >= 30 && G.spawnInterval(20) <= 0.6,
+    'T28e 后期敌人数量与刷新密度明显提高', { cap: G.aliveCap(20), interval: G.spawnInterval(20) });
+
+  reset();
+  {
+    const pXpCap = G.state.player;
+    for (let i = 0; i < 6; i++) G.XP_CARD.apply(pXpCap);
+    assert(Math.abs(pXpCap.xpMul - 1.6) < 1e-9 && G.XP_CARD.max(pXpCap),
+      'T28f 升级效率倍率封顶 1.6（后期升级不被过度加速）', pXpCap.xpMul);
+  }
+
+  const t28Hp11 = G.curveHp(11), t28Hp21 = G.curveHp(21);
+  const t28Atk11 = G.curveAtk(11), t28Atk21 = G.curveAtk(21);
+  assert(t28Hp21 > t28Hp11 * 3 && t28Atk21 > t28Atk11 * 2,
+    'T28g 怪物后期血量/攻击指数增长（跟上高等级玩家）',
+    { hp: [t28Hp11, t28Hp21], atk: [t28Atk11, t28Atk21] });
+  const xp11 = G.makeEnemy(11, 0).xp, xp21 = G.makeEnemy(21, 0).xp;
+  assert(xp21 < xp11 * 2.5, 'T28g 击杀经验按血量开方，不随怪物指数暴涨', { xp11, xp21 });
 
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;
@@ -1175,7 +1242,7 @@ function simulate(runs) {
       }
       if (fx || fy) {
         dx = fx; dy = fy;
-        dx += (p.x > G.CFG.world.w / 2 ? 1 : -1) * 50;   // 贴边时沿切向绕开
+        // 无边界地图：不再有世界中心可依托，按最近搜索方向自然漫游
       } else if (Math.random() < 0.04) {
         dx = near.x - p.x; dy = near.y - p.y;
       } else {
