@@ -443,7 +443,7 @@
       ctx.fillStyle = '#67e8f9';
       ctx.shadowColor = '#22d3ee';
       ctx.shadowBlur = 6;
-      ctx.fillRect(-5, -2, 10, 4);
+      ctx.fillRect(-8, -3, 16, 6);
       ctx.shadowBlur = 0;
       ctx.restore();
     });
