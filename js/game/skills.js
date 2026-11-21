@@ -37,12 +37,12 @@
     },
     chain: {
       name: '连锁闪电', icon: '⚡',
-      unlockDesc: '解锁连锁闪电：每 3.0 秒劈向最近敌人并弹射 2 个目标（主目标 140% 攻击，每跳 ×0.8）',
+      unlockDesc: '解锁连锁闪电：每 3.0 秒劈向最近敌人并弹射 2 个目标（主目标 90% 攻击，每跳 ×0.8）',
       dims: [
         { key: 'jumps', name: '弹射数量', icon: '🔗', max: 4,
           eff: lv => '每次攻击弹射跳跃 ' + (2 + lv) + ' 个目标' },
         { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
-          eff: lv => '每道闪电造成 ' + Math.round((1.4 + 0.4 * lv) * 100) + '% 攻击的伤害（每多弹射 1 目标 ×0.8）' },
+          eff: lv => '每道闪电造成 ' + Math.round((0.9 + 0.25 * lv) * 100) + '% 攻击的伤害（每多弹射 1 目标 ×0.8）' },
         { key: 'rate',  name: '攻击频率', icon: '⏱️', max: 4,
           eff: lv => '每 ' + (3.0 * Math.pow(0.88, lv)).toFixed(2) + ' 秒发动一轮攻击' },
         { key: 'bolts', name: '闪电数量', icon: '🌩️', max: 3,
@@ -156,7 +156,7 @@
     const c = g('chain'), ch = p.sk.chain;
     ch.cd = Math.max(1.1, 3.0 * Math.pow(0.88, c.rate || 0) * D);
     ch.jumps = 2 + (c.jumps || 0);
-    ch.mult = 1.4 + 0.4 * (c.dmg || 0);
+    ch.mult = 0.9 + 0.25 * (c.dmg || 0);
     ch.bolts = 1 + (c.bolts || 0);
 
     /* 震荡波（近身 AoE：1.8×攻 / 3s / 半径 110） */
