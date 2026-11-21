@@ -368,13 +368,13 @@
   /* =========================================================
      感应地雷
      ========================================================= */
-  function explodeMine(m, p) {
+  function explodeMine(m, p, trigger) {
     G.state.skillFx.push({ kind: 'shockEcho', x: m.x, y: m.y, r: m.r, t: 0, dur: 0.35 });
-    // 命中数越多单发伤害越低：×0.85^(n-1)，下限 60%
+    // 首个触碰的敌人受全额伤害，范围内其余敌人只受一半
     const inRange = G.state.foes.filter(f => !f.dead && !f.fly && G.dist(f.x, f.y, m.x, m.y) <= m.r);
-    const falloff = Math.max(0.6, Math.pow(0.85, Math.max(0, inRange.length - 1)));
     for (const f of inRange) {
-      G.dealDamage(p, f, Math.max(1, Math.round(m.dmg * falloff)), { noThorn: true, noShock: true, noSplash: true, tag: 'mine' });
+      const mul = f === trigger ? 1 : 0.5;
+      G.dealDamage(p, f, Math.max(1, Math.round(m.dmg * mul)), { noThorn: true, noShock: true, noSplash: true, tag: 'mine' });
     }
   }
 
@@ -464,17 +464,17 @@
         if (!m) continue;
         m.t += dt;
         if (m.armed > 0) { m.armed -= dt; continue; }
-        const hit = G.state.foes.some(f => !f.dead && !f.fly && G.dist(f.x, f.y, m.x, m.y) < f.r + 18);
-        if (hit) {
+        const trigger = G.state.foes.find(f => !f.dead && !f.fly && G.dist(f.x, f.y, m.x, m.y) < f.r + 18);
+        if (trigger) {
           G.state.mines.splice(i, 1);
-          explodeMine(m, p);
+          explodeMine(m, p, trigger);
           continue;
         }
         // 过期自爆：一段时间未触发也会爆炸（挂机布雷不再是无限收益）
         m.fuse -= dt;
         if (m.fuse <= 0) {
           G.state.mines.splice(i, 1);
-          explodeMine(m, p);
+          explodeMine(m, p, null);
         }
       }
     }
