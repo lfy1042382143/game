@@ -51,10 +51,10 @@
     },
     shock: {
       name: '震荡波', icon: '💥',
-      unlockDesc: '解锁震荡波：每 3.0 秒以自身为中心释放环形冲击（180% 攻击，半径 150，命中越多单发越低）',
+      unlockDesc: '解锁震荡波：每 3.0 秒以自身为中心释放环形冲击（180% 攻击，半径 180，命中越多单发越低）',
       dims: [
         { key: 'range', name: '范围扩大', icon: '🌐', max: 4,
-          eff: lv => '冲击波半径 ' + (150 + 24 * lv) + ' 像素' },
+          eff: lv => '冲击波半径 ' + (180 + 24 * lv) + ' 像素' },
         { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
           eff: lv => '冲击波造成 ' + Math.round((1.8 + 0.4 * lv) * 100) + '% 攻击的伤害' },
         { key: 'rate',  name: '释放频率', icon: '⏱️', max: 4,
@@ -162,7 +162,7 @@
     /* 震荡波（近身 AoE：1.8×攻 / 3s / 半径 110） */
     const s = g('shock'), so = p.sk.shock;
     so.cd = Math.max(1.5, 3.0 * Math.pow(0.88, s.rate || 0) * D);
-    so.r = 150 + 24 * (s.range || 0);
+    so.r = 180 + 24 * (s.range || 0);
     so.mult = 1.8 + 0.4 * (s.dmg || 0);
     so.echo = s.echo || 0;
 
