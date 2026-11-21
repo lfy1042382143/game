@@ -171,12 +171,12 @@
   /* =========================================================
      近战攻击（reach/atkCd 支持按类型传入）
      ========================================================= */
-  function tryMeleeHit(e, dt, reach, cd) {
+  function tryMeleeHit(e, dt, reach, cd, tgt) {
+    tgt = tgt || state.player;
     e.atkCd -= dt;
-    const p = state.player;
-    if (!p || p.dead) return;
-    if (G.dist(e.x, e.y, p.x, p.y) < e.r + p.r + reach && e.atkCd <= 0) {
-      dealDamage(e, p, e.atk * G.frenzyMul(e));
+    if (!tgt || tgt.dead) return;
+    if (G.dist(e.x, e.y, tgt.x, tgt.y) < e.r + tgt.r + reach && e.atkCd <= 0) {
+      dealDamage(e, tgt, e.atk * G.frenzyMul(e));
       e.atkCd = cd || CFG.melee.atkCd;
     }
   }
@@ -186,19 +186,19 @@
      ========================================================= */
   /** 地面近战（melee 重装步兵 / brute 重甲蛮兵共用，数值取各自类型配置） */
   function updateMelee(e, dt) {
-    const p = state.player;
+    const p = G.taskFocus ? G.taskFocus(e) : state.player;   // 护送任务期间转攻使者
     if (!p) return;
     const T = CFG[e.type] || CFG.melee;
     const AD = G.affixDataOf(e);
     const mul = AD && AD.speedMul ? AD.speedMul : 1;
     const n = G.norm(p.x - e.x, p.y - e.y);
     moveEnemy(e, n, dt, mul);
-    tryMeleeHit(e, dt, T.reach, T.atkCd);
+    tryMeleeHit(e, dt, T.reach, T.atkCd, p);
   }
 
   /** 飞行掠袭者：直线俯冲 + 正弦蛇形绕行（难被弹幕命中），近身接触攻击 */
   function updateFlyerMelee(e, dt) {
-    const p = state.player;
+    const p = G.taskFocus ? G.taskFocus(e) : state.player;
     if (!p) return;
     const AD = G.affixDataOf(e);
     const mul = AD && AD.speedMul ? AD.speedMul : 1;
@@ -206,12 +206,12 @@
     e.bob = (e.bob || 0) + dt * 4;
     const weave = Math.sin(e.bob) * 0.55;
     moveFlyer(e, G.norm(n.x - n.y * weave, n.y + n.x * weave), dt, mul);
-    tryMeleeHit(e, dt, CFG.flyer.reach, CFG.flyer.atkCd);
+    tryMeleeHit(e, dt, CFG.flyer.reach, CFG.flyer.atkCd, p);
   }
 
   /** 飞行轰炸者：保持距离带环绕，每次射出双弹 */
   function updateFlyerRanged(e, dt) {
-    const p = state.player;
+    const p = G.taskFocus ? G.taskFocus(e) : state.player;
     if (!p) return;
     const C = CFG.bomber;
     const d = G.dist(e.x, e.y, p.x, p.y);
@@ -235,7 +235,7 @@
   }
 
   function updateRanged(e, dt) {
-    const p = state.player;
+    const p = G.taskFocus ? G.taskFocus(e) : state.player;
     if (!p) return;
     const C = CFG.ranged;
     const d = G.dist(e.x, e.y, p.x, p.y);
@@ -267,7 +267,7 @@
     e.atkCd -= dt;
     if (e.atkCd <= 0) {
       e.shots = (e.shots || 0) + 1;
-      if (e.shots % 3 === 0) fireSpread(e, p.x, p.y, C.bulletSpeed, 3, 0.2);
+      if (e.shots % 3 === 0) fireSpread(e, p.x, p.y, C.bulletSpeed, 2, 0.2);
       else G.fireEnemyBullet(e, p.x, p.y, C.bulletSpeed);
       e.atkCd = C.shootCd;
     }
@@ -298,7 +298,7 @@
   }
 
   function updateMage(e, dt) {
-    const p = state.player;
+    const p = G.taskFocus ? G.taskFocus(e) : state.player;   // 咏唱目标（护送期间可指向使者）
     if (!p || p.dead) return;
     const M = CFG.mage;
 
@@ -352,10 +352,14 @@
       a.t += dt;
       if (a.t < a.warn) continue;
 
-      // 爆发：只命中玩家
+      // 爆发：命中玩家；护送任务期间使者处于圈内同样受创
       const p = state.player;
       if (p && !p.dead && G.dist(a.x, a.y, p.x, p.y) < a.r) {
         dealDamage(a.owner, p, a.dmg);
+      }
+      const tk = state.task;
+      if (tk && tk.kind === 'escort' && tk.npc && !tk.npc.dead && G.dist(a.x, a.y, tk.npc.x, tk.npc.y) < a.r) {
+        dealDamage(a.owner, tk.npc, a.dmg);
       }
       state.mageAoes.splice(i, 1);
     }

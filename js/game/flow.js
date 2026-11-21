@@ -40,6 +40,11 @@
     state.skillFx = [];
     state.mines = [];
     state.dmgStats = { arrow: 0, chain: 0, shock: 0, orbit: 0, drone: 0, mine: 0 };  // 输出统计
+    state.task = null;            // 活动任务
+    state.taskT = 100;            // 首个任务出现倒计时（秒）
+    state.companion = null;       // 护送任务奖励：同伴
+    state.spawnRateMul = 1;       // 刷怪速度乘算（怪潮任务）
+    state.enemyRageT = 0;         // 敌人增伤剩余时间（水晶任务失败惩罚）
     state.mapIdx = 0;
     state.obsT = 0;
     state.player = G.makePlayer();
@@ -187,6 +192,7 @@
 
     G.updateEnemies(dt);
     G.updateSkills(dt);
+    if (G.updateTasks) G.updateTasks(dt);
     cullDistantFoes();
     G.updateBullets(dt);
     G.tickBleeds(state.player, dt);

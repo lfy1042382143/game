@@ -151,10 +151,17 @@
     if (tgt === state.player) G.sfxHurt();
     else G.sfxHit(!!opts.crit);
 
+    // 任务增伤期（水晶任务失败惩罚）：敌人造成的伤害 ×1.15
+    if (src && src.isMon && state.enemyRageT > 0) dmg *= 1.15;
+
+    // 任务 NPC 伤害承受系数（使者被围攻时伤害减免，保证任务可完成）
+    if (tgt.npcMul) dmg *= tgt.npcMul;
+
     // 死亡结算
     if (tgt.hp <= 0 && !tgt.dead) {
       tgt.hp = 0;
       tgt.dead = true;
+      if (tgt.noKill) return dmg;   // 任务 NPC（使者/同伴等）：不计击杀/经验/掉落
       // 回响刃：击杀时向周围溅射（不连锁，避免递归爆炸）
       if (!opts.noSplash && tgt !== state.player && src === state.player && src.agg && src.agg.splash > 0) {
         const R = src.agg.splashR;

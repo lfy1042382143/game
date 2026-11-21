@@ -104,7 +104,7 @@
         ).join('') +
         '</div></div>';
     });
-    if (p.cdr) html += '<div class="sk-cdr">⏱️ 全局冷却：所有攻击间隔 −' + p.cdr * 10 + '%</div>';
+    if (p.cdr || p.taskCdr) html += '<div class="sk-cdr">⏱️ 全局冷却：所有攻击间隔 −' + ((p.cdr || 0) + (p.taskCdr || 0)) * 10 + '%</div>';
     html += '</div>';
 
     box.innerHTML = html;

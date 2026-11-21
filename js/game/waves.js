@@ -16,10 +16,10 @@
   function curveAtk(m) { return Math.round(CFG.mon.atk0 * Math.pow(CFG.mon.atkGrowth, curveTier(m))); }
   function curveDef(m) { return CFG.mon.dr0 + curveTier(m) * CFG.mon.drStep; }   // 减伤率%（敌人专用）
 
-  /** 当前刷怪间隔（随分钟缩短） */
+  /** 当前刷怪间隔（随分钟缩短；怪潮任务期间大幅加速） */
   function spawnInterval(minute) {
     const S = CFG.spawn;
-    return Math.max(S.intervalMin, S.interval0 - (minute - 1) * S.intervalK);
+    return Math.max(S.intervalMin, (S.interval0 - (minute - 1) * S.intervalK) * (state.spawnRateMul || 1));
   }
 
   /** 当前场上存活上限（随分钟增长） */

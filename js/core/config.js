@@ -118,11 +118,10 @@
 
     // 怪物成长曲线：两分钟一档，档内恒定；血量/攻击按档位指数增长（后期与玩家同步变强）
     // hp = hp0 × hpGrowth^tier；atk = atk0 × atkGrowth^tier；减伤率 = dr0 + tier×drStep（上限 60%）
-    // 10 分钟（tier 4）：血量 26×1.5⁴≈132、攻击 9×1.35⁴≈30；20 分钟（tier 9）：血量≈994、攻击≈143
     mon: {
       tier: 2,
-      hp0: 26, hpGrowth: 1.55,
-      atk0: 9, atkGrowth: 1.4,
+      hp0: 28, hpGrowth: 1.55,
+      atk0: 9.2, atkGrowth: 1.41,
       dr0: 5, drStep: 4,
       eqLvEvery: 6,
       rarK: 0.2,

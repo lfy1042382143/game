@@ -84,7 +84,7 @@ const SCRIPTS = [
   'js/core/config.js', 'js/core/utils.js', 'js/core/audio.js', 'js/core/engine.js',
   'js/game/equipment.js', 'js/game/skills.js', 'js/game/state.js', 'js/game/combat.js',
   'js/game/bullets.js', 'js/game/player.js', 'js/game/enemies.js', 'js/game/waves.js',
-  'js/game/loot.js', 'js/game/cards.js', 'js/game/events.js', 'js/game/hazards.js', 'js/game/flow.js',
+  'js/game/loot.js', 'js/game/cards.js', 'js/game/events.js', 'js/game/hazards.js', 'js/game/tasks.js', 'js/game/flow.js',
   'js/ui/ui.js', 'js/render/render.js', 'js/main.js'
 ];
 
@@ -263,9 +263,9 @@ function featureTests() {
   });
   assert(chainDimBefore.max(p15) === false, 'T16 解锁后维度卡可入池');
   // 闪电初始伤害明显偏低（0.5×攻击），伤害维度 +0.15
-  assert(Math.abs(p15.sk.chain.mult - 1.8) < 1e-9, 'T16 闪电初始伤害 1.8×攻击', p15.sk.chain.mult);
+  assert(Math.abs(p15.sk.chain.mult - 1.4) < 1e-9, 'T16 闪电初始伤害 1.4×攻击', p15.sk.chain.mult);
   dimCard('chain', 'dmg').apply(p15);
-  assert(Math.abs(p15.sk.chain.mult - 2.2) < 1e-9, 'T16 闪电·伤害维度 +0.4', p15.sk.chain.mult);
+  assert(Math.abs(p15.sk.chain.mult - 1.8) < 1e-9, 'T16 闪电·伤害维度 +0.4', p15.sk.chain.mult);
   dimCard('chain', 'bolts').apply(p15);
   assert(p15.sk.chain.bolts === 2, 'T16 闪电·闪电数量维度', p15.sk.chain.bolts);
   // 震荡波次级震荡波维度
@@ -1075,7 +1075,7 @@ function featureTests() {
   reset();
   const t27Melee2 = G.makeEnemy(1, 0);
   const t27Hp20 = t27Melee2.hp;
-  G.dealDamage(G.state.player, t27Melee2, 10, { pierce: 50 });
+  G.dealDamage(G.state.player, t27Melee2, 10, { pierce: 80 });
   assert(t27Hp20 - t27Melee2.hp > t27Hp0 - t27Melee.hp, 'T27b 破甲提升对敌伤害', { pierced: t27Hp20 - t27Melee2.hp, plain: t27Hp0 - t27Melee.hp });
 
   // T27c 四类怪定位：血量/攻击/速度按设计分化
@@ -1329,6 +1329,114 @@ function featureTests() {
       'T32 ' + pr[0] + ' 初始 DPS 与箭矢对齐（×' + ratio32.toFixed(2) + '）', ratio32);
   });
 
+  // T33a 多目标伤害递减：闪电每多弹射 1 目标 ×0.8
+  reset();
+  const p33 = G.state.player;
+  G.SKILL_CARDS.find(c => c.line === 'chain' && c.sub === 'unlock').apply(p33);
+  const fa33 = G.makeEnemy(1, 0), fb33 = G.makeEnemy(1, 0);
+  fa33.maxHp = 300; fa33.hp = 300; fa33.res = null;
+  fb33.maxHp = 300; fb33.hp = 300; fb33.res = null;
+  fa33.x = p33.x + 100; fa33.y = p33.y;
+  fb33.x = p33.x + 100; fb33.y = p33.y + 150;
+  G.state.foes = [fa33, fb33];
+  G.state.obstacles = [];
+  G.fireChainBolt(p33, fa33, new Set());
+  const dA33 = 300 - fa33.hp, dB33 = 300 - fb33.hp;
+  assert(dA33 > 0 && dB33 > 0, 'T33a 闪电命中主目标与弹射目标', { dA: dA33, dB: dB33 });
+  assert(Math.abs(dB33 - dA33 * 0.8) <= 1, 'T33a 弹射目标伤害 ×0.8 递减', { dA: dA33, dB: dB33 });
+
+  // T33b 震荡波：命中越多单发越低
+  reset();
+  const p33b = G.state.player;
+  G.SKILL_CARDS.find(c => c.line === 'shock' && c.sub === 'unlock').apply(p33b);
+  const solo33 = G.makeEnemy(1, 0);
+  const trio33 = [0, 1, 2].map(() => G.makeEnemy(1, 0));
+  solo33.maxHp = 400; solo33.hp = 400; solo33.res = null;
+  trio33.forEach(f => { f.maxHp = 400; f.hp = 400; f.res = null; });
+  solo33.x = p33b.x + 50; solo33.y = p33b.y;
+  trio33.forEach((f, i) => { f.x = p33b.x + 60 + i * 40; f.y = p33b.y; });
+  // 第一波：只有单目标
+  G.state.foes = [solo33];
+  G.shockBlast(p33b, p33b.x, p33b.y, p33b.sk.shock.r, p33b.sk.shock.mult, false);
+  const soloDmg33 = 400 - solo33.hp;
+  // 第二波：3 目标
+  G.state.foes = [trio33[0], trio33[1], trio33[2]];
+  G.shockBlast(p33b, p33b.x, p33b.y, p33b.sk.shock.r, p33b.sk.shock.mult, false);
+  const trioDmg33 = 400 - trio33[0].hp;
+  assert(soloDmg33 > 0, 'T33b 震荡波单目标全额', soloDmg33);
+  assert(trioDmg33 < soloDmg33, 'T33b 3 目标时单发伤害降低', { solo: soloDmg33, trio: trioDmg33 });
+
+  // T33c 地雷引信：到期自动引爆
+  reset();
+  const p33c = G.state.player;
+  G.SKILL_CARDS.find(c => c.line === 'mine' && c.sub === 'unlock').apply(p33c);
+  p33c.sk.mine.t = 0;
+  G.state.foes = [];
+  run(0.3);
+  assert(G.state.mines.length === 1, 'T33c 地雷已布设', G.state.mines.length);
+  p33c.sk.mine.cd = 999;   // 拉长冷却，专测引信
+  p33c.sk.mine.t = 999;    // 取消下一次部署
+  run(G.MINE_FUSE + 0.2);
+  assert(G.state.mines.length === 0, 'T33c 地雷到期自动引爆', G.state.mines.length);
+
+  // T33d 护送任务
+  reset();
+  const p33d = G.state.player;
+  G.startTask('escort');
+  assert(!!G.state.task && G.state.task.kind === 'escort', 'T33d 护送任务开启');
+  const npc33 = G.state.task.npc;
+  const foe33d = G.makeEnemy(1, 0);
+  G.state.obstacles = [];
+  foe33d.x = npc33.x + 150; foe33d.y = npc33.y;
+  G.state.foes = [foe33d];
+  p33d.x = npc33.x - 400; p33d.y = npc33.y;
+  const baseHp0_33 = p33d.baseHp;
+  run(1.2);
+  const dNpc33 = G.dist(foe33d.x, foe33d.y, npc33.x, npc33.y);
+  const dP33 = G.dist(foe33d.x, foe33d.y, p33d.x, p33d.y);
+  assert(dNpc33 < dP33, 'T33d 护送期间敌人追击使者而非玩家', { dNpc: Math.round(dNpc33), dP: Math.round(dP33) });
+  npc33.hp = 1;
+  G.dealDamage(foe33d, npc33, 100, { flat: true, noThorn: true });
+  run(0.1);   // 下一帧结算任务失败
+  assert(npc33.dead && G.state.task === null, 'T33d 使者死亡任务结束');
+  assert(p33d.baseHp < baseHp0_33, 'T33d 失败惩罚：最大生命下降', p33d.baseHp);
+  G.startTask('escort');
+  G.state.task.npc.hp = G.state.task.npc.maxHp;
+  G.state.task.time = 0.01;
+  run(0.1);
+  assert(!!G.state.companion && G.state.task === null, 'T33d 护送成功转同伴');
+  const foe33e = G.makeEnemy(1, 0);
+  foe33e.x = G.state.companion.x + 120; foe33e.y = G.state.companion.y;
+  foe33e.maxHp = 200; foe33e.hp = 200; foe33e.res = null;
+  G.state.foes = [foe33e];
+  run(1.5);
+  assert(foe33e.hp < 200, 'T33d 同伴自动射击敌人', 200 - foe33e.hp);
+
+  // T33e 水晶任务
+  reset();
+  G.startTask('crystal');
+  const crystals33 = G.state.task.crystals;
+  assert(crystals33.length === 2 && G.state.foes.includes(crystals33[0]), 'T33e 水晶已生成并加入战场');
+  crystals33.forEach(c => G.dealDamage(G.state.player, c, 500, { flat: true, noThorn: true }));
+  run(0.1);   // 下一帧结算任务成功
+  assert(G.state.task === null && (G.state.player.taskCdr || 0) === 1, 'T33e 摧毁水晶奖励 taskCdr');
+  reset();
+  G.startTask('crystal');
+  G.state.task.time = 0.01;
+  run(0.1);
+  assert(G.state.task === null && (G.state.enemyRageT || 0) > 50, 'T33e 水晶超时进入敌人增伤期', G.state.enemyRageT);
+
+  // T33f 流星任务
+  reset();
+  G.startTask('stars');
+  const luck0_33 = G.state.player.luck;
+  G.state.task.stars.forEach((s, i) => {
+    s.x = G.state.player.x + (i < 2 ? 20 : 500);
+    s.y = G.state.player.y;
+  });
+  run(0.5);
+  assert(G.state.player.luck === luck0_33 + 1, 'T33f 收集流星幸运 +1', G.state.player.luck);
+
   // T29e BOSS 血量压迫感
   const boss29 = G.makeElite(5);
   const norm29 = G.makeEnemy(5, 0);
@@ -1452,12 +1560,12 @@ function simulate(runs) {
     }
 
     // 附近无近战/宝箱怪威胁时，优先清理射手、法师与宝箱怪（真人会打站桩目标）
-    const meleeThreat = alive.some(f => (f.type === 'melee' || f.type === 'mimic') && G.dist(p.x, p.y, f.x, f.y) < 230);
+    const meleeThreat = alive.some(f => (f.type === 'melee' || f.type === 'mimic' || f.type === 'flyer' || f.type === 'brute') && G.dist(p.x, p.y, f.x, f.y) < 230);
     let hunted = null;
     if (!meleeThreat) {
       let hd = Infinity;
       for (const f of alive) {
-        if (f.type !== 'ranged' && f.type !== 'boss' && f.type !== 'mage' && f.type !== 'mimic') continue;
+        if (f.type !== 'ranged' && f.type !== 'boss' && f.type !== 'mage' && f.type !== 'mimic' && f.type !== 'bomber') continue;
         const d = G.dist(p.x, p.y, f.x, f.y);
         if (d < hd) { hd = d; hunted = f; }
       }
@@ -1512,6 +1620,11 @@ function simulate(runs) {
         autoAdvance();
       }
     }
+    const pD = G.state.player;
+    const killer = G.state.foes.find(f => !f.dead);
+    console.log('  局' + (r + 1) + ': 存活 ' + G.state.wave + ' 分 · 击杀者 ' + (killer ? killer.type : '?') +
+      ' · task=' + (G.state.task ? G.state.task.kind : '无') + ' · baseHp=' + pD.baseHp +
+      ' · maxHp=' + Math.round(pD.maxHp) + ' · rage=' + Math.round(G.state.enemyRageT || 0));
     minutesReached.push(G.state.wave);
     levelsReached.push(G.state.player.level);
     mapsReached.push(G.state.mapIdx + 1);

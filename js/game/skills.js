@@ -12,6 +12,8 @@
 
   const { CFG } = G;
 
+  const MINE_FUSE = 6;   // 地雷过期自爆时间（秒）
+
   /* =========================================================
      线与维度定义（dims 顺序即卡池内文案顺序）
      eff(lv) 返回该维度在 Lv.lv 时的具体效果描述（卡牌与侧边栏共用）
@@ -35,12 +37,12 @@
     },
     chain: {
       name: '连锁闪电', icon: '⚡',
-      unlockDesc: '解锁连锁闪电：每 3.0 秒劈向最近敌人并弹射 2 个目标（每跳 180% 攻击）',
+      unlockDesc: '解锁连锁闪电：每 3.0 秒劈向最近敌人并弹射 2 个目标（主目标 140% 攻击，每跳 ×0.8）',
       dims: [
         { key: 'jumps', name: '弹射数量', icon: '🔗', max: 4,
           eff: lv => '每次攻击弹射跳跃 ' + (2 + lv) + ' 个目标' },
         { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
-          eff: lv => '每道闪电造成 ' + Math.round((1.8 + 0.4 * lv) * 100) + '% 攻击的伤害' },
+          eff: lv => '每道闪电造成 ' + Math.round((1.4 + 0.4 * lv) * 100) + '% 攻击的伤害（每多弹射 1 目标 ×0.8）' },
         { key: 'rate',  name: '攻击频率', icon: '⏱️', max: 4,
           eff: lv => '每 ' + (3.0 * Math.pow(0.88, lv)).toFixed(2) + ' 秒发动一轮攻击' },
         { key: 'bolts', name: '闪电数量', icon: '🌩️', max: 3,
@@ -49,7 +51,7 @@
     },
     shock: {
       name: '震荡波', icon: '💥',
-      unlockDesc: '解锁震荡波：每 3.0 秒以自身为中心释放环形冲击（180% 攻击，半径 110）',
+      unlockDesc: '解锁震荡波：每 3.0 秒以自身为中心释放环形冲击（180% 攻击，半径 110，命中越多单发越低）',
       dims: [
         { key: 'range', name: '范围扩大', icon: '🌐', max: 4,
           eff: lv => '冲击波半径 ' + (110 + 24 * lv) + ' 像素' },
@@ -89,7 +91,7 @@
     },
     mine: {
       name: '感应地雷', icon: '🧨',
-      unlockDesc: '解锁感应地雷：每 3.0 秒在身边布设地雷（160% 攻击，半径 80），敌人靠近即引爆',
+      unlockDesc: '解锁感应地雷：每 3.0 秒在身边布设地雷（160% 攻击，半径 80），敌人靠近或 6 秒到期后自爆',
       dims: [
         { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
           eff: lv => '每枚地雷爆炸造成 ' + Math.round((1.6 + 0.25 * lv) * 100) + '% 攻击的伤害' },
@@ -139,7 +141,7 @@
     if (!p || !p.sk) return;
     const sd = p.sd || {};
     const g = k => sd[k] || {};
-    const D = Math.pow(0.9, p.cdr || 0);   // 全局冷却：每层全部间隔 −10%
+    const D = Math.pow(0.9, (p.cdr || 0) + (p.taskCdr || 0));   // 全局冷却：冷却卡 + 任务奖励，每层全部间隔 −10%
 
     /* 箭矢（基础远程弹幕；初始伤害 0.85×攻击，与其他攻击方式 DPS 对齐） */
     const a = g('arrow');
@@ -154,7 +156,7 @@
     const c = g('chain'), ch = p.sk.chain;
     ch.cd = Math.max(1.1, 3.0 * Math.pow(0.88, c.rate || 0) * D);
     ch.jumps = 2 + (c.jumps || 0);
-    ch.mult = 1.8 + 0.4 * (c.dmg || 0);
+    ch.mult = 1.4 + 0.4 * (c.dmg || 0);
     ch.bolts = 1 + (c.bolts || 0);
 
     /* 震荡波（近身 AoE：1.8×攻 / 3s / 半径 110） */
@@ -293,7 +295,9 @@
       hitSet.add(cur);
       pts.push({ x: cur.x, y: cur.y });
       hits.push(cur);
-      G.dealDamage(p, cur, skillDamage(p, cfg.mult), { noThorn: true, noShock: true, noSplash: true, tag: 'chain' });
+      // 多目标伤害递减：主目标 100%，每多弹射 1 个目标 ×0.8
+      const decay = Math.pow(0.8, i);
+      G.dealDamage(p, cur, skillDamage(p, cfg.mult * decay), { noThorn: true, noShock: true, noSplash: true, tag: 'chain' });
       if (!cur.dead) cur.stunT = Math.max(cur.stunT || 0, 0.35);   // 短暂麻痹
       let next = null, nd = 240;
       for (const f of G.state.foes) {
@@ -312,10 +316,12 @@
      震荡波：主波 + 次级震荡波（echo 维度）
      ========================================================= */
   function shockBlast(p, x, y, r, mult, allowEcho) {
+    // 命中数越多单发伤害越低：×0.88^(n-1)，下限 50%
+    const inRange = G.state.foes.filter(f => !f.dead && G.dist(x, y, f.x, f.y) <= r);
+    const falloff = Math.max(0.5, Math.pow(0.88, Math.max(0, inRange.length - 1)));
     const hitFoes = [];
-    for (const f of G.state.foes) {
-      if (f.dead || G.dist(x, y, f.x, f.y) > r) continue;
-      G.dealDamage(p, f, skillDamage(p, mult), { noThorn: true, noShock: true, noSplash: true, tag: 'shock' });
+    for (const f of inRange) {
+      G.dealDamage(p, f, skillDamage(p, mult * falloff), { noThorn: true, noShock: true, noSplash: true, tag: 'shock' });
       if (!f.dead) hitFoes.push(f);
     }
     const echoN = allowEcho ? (p.sk.shock.echo || 0) : 0;
@@ -364,9 +370,11 @@
      ========================================================= */
   function explodeMine(m, p) {
     G.state.skillFx.push({ kind: 'shockEcho', x: m.x, y: m.y, r: m.r, t: 0, dur: 0.35 });
-    for (const f of G.state.foes) {
-      if (f.dead || G.dist(f.x, f.y, m.x, m.y) > m.r) continue;
-      G.dealDamage(p, f, m.dmg, { noThorn: true, noShock: true, noSplash: true, tag: 'mine' });
+    // 命中数越多单发伤害越低：×0.85^(n-1)，下限 60%
+    const inRange = G.state.foes.filter(f => !f.dead && !f.fly && G.dist(f.x, f.y, m.x, m.y) <= m.r);
+    const falloff = Math.max(0.6, Math.pow(0.85, Math.max(0, inRange.length - 1)));
+    for (const f of inRange) {
+      G.dealDamage(p, f, Math.max(1, Math.round(m.dmg * falloff)), { noThorn: true, noShock: true, noSplash: true, tag: 'mine' });
     }
   }
 
@@ -445,7 +453,8 @@
           G.state.mines.push({
             x: p.x - Math.cos(a) * dd * (i ? -1 : 1),
             y: p.y - Math.sin(a) * dd * (i ? -1 : 1),
-            r: cfg.r, t: 0, dmg: skillDamage(p, cfg.mult), armed: 0.4
+            r: cfg.r, t: 0, dmg: skillDamage(p, cfg.mult), armed: 0.4,
+            fuse: MINE_FUSE   // 过期自爆（反挂机）
           });
         }
       }
@@ -456,9 +465,17 @@
         m.t += dt;
         if (m.armed > 0) { m.armed -= dt; continue; }
         const hit = G.state.foes.some(f => !f.dead && !f.fly && G.dist(f.x, f.y, m.x, m.y) < f.r + 18);
-        if (!hit) continue;
-        G.state.mines.splice(i, 1);
-        explodeMine(m, p);
+        if (hit) {
+          G.state.mines.splice(i, 1);
+          explodeMine(m, p);
+          continue;
+        }
+        // 过期自爆：一段时间未触发也会爆炸（挂机布雷不再是无限收益）
+        m.fuse -= dt;
+        if (m.fuse <= 0) {
+          G.state.mines.splice(i, 1);
+          explodeMine(m, p);
+        }
       }
     }
 
@@ -475,6 +492,6 @@
     LINES, LINE_KEYS, SKILL_CARDS,
     applySkillBuild, initSkills, updateSkills,
     skillDamage, nearestFoe, nearestFoeFrom,
-    dronePos, explodeMine
+    dronePos, explodeMine, fireChainBolt, shockBlast, MINE_FUSE
   });
 })(window.ABYSS = window.ABYSS || {});

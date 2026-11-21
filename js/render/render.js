@@ -347,7 +347,8 @@
     ctx.arc(x, yy, u.r, 0, Math.PI * 2);
     const bodyC = {
       boss: '#dc2626', mage: '#8b5cf6', mimic: '#d97706', ranged: '#b45309',
-      melee: '#92400e', brute: '#78350f', flyer: '#0369a1', bomber: '#4f46e5'
+      melee: '#92400e', brute: '#78350f', flyer: '#0369a1', bomber: '#4f46e5',
+      npc: '#16a34a', companion: '#f59e0b', crystal: '#7c3aed'
     }[u.type] || '#b45309';
     ctx.fillStyle = u.flashT > 0 ? '#ffffff' : (isPlayer ? '#3b82f6' : bodyC);
     ctx.fill();
@@ -591,6 +592,72 @@
   }
 
   /* =========================================================
+     任务实体：护送使者 / 同伴 / 流星
+     ========================================================= */
+  function drawTasks() {
+    const t = state.task;
+    if (t && t.kind === 'escort' && t.npc) {
+      // 使者头顶任务标记
+      drawUnit(t.npc, false);
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#4ade80';
+      ctx.fillText('🛡 保护目标', t.npc.x, t.npc.y - t.npc.r - 26);
+    }
+    if (state.companion) drawUnit(state.companion, false);
+    if (t && t.kind === 'stars') {
+      t.stars.forEach(s => {
+        if (s.taken) return;
+        const bob = Math.sin(state.time * 3 + s.t) * 4;
+        ctx.globalAlpha = t.time < 4 && Math.floor(state.time * 5) % 2 === 0 ? 0.4 : 1;
+        ctx.font = '24px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = '#fde047';
+        ctx.shadowBlur = 14;
+        ctx.fillText('✦', s.x, s.y + bob);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 36, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(253,224,71,0.28)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+    }
+  }
+
+  /* =========================================================
+     任务 HUD（屏幕顶部居中）
+     ========================================================= */
+  function drawTaskHud() {
+    const t = state.task;
+    if (!t) return;
+    const names = { escort: '🛡 护送使者', defense: '💀 怪潮防守', crystal: '🔮 摧毁水晶', stars: '✦ 流星采集' };
+    let obj = '';
+    if (t.kind === 'escort' && t.npc) obj = '使者 ' + Math.max(0, Math.round(t.npc.hp)) + '/' + Math.round(t.npc.maxHp);
+    else if (t.kind === 'crystal') obj = '剩余水晶 ×' + t.crystals.filter(c => !c.dead).length;
+    else if (t.kind === 'stars') obj = '已收集 ' + t.taken + '/2';
+    else obj = '存活到时限';
+    const V = CFG.viewport;
+    const text = names[t.kind] + ' · ' + Math.ceil(Math.max(0, t.time)) + 's · ' + obj;
+    ctx.font = 'bold 15px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+    ctx.lineWidth = 4;
+    ctx.strokeText(text, V.w / 2, 14);
+    ctx.fillStyle = '#fde047';
+    ctx.fillText(text, V.w / 2, 14);
+    // 进度条
+    const w = 190, x0 = V.w / 2 - w / 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillRect(x0, 38, w, 5);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(x0, 38, w * Math.max(0, t.time / t.total), 5);
+  }
+
+  /* =========================================================
      宝箱与事件地点（世界坐标）
      ========================================================= */
   function drawChests() {
@@ -711,6 +778,7 @@
     drawSites();
     drawChests();
     drawOrbitBlades();
+    drawTasks();
     drawSkills();
     drawBullets();
     drawMimicTelegraphs();
@@ -722,6 +790,7 @@
     // 屏幕空间层
     drawMinimap();
     drawBanner();
+    drawTaskHud();
     drawCrosshair();
     // 左：输出统计；右：属性/攻击方式（内部有变化签名节流，仅变化时写 DOM）
     if (G.ui && G.ui.syncEqPanel) G.ui.syncEqPanel();

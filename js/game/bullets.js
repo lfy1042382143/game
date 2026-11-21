@@ -170,6 +170,19 @@
             if (G.dist(b.x, b.y, dp.x, dp.y) < 15 + b.r) { dead = true; break; }
           }
         }
+        // 护送使者被弹幕命中
+        const tk = state.task;
+        if (!dead && tk && tk.kind === 'escort' && tk.npc && !tk.npc.dead &&
+            G.dist(b.x, b.y, tk.npc.x, tk.npc.y) < b.r + tk.npc.r) {
+          dealDamage(b.owner, tk.npc, b.dmg);
+          dead = true;
+        }
+        // 同伴被流弹命中
+        const cp = state.companion;
+        if (!dead && cp && !cp.dead && G.dist(b.x, b.y, cp.x, cp.y) < b.r + cp.r) {
+          dealDamage(b.owner, cp, b.dmg);
+          dead = true;
+        }
         if (!dead && p && !p.dead && G.dist(b.x, b.y, p.x, p.y) < b.r + p.r) {
           dealDamage(b.owner, p, b.dmg);
           dead = true;
