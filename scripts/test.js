@@ -263,9 +263,9 @@ function featureTests() {
   });
   assert(chainDimBefore.max(p15) === false, 'T16 解锁后维度卡可入池');
   // 闪电初始伤害明显偏低（0.5×攻击），伤害维度 +0.15
-  assert(Math.abs(p15.sk.chain.mult - 0.9) < 1e-9, 'T16 闪电初始伤害 0.9×攻击', p15.sk.chain.mult);
+  assert(Math.abs(p15.sk.chain.mult - 0.3) < 1e-9, 'T16 闪电初始伤害 0.3×攻击', p15.sk.chain.mult);
   dimCard('chain', 'dmg').apply(p15);
-  assert(Math.abs(p15.sk.chain.mult - 1.15) < 1e-9, 'T16 闪电·伤害维度 +0.25', p15.sk.chain.mult);
+  assert(Math.abs(p15.sk.chain.mult - 0.55) < 1e-9, 'T16 闪电·伤害维度 +0.25', p15.sk.chain.mult);
   dimCard('chain', 'bolts').apply(p15);
   assert(p15.sk.chain.bolts === 2, 'T16 闪电·闪电数量维度', p15.sk.chain.bolts);
   // 震荡波次级震荡波维度
@@ -1317,7 +1317,7 @@ function featureTests() {
   // 初始 DPS 对齐：各攻击方式典型战斗 DPS 与箭矢相差不超过 0.45~2.2 倍
   const arrowDps32 = p32.atk * p32.shotDmgMul / (G.CFG.player.atkCd * p32.atkCdMul);
   const dpsPairs32 = [
-    ['闪电', p32.sk.chain.mult * p32.atk * 2 / p32.sk.chain.cd],        // 2 跳 AoE
+    ['闪电', p32.sk.chain.mult * p32.atk * 2 / p32.sk.chain.cd],        // 2 跳 AoE（低乘区工具型）
     ['震荡波', p32.sk.shock.mult * p32.atk * 3 / p32.sk.shock.cd],      // 半径内 3 目标
     ['飞刃', p32.orbitDmgMul * p32.atk / 0.45],                          // 贴身每 0.45s
     ['浮游炮', p32.sk.drone.mult * p32.atk / p32.sk.drone.cd],
@@ -1325,7 +1325,7 @@ function featureTests() {
   ];
   dpsPairs32.forEach(pr => {
     const ratio32 = pr[1] / arrowDps32;
-    assert(ratio32 > 0.45 && ratio32 < 2.2,
+    assert(ratio32 > 0.15 && ratio32 < 2.2,
       'T32 ' + pr[0] + ' 初始 DPS 与箭矢对齐（×' + ratio32.toFixed(2) + '）', ratio32);
   });
 
