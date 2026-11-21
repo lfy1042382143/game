@@ -35,38 +35,38 @@
     },
     chain: {
       name: '连锁闪电', icon: '⚡',
-      unlockDesc: '解锁连锁闪电：每 4.2 秒劈向最近敌人并沿敌人弹射跳跃（初始 50% 攻击）',
+      unlockDesc: '解锁连锁闪电：每 3.0 秒劈向最近敌人并弹射 2 个目标（每跳 180% 攻击）',
       dims: [
         { key: 'jumps', name: '弹射数量', icon: '🔗', max: 4,
-          eff: lv => '每次攻击弹射跳跃 ' + (2 + lv) + ' 个目标（可重复累计）' },
+          eff: lv => '每次攻击弹射跳跃 ' + (2 + lv) + ' 个目标' },
         { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
-          eff: lv => '每道闪电造成 ' + Math.round((0.5 + 0.15 * lv) * 100) + '% 攻击的伤害' },
+          eff: lv => '每道闪电造成 ' + Math.round((1.8 + 0.4 * lv) * 100) + '% 攻击的伤害' },
         { key: 'rate',  name: '攻击频率', icon: '⏱️', max: 4,
-          eff: lv => '每 ' + (4.2 * Math.pow(0.88, lv)).toFixed(2) + ' 秒发动一轮攻击' },
+          eff: lv => '每 ' + (3.0 * Math.pow(0.88, lv)).toFixed(2) + ' 秒发动一轮攻击' },
         { key: 'bolts', name: '闪电数量', icon: '🌩️', max: 3,
           eff: lv => '每次攻击同时发出 ' + (1 + lv) + ' 道独立闪电（各自弹射）' }
       ]
     },
     shock: {
       name: '震荡波', icon: '💥',
-      unlockDesc: '解锁震荡波：每 6 秒以自身为中心释放环形冲击（初始 60% 攻击）',
+      unlockDesc: '解锁震荡波：每 3.0 秒以自身为中心释放环形冲击（180% 攻击，半径 110）',
       dims: [
         { key: 'range', name: '范围扩大', icon: '🌐', max: 4,
           eff: lv => '冲击波半径 ' + (110 + 24 * lv) + ' 像素' },
         { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
-          eff: lv => '冲击波造成 ' + Math.round((0.6 + 0.2 * lv) * 100) + '% 攻击的伤害' },
+          eff: lv => '冲击波造成 ' + Math.round((1.8 + 0.4 * lv) * 100) + '% 攻击的伤害' },
         { key: 'rate',  name: '释放频率', icon: '⏱️', max: 4,
-          eff: lv => '每 ' + (6 * Math.pow(0.88, lv)).toFixed(2) + ' 秒释放一次' },
+          eff: lv => '每 ' + (3.0 * Math.pow(0.88, lv)).toFixed(2) + ' 秒释放一次' },
         { key: 'echo',  name: '连锁震荡', icon: '〰️', max: 3,
           eff: lv => lv ? '命中敌人后在其位置产生 ' + lv + ' 道次级震荡波（半径 45%、伤害 50%）' : '不产生次级震荡波' }
       ]
     },
     orbit: {
       name: '环绕飞刃', icon: '🌀',
-      unlockDesc: '解锁环绕飞刃：每隔 5 秒展开一批绕身旋转的飞刃，接触敌人造成 60% 攻击伤害',
+      unlockDesc: '解锁环绕飞刃：每隔 5 秒展开 3 枚绕身旋转的飞刃，接触敌人造成 80% 攻击伤害',
       dims: [
         { key: 'count', name: '飞刃数量', icon: '🌀', max: 4,
-          eff: lv => '每批 ' + (2 + 2 * lv) + ' 枚飞刃均匀环绕' },
+          eff: lv => '每批 ' + (3 + 2 * lv) + ' 枚飞刃均匀环绕' },
         { key: 'rate',  name: '出现频率', icon: '⏱️', max: 4,
           eff: lv => '每 ' + (5 * Math.pow(0.88, lv)).toFixed(2) + ' 秒展开一批（持续约 ' + (5 * Math.pow(0.88, lv) * 0.62).toFixed(1) + ' 秒）' },
         { key: 'range', name: '范围扩大', icon: '🌐', max: 4,
@@ -77,28 +77,28 @@
     },
     drone: {
       name: '浮游炮', icon: '🔮',
-      unlockDesc: '解锁浮游炮：停在玩家周围射击（50% 攻击），可拦截敌方弹幕，存活 4 秒后收回',
+      unlockDesc: '解锁浮游炮：停在玩家周围射击（90% 攻击 / 0.8s），可拦截敌方弹幕，存活 4 秒后收回',
       dims: [
         { key: 'count', name: '浮游炮数量', icon: '🔮', max: 3,
           eff: lv => '每次部署 ' + (1 + lv) + ' 座浮游炮（环绕玩家四周固定方位）' },
         { key: 'dmg',   name: '子弹伤害', icon: '🗡️', max: 4,
-          eff: lv => '每发子弹造成 ' + Math.round((0.5 + 0.15 * lv) * 100) + '% 攻击的伤害' },
+          eff: lv => '每发子弹造成 ' + Math.round((0.9 + 0.15 * lv) * 100) + '% 攻击的伤害' },
         { key: 'life',  name: '存在时间', icon: '⌛', max: 3,
           eff: lv => '部署后存活 ' + (4 + 1.5 * lv).toFixed(1) + ' 秒（每 6.5 秒重新部署一批）' }
       ]
     },
     mine: {
       name: '感应地雷', icon: '🧨',
-      unlockDesc: '解锁感应地雷：每 4 秒在身边布设地雷（120% 攻击），敌人靠近即引爆',
+      unlockDesc: '解锁感应地雷：每 3.0 秒在身边布设地雷（160% 攻击，半径 80），敌人靠近即引爆',
       dims: [
         { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
-          eff: lv => '每枚地雷爆炸造成 ' + Math.round((1.2 + 0.2 * lv) * 100) + '% 攻击的伤害' },
+          eff: lv => '每枚地雷爆炸造成 ' + Math.round((1.6 + 0.25 * lv) * 100) + '% 攻击的伤害' },
         { key: 'count', name: '布雷数量', icon: '🧨', max: 3,
           eff: lv => '每次部署 ' + (1 + lv) + ' 枚地雷（散布在玩家两侧）' },
         { key: 'rate',  name: '部署冷却', icon: '⏱️', max: 4,
-          eff: lv => '每 ' + (4 * Math.pow(0.88, lv)).toFixed(2) + ' 秒布设一批' },
+          eff: lv => '每 ' + (3.0 * Math.pow(0.88, lv)).toFixed(2) + ' 秒布设一批' },
         { key: 'range', name: '范围扩大', icon: '🌐', max: 4,
-          eff: lv => '爆炸半径 ' + (70 + 20 * lv) + ' 像素' }
+          eff: lv => '爆炸半径 ' + (80 + 20 * lv) + ' 像素' }
       ]
     }
   };
@@ -141,53 +141,54 @@
     const g = k => sd[k] || {};
     const D = Math.pow(0.9, p.cdr || 0);   // 全局冷却：每层全部间隔 −10%
 
-    /* 箭矢 */
+    /* 箭矢（基础远程弹幕；初始伤害 0.85×攻击，与其他攻击方式 DPS 对齐） */
     const a = g('arrow');
     p.shots = 1 + (a.count || 0);
+    p.shotDmgMul = 0.85;
     p.atkCdMul = Math.pow(0.88, a.rate || 0);
     p.bounce = a.bounce || 0;
     p.pierce = a.pierce || 0;
     p.splitN = a.split || 0;
 
-    /* 连锁闪电（初始伤害明显偏低，靠「伤害」维度成长） */
+    /* 连锁闪电（远程爆发 AoE：1.8×攻 / 3s / 弹射 2 目标） */
     const c = g('chain'), ch = p.sk.chain;
-    ch.cd = Math.max(1.1, 4.2 * Math.pow(0.88, c.rate || 0) * D);
+    ch.cd = Math.max(1.1, 3.0 * Math.pow(0.88, c.rate || 0) * D);
     ch.jumps = 2 + (c.jumps || 0);
-    ch.mult = 0.5 + 0.15 * (c.dmg || 0);
+    ch.mult = 1.8 + 0.4 * (c.dmg || 0);
     ch.bolts = 1 + (c.bolts || 0);
 
-    /* 震荡波 */
+    /* 震荡波（近身 AoE：1.8×攻 / 3s / 半径 110） */
     const s = g('shock'), so = p.sk.shock;
-    so.cd = Math.max(1.5, 6 * Math.pow(0.88, s.rate || 0) * D);
+    so.cd = Math.max(1.5, 3.0 * Math.pow(0.88, s.rate || 0) * D);
     so.r = 110 + 24 * (s.range || 0);
-    so.mult = 0.6 + 0.2 * (s.dmg || 0);
+    so.mult = 1.8 + 0.4 * (s.dmg || 0);
     so.echo = s.echo || 0;
 
-    /* 环绕飞刃：周期展开，存在一段时间后收起 */
+    /* 环绕飞刃（近身持续：3 枚起，接触伤害 0.8×攻，触发间隔 0.45s） */
     const o = g('orbit'), ob = p.sk.orbit;
     ob.interval = Math.max(2.0, 5 * Math.pow(0.88, o.rate || 0) * D);
     ob.dur = Math.max(2.6, ob.interval * 0.62);
-    ob.count = 2 + 2 * (o.count || 0);
+    ob.count = 3 + 2 * (o.count || 0);
     ob.r = 62 + 10 * (o.range || 0);
     ob.spd = 2.4 + 0.55 * (o.speed || 0);
     p.orbitR = ob.r;
     p.orbitSpd = ob.spd;
-    p.orbitDmgMul = 0.6;
+    p.orbitDmgMul = 0.8;
 
-    /* 浮游炮：周期部署、停留不动、有限存活 */
+    /* 浮游炮（远程持续：0.9×攻 / 0.8s） */
     const d = g('drone'), dr = p.sk.drone;
     dr.interval = Math.max(2.5, 6.5 * D);
     dr.count = 1 + (d.count || 0);
-    dr.mult = 0.5 + 0.15 * (d.dmg || 0);
+    dr.mult = 0.9 + 0.15 * (d.dmg || 0);
     dr.life = 4 + 1.5 * (d.life || 0);
-    dr.cd = 1.1;
+    dr.cd = 0.8;
 
-    /* 感应地雷 */
+    /* 感应地雷（近身陷阱：1.6×攻 / 3s / 半径 80） */
     const m = g('mine'), mi = p.sk.mine;
-    mi.cd = Math.max(1.5, 4 * Math.pow(0.88, m.rate || 0) * D);
+    mi.cd = Math.max(1.5, 3.0 * Math.pow(0.88, m.rate || 0) * D);
     mi.count = 1 + (m.count || 0);
-    mi.r = 70 + 20 * (m.range || 0);
-    mi.mult = 1.2 + 0.2 * (m.dmg || 0);
+    mi.r = 80 + 20 * (m.range || 0);
+    mi.mult = 1.6 + 0.25 * (m.dmg || 0);
   }
 
   /* =========================================================
@@ -454,7 +455,7 @@
         if (!m) continue;
         m.t += dt;
         if (m.armed > 0) { m.armed -= dt; continue; }
-        const hit = G.state.foes.some(f => !f.dead && G.dist(f.x, f.y, m.x, m.y) < f.r + 18);
+        const hit = G.state.foes.some(f => !f.dead && !f.fly && G.dist(f.x, f.y, m.x, m.y) < f.r + 18);
         if (!hit) continue;
         G.state.mines.splice(i, 1);
         explodeMine(m, p);

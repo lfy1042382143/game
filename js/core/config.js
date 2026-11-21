@@ -132,6 +132,19 @@
     // 近战敌人：重装步兵——移速慢、伤害高、减伤高（接触缠斗威胁大）
     melee: { r: 15, speed: 80, atkCd: 1.6, reach: 3, atkMul: 1.2, hpMul: 1.15, defMul: 1.8 },
 
+    // 重甲蛮兵：极慢极肉、伤害高——弹幕（箭矢/浮游炮）难打穿，弱近身爆炸（地雷/震荡波/飞刃）
+    brute: { r: 17, speed: 58, atkCd: 2.0, reach: 4, atkMul: 1.35, hpMul: 1.9, defMul: 1.9 },
+
+    // 飞行掠袭者：快速飞行近战——无视障碍物俯冲缠斗，悬空免疫震荡波/地雷，箭矢是弱点
+    flyer: { r: 11, speed: 150, atkCd: 1.4, reach: 3, atkMul: 1.0, hpMul: 0.7, defMul: 0.6 },
+
+    // 飞行轰炸者：飞行远程——悬空免疫震荡波/地雷，闪电是弱点，每次射出双弹
+    bomber: {
+      r: 12, speed: 128, shootCd: 2.8, bulletSpeed: 140,
+      keepMin: 220, keepMax: 360,
+      atkMul: 0.8, hpMul: 0.8, defMul: 0.9
+    },
+
     // 远程敌人：游击射手——移速快、伤害低、血薄（风筝型骚扰）
     ranged: {
       r: 13, speed: 124,

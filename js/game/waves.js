@@ -87,9 +87,17 @@
     const boost = 1 + CFG.mon.mapBoost * state.mapIdx;   // 每张新地图敌人更强
     const trap = trapMul();
 
-    // 类型分布：近战 50% / 远程 30% / 法师 20%（forceType 用于法师超上限时改刷其他类型）
+    // 类型分布：近战 30% / 重甲 10% / 飞行近战 20% / 远程 20% / 飞行远程 10% / 法师 10%
+    // （forceType 用于法师超上限时改刷其他类型）
     const roll = idx % 10;
-    const type = forceType || (roll < 5 ? 'melee' : roll < 8 ? 'ranged' : 'mage');
+    const type = forceType || (
+      roll < 3 ? 'melee' :
+      roll < 4 ? 'brute' :
+      roll < 6 ? 'flyer' :
+      roll < 8 ? 'ranged' :
+      roll < 9 ? 'bomber' :
+      'mage'
+    );
     const cfgT = CFG[type];
     const pos = spawnNearPlayer();
 
@@ -112,8 +120,23 @@
       x: pos.x, y: pos.y
     });
 
-    // 击杀经验：血量开方（怪物后期指数变强时经验不至于同步爆炸）+ 分钟加成；法师 ×2
-    u.xp = Math.round((Math.sqrt(u.hp) * 1.6 + 1.2 * minute) * (type === 'ranged' ? 1.3 : type === 'mage' ? 2 : 1));
+    // 击杀经验：血量开方（怪物后期指数变强时经验不至于同步爆炸）+ 分钟加成
+    // 法师 ×2 / 远程 ×1.3 / 重甲 ×1.3 / 飞行远程 ×1.2
+    u.xp = Math.round((Math.sqrt(u.hp) * 1.6 + 1.2 * minute) * (
+      type === 'ranged' || type === 'brute' ? 1.3 :
+      type === 'mage' ? 2 :
+      type === 'bomber' ? 1.2 : 1
+    ));
+    // 类型抗性/弱点（按攻击方式 tag 乘区，见 enemies.js ENEMY_RES）
+    if (G.ENEMY_RES && G.ENEMY_RES[type]) u.res = G.ENEMY_RES[type];
+    // 飞行单位：无视障碍物（从空中飞过），渲染带悬浮起伏
+    if (type === 'flyer' || type === 'bomber') {
+      u.fly = true;
+      u.bob = Math.random() * Math.PI * 2;
+      u.emoji = type === 'flyer' ? '🦇' : '🦅';
+    } else if (type === 'brute') {
+      u.emoji = '🗿';
+    }
     u.strafeDir = Math.random() < 0.5 ? 1 : -1;
     // 法师闪现：错开初始冷却，避免所有法师同时瞬移
     if (type === 'mage') {

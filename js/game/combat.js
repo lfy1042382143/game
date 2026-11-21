@@ -53,6 +53,18 @@
 
     let dmg = amt;
 
+    // 类型抗性/弱点：玩家攻击按 tag 匹配敌人抗性乘区（0 = 免疫，如飞行系免疫震荡波/地雷）
+    if (src === state.player && tgt.isMon && opts.tag && tgt.res) {
+      const m = tgt.res[opts.tag];
+      if (m !== undefined) {
+        if (m <= 0) {
+          floatText(tgt, '免疫', '#94a3b8');
+          return 0;
+        }
+        dmg *= m;
+      }
+    }
+
     // 碎骨刃：对残血敌人的处决加成
     if (src && src === state.player && tgt.isMon && src.agg && src.agg.execute > 0
         && tgt.hp / Math.max(1, tgt.maxHp) < 0.35) {

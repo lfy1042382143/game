@@ -50,9 +50,22 @@
   }
 
   /* =========================================================
-     移动公共步骤
+     类型抗性/弱点乘区：按玩家攻击方式 tag 匹配（arrow/chain/shock/orbit/drone/mine）
+     - 0 = 免疫（飞行系悬空：免疫震荡波与地雷）
+     - 未列出的 tag 默认 ×1
      ========================================================= */
-  /** 障碍绕行：前方探测到障碍 → 提前沿边缘切向偏转；已贴合 → 沿切线滑向目标一侧 */
+  const ENEMY_RES = {
+    melee:  { arrow: 0.85, drone: 0.85, chain: 1.0,  shock: 1.3,  orbit: 1.3,  mine: 1.4 },
+    brute:  { arrow: 0.55, drone: 0.6,  chain: 0.9,  shock: 1.5,  orbit: 1.4,  mine: 1.7 },
+    ranged: { arrow: 1.1,  drone: 1.0,  chain: 1.1,  shock: 0.65, orbit: 0.7,  mine: 0.7 },
+    mage:   { arrow: 1.0,  drone: 1.0,  chain: 1.3,  shock: 0.85, orbit: 0.75, mine: 0.85 },
+    flyer:  { arrow: 1.15, drone: 1.0,  chain: 1.0,  shock: 0,    orbit: 1.0,  mine: 0 },
+    bomber: { arrow: 0.8,  drone: 1.0,  chain: 1.25, shock: 0,    orbit: 1.0,  mine: 0 }
+  };
+
+  /* =========================================================
+     移动公共步骤
+     ========================================================= */  /** 障碍绕行：前方探测到障碍 → 提前沿边缘切向偏转；已贴合 → 沿切线滑向目标一侧 */
   function avoidObstacles(e, n) {
     const obs = state.obstacles;
     if (!obs.length) return n;
@@ -133,29 +146,92 @@
   }
 
   /* =========================================================
-     近战攻击
+     飞行移动：无视障碍物（从空中飞过），仅世界边界钳制
      ========================================================= */
-  function tryMeleeHit(e, dt, reach) {
+  function moveFlyer(e, n, dt, mul) {
+    const A = CFG.world;
+    if (e.slowT > 0) {
+      e.slowT -= dt;
+      mul *= (e.slowMul !== undefined ? e.slowMul : 1);
+    }
+    const spd = e.speed * (mul || 1) * (G.zoneSlowMul ? G.zoneSlowMul(e.x, e.y) : 1);
+    e.x = clamp(e.x + n.x * spd * dt, e.r, A.w - e.r);
+    e.y = clamp(e.y + n.y * spd * dt, e.r, A.h - e.r);
+  }
+
+  /** 扇形多发弹幕 */
+  function fireSpread(e, tx, ty, speed, count, spread) {
+    const base = Math.atan2(ty - e.y, tx - e.x);
+    for (let i = 0; i < count; i++) {
+      const a = base + (i - (count - 1) / 2) * spread;
+      G.fireEnemyBullet(e, e.x + Math.cos(a) * 100, e.y + Math.sin(a) * 100, speed);
+    }
+  }
+
+  /* =========================================================
+     近战攻击（reach/atkCd 支持按类型传入）
+     ========================================================= */
+  function tryMeleeHit(e, dt, reach, cd) {
     e.atkCd -= dt;
     const p = state.player;
     if (!p || p.dead) return;
     if (G.dist(e.x, e.y, p.x, p.y) < e.r + p.r + reach && e.atkCd <= 0) {
       dealDamage(e, p, e.atk * G.frenzyMul(e));
-      e.atkCd = CFG.melee.atkCd;
+      e.atkCd = cd || CFG.melee.atkCd;
     }
   }
 
   /* =========================================================
      各类型 AI
      ========================================================= */
+  /** 地面近战（melee 重装步兵 / brute 重甲蛮兵共用，数值取各自类型配置） */
   function updateMelee(e, dt) {
+    const p = state.player;
+    if (!p) return;
+    const T = CFG[e.type] || CFG.melee;
+    const AD = G.affixDataOf(e);
+    const mul = AD && AD.speedMul ? AD.speedMul : 1;
+    const n = G.norm(p.x - e.x, p.y - e.y);
+    moveEnemy(e, n, dt, mul);
+    tryMeleeHit(e, dt, T.reach, T.atkCd);
+  }
+
+  /** 飞行掠袭者：直线俯冲 + 正弦蛇形绕行（难被弹幕命中），近身接触攻击 */
+  function updateFlyerMelee(e, dt) {
     const p = state.player;
     if (!p) return;
     const AD = G.affixDataOf(e);
     const mul = AD && AD.speedMul ? AD.speedMul : 1;
     const n = G.norm(p.x - e.x, p.y - e.y);
-    moveEnemy(e, n, dt, mul);
-    tryMeleeHit(e, dt, CFG.melee.reach);
+    e.bob = (e.bob || 0) + dt * 4;
+    const weave = Math.sin(e.bob) * 0.55;
+    moveFlyer(e, G.norm(n.x - n.y * weave, n.y + n.x * weave), dt, mul);
+    tryMeleeHit(e, dt, CFG.flyer.reach, CFG.flyer.atkCd);
+  }
+
+  /** 飞行轰炸者：保持距离带环绕，每次射出双弹 */
+  function updateFlyerRanged(e, dt) {
+    const p = state.player;
+    if (!p) return;
+    const C = CFG.bomber;
+    const d = G.dist(e.x, e.y, p.x, p.y);
+    const AD = G.affixDataOf(e);
+    let mul = AD && AD.speedMul ? AD.speedMul : 1;
+    let n;
+    if (d > C.keepMax) n = G.norm(p.x - e.x, p.y - e.y);
+    else if (d < C.keepMin) n = G.norm(e.x - p.x, e.y - p.y);
+    else {
+      const perp = { x: (p.y - e.y) * e.strafeDir, y: (e.x - p.x) * e.strafeDir };
+      n = G.norm(perp.x, perp.y);
+      mul *= 0.6;
+    }
+    moveFlyer(e, n, dt, mul);
+
+    e.atkCd -= dt;
+    if (e.atkCd <= 0) {
+      fireSpread(e, p.x, p.y, C.bulletSpeed, 2, 0.3);
+      e.atkCd = C.shootCd;
+    }
   }
 
   function updateRanged(e, dt) {
@@ -187,10 +263,12 @@
       moveEnemy(e, n, dt, mul * 0.55);
     }
 
-    // 发射弹幕
+    // 发射弹幕（每 3 轮一次三连扇形，远程压制更强）
     e.atkCd -= dt;
     if (e.atkCd <= 0) {
-      G.fireEnemyBullet(e, p.x, p.y, C.bulletSpeed);
+      e.shots = (e.shots || 0) + 1;
+      if (e.shots % 3 === 0) fireSpread(e, p.x, p.y, C.bulletSpeed, 3, 0.2);
+      else G.fireEnemyBullet(e, p.x, p.y, C.bulletSpeed);
       e.atkCd = C.shootCd;
     }
   }
@@ -477,8 +555,10 @@
       G.tickBleeds(e, dt);
       if (e.dead) continue;
 
-      if (e.type === 'melee') updateMelee(e, dt);
+      if (e.type === 'melee' || e.type === 'brute') updateMelee(e, dt);
       else if (e.type === 'ranged') updateRanged(e, dt);
+      else if (e.type === 'flyer') updateFlyerMelee(e, dt);
+      else if (e.type === 'bomber') updateFlyerRanged(e, dt);
       else if (e.type === 'mage') updateMage(e, dt);
       else if (e.type === 'mimic') updateMimic(e, dt);
       else if (e.type === 'boss') updateBoss(e, dt);
@@ -493,5 +573,5 @@
     separateFromPlayer(alive);
   }
 
-  Object.assign(G, { updateEnemies, updateMageAoes, updateMimic, updateMage, findBlinkSpot, separateFromPlayer, applyEliteAura });
+  Object.assign(G, { updateEnemies, updateMageAoes, updateMimic, updateMage, findBlinkSpot, separateFromPlayer, applyEliteAura, ENEMY_RES, fireSpread, moveFlyer });
 })(window.ABYSS = window.ABYSS || {});

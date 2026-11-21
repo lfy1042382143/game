@@ -173,6 +173,7 @@ function featureTests() {
   // T3 近战敌人追击（重装型：慢速但持续逼近）
   reset();
   const foe = G.makeEnemy(1, 0);
+  G.state.obstacles = [];   // 清空障碍，排除绕行转向干扰
   G.state.foes.push(foe);
   foe.x = G.state.player.x - 400; foe.y = G.state.player.y;
   const d0 = G.dist(foe.x, foe.y, G.state.player.x, G.state.player.y);
@@ -262,18 +263,18 @@ function featureTests() {
   });
   assert(chainDimBefore.max(p15) === false, 'T16 解锁后维度卡可入池');
   // 闪电初始伤害明显偏低（0.5×攻击），伤害维度 +0.15
-  assert(Math.abs(p15.sk.chain.mult - 0.5) < 1e-9, 'T16 闪电初始伤害 0.5×攻击', p15.sk.chain.mult);
+  assert(Math.abs(p15.sk.chain.mult - 1.8) < 1e-9, 'T16 闪电初始伤害 1.8×攻击', p15.sk.chain.mult);
   dimCard('chain', 'dmg').apply(p15);
-  assert(Math.abs(p15.sk.chain.mult - 0.65) < 1e-9, 'T16 闪电·伤害维度 +15%', p15.sk.chain.mult);
+  assert(Math.abs(p15.sk.chain.mult - 2.2) < 1e-9, 'T16 闪电·伤害维度 +0.4', p15.sk.chain.mult);
   dimCard('chain', 'bolts').apply(p15);
   assert(p15.sk.chain.bolts === 2, 'T16 闪电·闪电数量维度', p15.sk.chain.bolts);
   // 震荡波次级震荡波维度
   dimCard('shock', 'echo').apply(p15);
   assert(p15.sk.shock.echo === 1, 'T16 震荡波·连锁震荡维度', p15.sk.shock.echo);
   // 飞刃：解锁后 2 枚，数量维度 +2
-  assert(p15.sk.orbit.count === 2, 'T16 飞刃解锁 2 枚', p15.sk.orbit.count);
+  assert(p15.sk.orbit.count === 3, 'T16 飞刃解锁 3 枚', p15.sk.orbit.count);
   dimCard('orbit', 'count').apply(p15);
-  assert(p15.sk.orbit.count === 4, 'T16 飞刃·数量维度 +2 枚', p15.sk.orbit.count);
+  assert(p15.sk.orbit.count === 5, 'T16 飞刃·数量维度 +2 枚', p15.sk.orbit.count);
   // 浮游炮维度：数量/子弹伤害/存在时间
   dimCard('drone', 'count').apply(p15);
   assert(p15.sk.drone.count === 2, 'T16 浮游炮·数量维度', p15.sk.drone.count);
@@ -281,21 +282,21 @@ function featureTests() {
   assert(Math.abs(p15.sk.drone.life - 5.5) < 1e-9, 'T16 浮游炮·存在时间维度', p15.sk.drone.life);
   // 地雷维度：伤害/数量/冷却/范围
   dimCard('mine', 'dmg').apply(p15);
-  assert(Math.abs(p15.sk.mine.mult - 1.4) < 1e-9, 'T16 地雷·伤害维度 +20%', p15.sk.mine.mult);
+  assert(Math.abs(p15.sk.mine.mult - 1.85) < 1e-9, 'T16 地雷·伤害维度 +0.25', p15.sk.mine.mult);
   dimCard('mine', 'count').apply(p15);
   assert(p15.sk.mine.count === 2, 'T16 地雷·布雷数量维度', p15.sk.mine.count);
   dimCard('mine', 'rate').apply(p15);
-  assert(Math.abs(p15.sk.mine.cd - 4 * 0.88) < 1e-9, 'T16 地雷·部署冷却维度', p15.sk.mine.cd);
+  assert(Math.abs(p15.sk.mine.cd - 3.0 * 0.88) < 1e-9, 'T16 地雷·部署冷却维度', p15.sk.mine.cd);
   dimCard('mine', 'range').apply(p15);
-  assert(p15.sk.mine.r === 90, 'T16 地雷·范围维度 +20', p15.sk.mine.r);
+  assert(p15.sk.mine.r === 100, 'T16 地雷·范围维度 +20', p15.sk.mine.r);
   // 全局冷却卡：所有间隔 −10%
   const cdrCard16 = modeByKey('cdr');
   assert(!!cdrCard16, 'T16 全局冷却卡存在');
   cdrCard16.apply(p15);
-  assert(p15.cdr === 1 && Math.abs(p15.sk.chain.cd - 4.2 * 0.9) < 1e-9
+  assert(p15.cdr === 1 && Math.abs(p15.sk.chain.cd - 3.0 * 0.9) < 1e-9
     && Math.abs(p15.sk.orbit.interval - 5 * 0.9) < 1e-9
     && Math.abs(p15.sk.drone.interval - 6.5 * 0.9) < 1e-9
-    && Math.abs(p15.sk.mine.cd - 4 * 0.88 * 0.9) < 1e-9,
+    && Math.abs(p15.sk.mine.cd - 3.0 * 0.88 * 0.9) < 1e-9,
     'T16 全局冷却卡同时缩短所有攻击间隔', { cdr: p15.cdr, chain: p15.sk.chain.cd, orbit: p15.sk.orbit.interval, drone: p15.sk.drone.interval, mine: p15.sk.mine.cd });
 
   // T16b 通用辅助卡：减速箭 / 护盾生成 / 幸运
@@ -680,11 +681,11 @@ function featureTests() {
   const p21c = G.state.player;
   const unlockOrbit21c = G.SKILL_CARDS.find(c => c.line === 'orbit' && c.sub === 'unlock');
   unlockOrbit21c.apply(p21c);
-  assert(p21c.skills.orbit === 1 && p21c.sk.orbit.count === 2, 'T21c 飞刃解锁为 2 枚', p21c.sk.orbit.count);
+  assert(p21c.skills.orbit === 1 && p21c.sk.orbit.count === 3, 'T21c 飞刃解锁为 3 枚', p21c.sk.orbit.count);
   const mul1 = p21c.orbitDmgMul;
   const orbitDim21c = G.SKILL_CARDS.find(c => c.line === 'orbit' && c.dim === 'count');
   orbitDim21c.apply(p21c);
-  assert(p21c.sk.orbit.count === 4, 'T21c 飞刃数量维度 +2 枚', p21c.sk.orbit.count);
+  assert(p21c.sk.orbit.count === 5, 'T21c 飞刃数量维度 +2 枚', p21c.sk.orbit.count);
   assert(p21c.orbitDmgMul >= mul1, 'T21c 飞刃伤害倍率不降低', { mul1, mul2: p21c.orbitDmgMul });
   assert(p21c.orbits === 0, 'T21c 飞刃平时收起（周期出现）', p21c.orbits);
 
@@ -712,7 +713,7 @@ function featureTests() {
   reset();
   const meleeF = G.makeEnemy(1, 0);   // melee
   const rangedF = G.makeEnemy(1, 6);  // ranged
-  const mageF = G.makeEnemy(1, 8);    // mage
+  const mageF = G.makeEnemy(1, 9);    // mage
   assert(meleeF.type === 'melee' && rangedF.type === 'ranged' && mageF.type === 'mage',
     'T22a 类型分布正确', { m: meleeF.type, r: rangedF.type, g: mageF.type });
   assert(meleeF.atk > rangedF.atk, 'T22a 近战攻击高于远程', { melee: meleeF.atk, ranged: rangedF.atk });
@@ -723,7 +724,7 @@ function featureTests() {
 
   // T22b 法师 AoE：预警后爆发，只对玩家生效（不伤敌人）
   reset();
-  const mg = G.makeEnemy(1, 8);
+  const mg = G.makeEnemy(1, 9);
   G.state.foes = [mg];
   mg.atkCd = 0;
   const pT22 = G.state.player;
@@ -1079,7 +1080,7 @@ function featureTests() {
 
   // T27c 四类怪定位：血量/攻击/速度按设计分化
   reset();
-  const t27M = G.makeEnemy(1, 0), t27R = G.makeEnemy(1, 5), t27G = G.makeEnemy(1, 8);
+  const t27M = G.makeEnemy(1, 0), t27R = G.makeEnemy(1, 6), t27G = G.makeEnemy(1, 9);
   assert(t27M.hp > t27R.hp && t27R.hp > t27G.hp, 'T27c 血量：近战 > 远程 > 法师', { m: t27M.hp, r: t27R.hp, g: t27G.hp });
   assert(t27G.atk > t27M.atk && t27M.atk > t27R.atk, 'T27c 攻击：法师 > 近战 > 远程', { m: t27M.atk, r: t27R.atk, g: t27G.atk });
   assert(t27R.speed > G.CFG.melee.speed && t27M.speed > G.CFG.player.speed * 0.5, 'T27c 移速：远程快于近战', { r: t27R.speed, m: t27M.speed });
@@ -1237,6 +1238,7 @@ function featureTests() {
   const foe30 = G.makeEnemy(1, 0);
   foe30.x = p30.x + 120; foe30.y = p30.y;
   foe30.maxHp = 200; foe30.hp = 200;   // 高血量避免中途死亡中断归集
+  foe30.res = null;                    // 剥离类型抗性，专测归集
   G.state.foes = [foe30];
   G.dealDamage(p30, foe30, 10, { tag: 'arrow', flat: true, noThorn: true });
   G.dealDamage(p30, foe30, 15, { tag: 'chain', flat: true, noThorn: true });
@@ -1258,8 +1260,7 @@ function featureTests() {
     'T30 输出统计 UI 含全部六类');
 
   // T31 障碍绕行：敌人被障碍物挡路时能绕过去，不会永久卡住
-  reset();
-  const p31 = G.state.player;
+  reset();  const p31 = G.state.player;
   const foe31 = G.makeEnemy(1, 0);
   foe31.x = p31.x - 220; foe31.y = p31.y;
   const wallX = p31.x - 110;
@@ -1276,6 +1277,57 @@ function featureTests() {
   // 绕行后敌人不应残留在障碍物内部
   assert(!G.state.obstacles.some(o => G.circlePoly(foe31.x, foe31.y, foe31.r, o)),
     'T31 绕行过程中敌人不被卡进障碍物');
+
+  // T32 敌人类型抗性/弱点 + 新类型生成 + 各攻击方式初始 DPS 对齐
+  reset();
+  const t32 = i => G.makeEnemy(1, i).type;
+  assert(t32(0) === 'melee' && t32(3) === 'brute' && t32(4) === 'flyer'
+    && t32(6) === 'ranged' && t32(8) === 'bomber' && t32(9) === 'mage',
+    'T32 六类敌人分布（近战/重甲/飞行近战/远程/飞行远程/法师）',
+    [0, 3, 4, 6, 8, 9].map(t32).join(','));
+  const p32 = G.state.player;
+  const mk32 = t => {
+    const f = G.makeEnemy(1, 0);
+    f.type = t; f.res = G.ENEMY_RES[t] || null;
+    f.maxHp = 500; f.hp = 500;
+    return f;
+  };
+  const m32 = mk32('melee'), b32 = mk32('brute'), f32 = mk32('flyer'), r32 = mk32('ranged');
+  G.state.foes = [m32, b32, f32, r32];
+  // 重甲：地雷弱点 ×1.7 > 近战 ×1.4
+  G.dealDamage(p32, m32, 10, { tag: 'mine', flat: true, noThorn: true });
+  G.dealDamage(p32, b32, 10, { tag: 'mine', flat: true, noThorn: true });
+  assert(500 - b32.hp > 500 - m32.hp, 'T32 重甲受到的地雷伤害高于普通近战（弱点）',
+    { melee: 500 - m32.hp, brute: 500 - b32.hp });
+  // 重甲：弹幕抗性 ×0.55（比近战 0.85 更低）
+  const bHp0_32 = b32.hp;
+  G.dealDamage(p32, b32, 10, { tag: 'arrow', flat: true, noThorn: true });
+  assert(500 - bHp0_32 + b32.hp === 0 || (bHp0_32 - b32.hp) <= 7,
+    'T32 重甲受箭矢伤害降低（×0.55）', bHp0_32 - b32.hp);
+  // 飞行：震荡波/地雷免疫，箭矢弱点
+  const dealt32 = G.dealDamage(p32, f32, 50, { tag: 'shock', flat: true, noThorn: true });
+  const dealt32b = G.dealDamage(p32, f32, 50, { tag: 'mine', flat: true, noThorn: true });
+  assert(dealt32 === 0 && f32.hp === 500, 'T32 飞行单位免疫震荡波', dealt32);
+  assert(dealt32b === 0, 'T32 飞行单位免疫地雷', dealt32b);
+  const dealt32c = G.dealDamage(p32, f32, 10, { tag: 'arrow', flat: true, noThorn: true });
+  assert(dealt32c > 10, 'T32 飞行单位弱箭矢（×1.15）', dealt32c);
+  // 远程：近身伤害降低（震荡波 ×0.65）
+  const dealt32d = G.dealDamage(p32, r32, 10, { tag: 'shock', flat: true, noThorn: true });
+  assert(dealt32d < 10 && dealt32d >= 6, 'T32 远程敌人受近身伤害降低（×0.65）', dealt32d);
+  // 初始 DPS 对齐：各攻击方式典型战斗 DPS 与箭矢相差不超过 0.45~2.2 倍
+  const arrowDps32 = p32.atk * p32.shotDmgMul / (G.CFG.player.atkCd * p32.atkCdMul);
+  const dpsPairs32 = [
+    ['闪电', p32.sk.chain.mult * p32.atk * 2 / p32.sk.chain.cd],        // 2 跳 AoE
+    ['震荡波', p32.sk.shock.mult * p32.atk * 3 / p32.sk.shock.cd],      // 半径内 3 目标
+    ['飞刃', p32.orbitDmgMul * p32.atk / 0.45],                          // 贴身每 0.45s
+    ['浮游炮', p32.sk.drone.mult * p32.atk / p32.sk.drone.cd],
+    ['地雷', p32.sk.mine.mult * p32.atk * 2 / p32.sk.mine.cd]           // 常炸到 2 个
+  ];
+  dpsPairs32.forEach(pr => {
+    const ratio32 = pr[1] / arrowDps32;
+    assert(ratio32 > 0.45 && ratio32 < 2.2,
+      'T32 ' + pr[0] + ' 初始 DPS 与箭矢对齐（×' + ratio32.toFixed(2) + '）', ratio32);
+  });
 
   // T29e BOSS 血量压迫感
   const boss29 = G.makeElite(5);

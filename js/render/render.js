@@ -333,17 +333,21 @@
     if (isPlayer && u.iframes > 0) alpha = 0.45 + 0.4 * Math.sin(state.time * 40);
     ctx.globalAlpha = alpha;
 
+    // 飞行单位：悬浮起伏（地面投影留在原地）
+    const yy = u.fly ? y - 14 + Math.sin(state.time * 4 + (u.bob || 0)) * 4 : y;
+
     // 阴影
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath();
-    ctx.ellipse(x, y + u.r * 0.9, u.r * 0.8, u.r * 0.3, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y + u.r * 0.9 + (u.fly ? 10 : 0), u.r * (u.fly ? 0.55 : 0.8), u.r * 0.3, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // 身体
     ctx.beginPath();
-    ctx.arc(x, y, u.r, 0, Math.PI * 2);
+    ctx.arc(x, yy, u.r, 0, Math.PI * 2);
     const bodyC = {
-      boss: '#dc2626', mage: '#8b5cf6', mimic: '#d97706', ranged: '#b45309', melee: '#92400e'
+      boss: '#dc2626', mage: '#8b5cf6', mimic: '#d97706', ranged: '#b45309',
+      melee: '#92400e', brute: '#78350f', flyer: '#0369a1', bomber: '#4f46e5'
     }[u.type] || '#b45309';
     ctx.fillStyle = u.flashT > 0 ? '#ffffff' : (isPlayer ? '#3b82f6' : bodyC);
     ctx.fill();
@@ -355,12 +359,12 @@
     ctx.font = Math.round(u.r * 1.25) + 'px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(u.emoji || '?', x, y + 1);
+    ctx.fillText(u.emoji || '?', x, yy + 1);
 
     // 护盾环
     if (u.shield > 0) {
       ctx.beginPath();
-      ctx.arc(x, y, u.r + 4, 0, Math.PI * 2);
+      ctx.arc(x, yy, u.r + 4, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(125,211,252,0.85)';
       ctx.lineWidth = 2.5;
       ctx.stroke();
@@ -369,7 +373,7 @@
     // 法师闪现前摇：紫色虚线圈
     if (u.blinkWarnT > 0) {
       ctx.beginPath();
-      ctx.arc(x, y, u.r + 9, 0, Math.PI * 2);
+      ctx.arc(x, yy, u.r + 9, 0, Math.PI * 2);
       ctx.setLineDash([5, 5]);
       ctx.strokeStyle = 'rgba(192,132,252,0.9)';
       ctx.lineWidth = 2;
@@ -379,7 +383,7 @@
 
     // 血条
     const bw = u.r * 2.2, bh = 4;
-    const bx = x - bw / 2, by = y - u.r - 14;
+    const bx = x - bw / 2, by = yy - u.r - 14;
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
     const pct = clamp(u.hp / Math.max(1, u.maxHp), 0, 1);
