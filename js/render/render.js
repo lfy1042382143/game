@@ -17,6 +17,14 @@
     if (!CFG.perf || !CFG.perf.lowFx) ctx.shadowBlur = v;
   }
 
+  /**
+   * 素材原图角色一律朝左：返回 1 = 保持朝左，-1 = 镜像朝右。
+   * 目标在角色左边 → 朝左(1)；目标在右边 → 翻面朝右(-1)。
+   */
+  function spriteFace(x, targetX) {
+    return (targetX !== undefined && targetX >= x) ? -1 : 1;
+  }
+
   function init() {
     const c = G.el.canvas;
     const isTouch = G.touch && G.touch.isTouchDevice && G.touch.isTouchDevice();
@@ -358,18 +366,18 @@
       const scale = (u.type === 'boss' ? 3.1 : (u.fly ? 2.2 : 2.5));
       const h = u.r * scale;
       const w = h * (sprite.width / sprite.height);
-      // 翻面：玩家按攻击方向，敌人按朝玩家/移动方向
+      // 翻面：玩家按攻击方向，敌人按玩家方位；素材原图一律朝左
       let face = 1;
       if (isPlayer) {
         const m = G.engine.mouse;
-        if (m && m.active) face = (m.cx + cam.x >= x) ? 1 : -1;
+        if (m && m.active) face = spriteFace(x, m.cx + cam.x);
         else {
           const t = G.nearestFoe ? G.nearestFoe(state.player) : null;
-          face = t && t.x < x ? -1 : 1;
+          face = t ? spriteFace(x, t.x) : 1;
         }
       } else {
         const p = state.player;
-        face = (p && p.x < x) ? -1 : 1;
+        face = p ? spriteFace(x, p.x) : 1;
       }
       ctx.save();
       ctx.translate(x, yy);
@@ -1410,5 +1418,5 @@
     ctx.fill();
   }
 
-  Object.assign(G, { render: { init, frame }, camera: cam });
+  Object.assign(G, { render: { init, frame, spriteFace }, camera: cam });
 })(window.ABYSS = window.ABYSS || {});

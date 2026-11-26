@@ -2260,6 +2260,12 @@ function featureTests() {
   assert(G.sprites.NAMES.includes('player') && spTypes.every(t => G.sprites.NAMES.includes(t)),
     'T-SP1 素材覆盖玩家与全部敌人类型', G.sprites.NAMES);
   assert(G.sprites.NAMES.includes('elite'), 'T-SP1 精英专用骑士素材存在');
+  // T-SP2 翻面方向：素材原图朝左，目标在右必须镜像(-1)，在左保持(1)
+  assert(G.render.spriteFace(100, 200) === -1 && G.render.spriteFace(100, 50) === 1,
+    'T-SP2 目标在右翻面朝右、在左保持朝左',
+    { right: G.render.spriteFace(100, 200), left: G.render.spriteFace(100, 50) });
+  assert(G.render.spriteFace(100, 100) === -1 && G.render.spriteFace(100) === 1,
+    'T-SP2 同位置按朝右处理、无目标保持默认');
 
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;
