@@ -51,6 +51,20 @@
 
   function isBossMinute(m) { return m % CFG.elite.bossEvery === 0; }
 
+  /**
+   * 绝对存活上限（性能保护）。
+   * 刷怪不再取决于玩家能不能杀掉：只要场上未达此上限就持续刷新，
+   * 杀不动时敌人会不断堆积，形成持续压力。移动端低画质下更保守。
+   */
+  function hardCap() {
+    const S = CFG.spawn;
+    let c = S.hardCap || S.capMax || 200;
+    if (CFG.perf && CFG.perf.lowFx && CFG.perf.capMaxMobile) {
+      c = Math.min(c, Math.round(CFG.perf.capMaxMobile * 1.5));
+    }
+    return c;
+  }
+
   /** 普通敌人是否带词缀（按分钟） */
   function affixFor(m, idx) {
     const A = CFG.affixes;
@@ -234,5 +248,5 @@
     return u;
   }
 
-  Object.assign(G, { curveHp, curveAtk, curveDef, spawnPhase, spawnBatch, spawnInterval, aliveCap, isBossMinute, makeEnemy, makeElite, spawnNearPlayer, sizeScale });
+  Object.assign(G, { curveHp, curveAtk, curveDef, spawnPhase, spawnBatch, spawnInterval, aliveCap, hardCap, isBossMinute, makeEnemy, makeElite, spawnNearPlayer, sizeScale });
 })(window.ABYSS = window.ABYSS || {});

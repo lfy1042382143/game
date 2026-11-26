@@ -163,7 +163,7 @@ function featureTests() {
   const alive0 = G.state.foes.length;
   run(10);
   assert(G.state.foes.length > alive0, 'T1 敌人源源不断刷新', { t0: alive0, t10s: G.state.foes.length });
-  assert(G.state.foes.length <= G.aliveCap(1), 'T1 存活数不超过上限', { n: G.state.foes.length, cap: G.aliveCap(1) });
+  assert(G.state.foes.length <= G.hardCap(), 'T1 存活数不超过绝对上限', { n: G.state.foes.length, cap: G.hardCap() });
 
   // T2 世界边界仅在极远处存在（正常游玩触不到）
   reset();
@@ -889,6 +889,9 @@ function featureTests() {
   assert(G.state.obstacles.length === 0, 'T15b 沼泽无障碍物', G.state.obstacles.length);
   assert(G.state.zones.length > 0 && G.state.zones.every(z => z.pts && z.pts.length >= 6),
     'T15b 毒池为不规则多边形', G.state.zones.length);
+  // 毒池更密：生成概率调高后，玩家周围活跃范围内应有多片毒池
+  assert(G.CFG.hazards.poison.cellChance >= 0.7 && G.state.zones.length >= 6,
+    'T15b 沼泽毒池数量更多（覆盖更密）', { chance: G.CFG.hazards.poison.cellChance, zones: G.state.zones.length });
   // 玩家置于毒池中心，验证中毒扣血
   const pz = G.state.player;
   G.state.zones = [{ kind: 'poison', x: pz.x, y: pz.y, r: 90,
@@ -923,9 +926,10 @@ function featureTests() {
   const ice = G.state.obstacles[0];
   const iceHp = ice.hp;
   assert(iceHp === G.CFG.obstacles.iceHp && iceHp > 1, 'T15d 冰柱有耐久值', iceHp);
-  assert(G.CFG.hazards.ice.glideTime >= 0.5 && G.CFG.hazards.ice.steer <= 0.4,
-    'T15d 冰川惯性足够滑（松键滑行久、转向迟钝）',
-    { glide: G.CFG.hazards.ice.glideTime, steer: G.CFG.hazards.ice.steer });
+  assert(G.CFG.hazards.ice.accel > 0 && G.CFG.hazards.ice.friction > 0
+    && G.CFG.hazards.ice.friction < G.CFG.hazards.ice.accel,
+    'T15d 冰川物理参数（低摩擦高加速 = 打滑）',
+    { accel: G.CFG.hazards.ice.accel, friction: G.CFG.hazards.ice.friction });
   // 不规则冰面：生成的多边形区域，区域内 onIce 为真，区域外为假
   assert(G.state.zones.length > 0 && G.state.zones.every(z => z.kind === 'ice' && z.pts.length >= 6),
     'T15d 冰面为不规则多边形区域', G.state.zones.length);
@@ -943,6 +947,35 @@ function featureTests() {
   assert(hits15d >= 1 && nearFoe.hp < foeHpBefore, 'T15d 冰柱碎裂炸伤周围敌人',
     { hits: hits15d, hp0: foeHpBefore, hp1: nearFoe.hp });
 
+  // T15d2 冰面物理：松键后仍向前滑行（不是立刻停住）
+  reset();
+  G.switchMap(3);
+  G.ensureTerrainAroundPlayer();
+  const iz2 = G.state.zones[0];
+  const pIce = G.state.player;
+  G.state.foes = [];
+  pIce.x = iz2.x; pIce.y = iz2.y;
+  pIce.iceVX = 0; pIce.iceVY = 0;
+  engineKeys.add('d');
+  run(0.45);                      // 在冰面上加速
+  engineKeys.delete('d');
+  const xAfterRelease = pIce.x;
+  const vAfterRelease = Math.abs(pIce.iceVX);
+  run(0.2);                       // 松键后靠惯性继续滑
+  assert(pIce.x > xAfterRelease + 4 && vAfterRelease > 20,
+    'T15d2 冰面松开方向键后仍向前滑行', { dx: Math.round(pIce.x - xAfterRelease), v: Math.round(vAfterRelease) });
+
+  // T15d3 冰面转弯：保留原前进方向速度（刹不住车）
+  pIce.x = iz2.x; pIce.y = iz2.y;
+  pIce.iceVX = 220; pIce.iceVY = 0;   // 正在向右滑
+  const yTurn0 = pIce.y, xTurn0 = pIce.x;
+  engineKeys.add('w');                 // 想立刻向上
+  run(0.15);
+  engineKeys.delete('w');
+  assert(pIce.x > xTurn0 + 10 && pIce.y < yTurn0,
+    'T15d3 冰面转弯时原方向仍往前滑一段（刹不住）',
+    { dx: Math.round(pIce.x - xTurn0), dy: Math.round(pIce.y - yTurn0) });
+
   // T15e 火山：熔岩块障碍 + 天降岩浆
   reset();
   G.switchMap(4);
@@ -959,6 +992,33 @@ function featureTests() {
   G.state.player.iframes = 0;
   run(0.3);
   assert(lavaFx.hit && G.state.player.hp < hpl, 'T15e 岩浆爆发造成伤害', { hp0: hpl, hp1: G.state.player.hp });
+  // 火山障碍更密：同等级下熔岩块数量明显多于森林
+  reset();
+  const forestObs = G.state.obstacles.length;
+  G.switchMap(4);
+  const lavaObs = G.state.obstacles.length;
+  assert(G.obDensity() > 1 && lavaObs > forestObs,
+    'T15e 火山地图障碍物更密', { forest: forestObs, lava: lavaObs, density: G.obDensity() });
+
+  // T15f 刷怪不再依赖击杀：场上敌人超过软上限时仍继续刷新（旧逻辑会卡住）
+  reset();
+  G.state.foes = [];
+  for (let i = 0; i < G.aliveCap(1) + 3; i++) G.state.foes.push(G.makeEnemy(1, i));
+  const foesPre15f = G.state.foes.length;
+  G.state.spawnT = G.spawnInterval(1) * 1.8 - 0.01;   // 超软上限时刷怪间隔放慢 1.8×
+  G.state.player.iframes = 999;          // 测试期间不让玩家被秒
+  run(0.2);
+  assert(G.state.foes.length > foesPre15f, 'T15f 超过软上限仍持续刷怪（不看击杀）',
+    { before: foesPre15f, after: G.state.foes.length, softCap: G.aliveCap(1) });
+  // 达到绝对上限后停止刷新（性能保护）
+  G.state.foes = [];
+  const hard = G.hardCap();
+  for (let i = 0; i < hard; i++) G.state.foes.push(G.makeEnemy(1, i, 'melee'));   // 全近战，对齐计数口径
+  const foesAtCap = G.state.foes.filter(f => !f.dead).length;
+  G.state.spawnT = G.spawnInterval(1) * 1.8 - 0.01;
+  run(0.1);
+  assert(G.state.foes.length <= foesAtCap, 'T15f 达到绝对上限后不再刷怪',
+    { atCap: foesAtCap, now: G.state.foes.length, hardCap: hard });
 
   // T16 升级卡池混合化：属性/攻击方式/幸运/升级效率每级一同随机出现
   const M16 = G.ATTR_META;

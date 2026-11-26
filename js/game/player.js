@@ -23,35 +23,56 @@
     const zslow = G.zoneSlowMul ? G.zoneSlowMul(p.x, p.y) : 1;
     // 幅度钳制到 1：键盘对角=全速，摇杆小幅度=按比例缓速
     const moveBuff = 1 + (p.pasMoveSpeed || 0);
-    const spd = p.speed * Math.min(1, mag) * moveBuff * zslow;
+    const baseSpd = p.speed * moveBuff * zslow;   // 满速（不含摇杆幅度）
+    const spd = baseSpd * Math.min(1, mag);
 
-    // 冰川：只有站在不规则冰面区域内才有惯性。模拟真实冰面——转向迟钝、松键继续滑。
-    // 离开冰面立刻恢复灵敏操控；仍带一小段残余速度自然衰减，避免"啪"一下停住。
+    // 冰川：只有站在不规则冰面区域内才滑。用「加速度 + 摩擦」物理模拟真实冰面：
+    // - 输入只提供有限加速度，不能瞬间改变速度方向 → 转弯时原方向速度仍存留，"刹不住"
+    // - 冰面摩擦很小 → 松开按键后仍会沿原方向滑行一段才慢慢停下
     const icy = G.onIce && G.onIce(p.x, p.y);
     if (icy) {
       const C = CFG.hazards.ice;
+      const accel = C.accel || 1050;
+      const fr = C.friction || 300;
       if (!p.iceVX) p.iceVX = 0;
       if (!p.iceVY) p.iceVY = 0;
-      const n = mag > 0.01 ? G.norm(mv.dx, mv.dy) : { x: 0, y: 0 };
-      const tvx = n.x * spd, tvy = n.y * spd;
-      const k = mag > 0.01 ? (C.steer || 0.32) : Math.max(0, 1 - dt / (C.glideTime || 0.62));
-      p.iceVX += (tvx - p.iceVX) * k;
-      p.iceVY += (tvy - p.iceVY) * k;
+      // 1) 沿输入方向施加有限加速度（摇杆小幅度按比例减弱）
+      if (mag > 0.01) {
+        const n = G.norm(mv.dx, mv.dy);
+        const a = accel * Math.min(1, mag) * dt;
+        p.iceVX += n.x * a;
+        p.iceVY += n.y * a;
+      }
+      // 2) 冰面摩擦：持续小幅减速，松键后靠它慢慢滑停
+      const v = Math.hypot(p.iceVX, p.iceVY);
+      if (v > 0) {
+        const nv = Math.max(0, v - fr * dt);
+        const s = nv / v;
+        p.iceVX *= s; p.iceVY *= s;
+      }
+      // 3) 限速（冰面最高速度略高于地面）
+      const vCap = baseSpd * (C.maxMul || 1.15);
+      const v2 = Math.hypot(p.iceVX, p.iceVY);
+      if (v2 > vCap && v2 > 0) { const s = vCap / v2; p.iceVX *= s; p.iceVY *= s; }
       p.x += p.iceVX * dt;
       p.y += p.iceVY * dt;
     } else {
-      // 非冰面：残余速度快速衰减（约 0.1 秒），保证出冰面后操控恢复跟手
-      const decay = Math.max(0, 1 - dt / 0.1);
-      p.iceVX = (p.iceVX || 0) * decay;
-      p.iceVY = (p.iceVY || 0) * decay;
+      // 非冰面：残余速度按 exitFriction 快速衰减，恢复跟手操控
+      const ef = (CFG.hazards.ice.exitFriction) || 2600;
+      const rv = Math.hypot(p.iceVX || 0, p.iceVY || 0);
+      if (rv > 0) {
+        const nv = Math.max(0, rv - ef * dt);
+        const s = nv / rv;
+        p.iceVX = (p.iceVX || 0) * s;
+        p.iceVY = (p.iceVY || 0) * s;
+      }
       if (mag > 0.01) {
         const n = G.norm(mv.dx, mv.dy);
-        p.x += n.x * spd * dt + p.iceVX * dt;
-        p.y += n.y * spd * dt + p.iceVY * dt;
-      } else {
-        p.x += p.iceVX * dt;
-        p.y += p.iceVY * dt;
+        p.x += n.x * spd * dt;
+        p.y += n.y * spd * dt;
       }
+      p.x += (p.iceVX || 0) * dt;
+      p.y += (p.iceVY || 0) * dt;
     }
 
     // 世界边界

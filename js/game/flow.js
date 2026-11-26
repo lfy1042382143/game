@@ -51,7 +51,7 @@
     state.player = G.makePlayer(startLine);
     state.obstacles = [];
     state.foes = [];
-    G.spawnObstaclesRandom(4);     // 初始障碍布局
+    G.spawnObstaclesRandom(Math.round(4 * (G.obDensity ? G.obDensity() : 1)));     // 初始障碍布局（火山更密）
     G.setupHazards();              // 初始地图无陷阱（布置空陷阱）
     G.spawnChest();                // 开局引导宝箱
     G.spawnSite();                 // 开局一个事件地点
@@ -72,9 +72,9 @@
   function switchMap(idx) {
     state.mapIdx = idx;
     const map = G.MAPS[idx];
-    // 重新随机障碍布局
+    // 重新随机障碍布局（按地图密度，火山更密）
     state.obstacles = [];
-    G.spawnObstaclesRandom(4);
+    G.spawnObstaclesRandom(Math.round(5 * (G.obDensity ? G.obDensity() : 1)));
     // 布置该地图的特色陷阱
     G.setupHazards();
     const hz = map.hazard && G.HAZ_INFO[map.hazard];
@@ -125,7 +125,8 @@
       }
     }
     state.obsT += dt;
-    if (state.obsT >= C.spawnEvery) {
+    const obEvery = C.spawnEvery / (G.obDensity ? G.obDensity() : 1);
+    if (state.obsT >= obEvery) {
       state.obsT = 0;
       G.spawnObstacleNearPlayer();
       G.cullObstacles();
@@ -153,18 +154,25 @@
     const minute = state.wave;
     const enemyIdx = state.kills;   // 词缀轮换用
 
-    // 普通敌人：对标 VS 成群波次——按当前阶段的批量一次刷一小群，从四周方向涌来
+    // 普通敌人：对标 VS 成群波次——按当前阶段的批量一次刷一小群，从四周方向涌来。
+    // 刷新不再看玩家杀没杀掉：只受绝对上限 hardCap 限制，杀不动就不断堆积。
     // 法师是站桩炮台，不计入存活上限，但有独立 mageCap 防止无限堆积
     const alive = state.foes.filter(f => !f.dead && f.type !== 'mage').length;
     const aliveMages = state.foes.filter(f => !f.dead && f.type === 'mage').length;
+    // 超过软上限（没能及时清怪）时仍持续刷怪，但间隔放慢 ~1.8 倍 → 缓慢堆积形成压力
+    const soft = G.aliveCap(minute);
+    const spawnGap = G.spawnInterval(minute) * (alive >= soft ? 1.8 : 1);
     state.spawnT += dt;
-    if (state.spawnT >= G.spawnInterval(minute)) {
+    if (state.spawnT >= spawnGap) {
       state.spawnT = 0;
-      const deficit = G.aliveCap(minute) - alive;
-      if (deficit > 0) {
+      const cap = G.hardCap ? G.hardCap() : soft;
+      const room = cap - alive;
+      if (room > 0) {
         const [bMin, bMax] = G.spawnBatch(minute);
-        const wanted = bMin + Math.floor(Math.random() * (bMax - bMin + 1));
-        const batch = Math.min(wanted, deficit);
+        let wanted = bMin + Math.floor(Math.random() * (bMax - bMin + 1));
+        // 已超软上限：每次只补 1 只
+        if (alive >= soft) wanted = 1;
+        const batch = Math.min(wanted, room);
         const baseAngle = Math.random() * Math.PI * 2;   // 本波的基准方向
         for (let i = 0; i < batch; i++) {
           const idx = enemyIdx + i;

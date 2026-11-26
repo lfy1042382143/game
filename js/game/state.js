@@ -158,6 +158,12 @@
     return map && map.obType ? map.obType : null;
   }
 
+  /** 当前地图的障碍密度倍率（火山等地图更密），默认 1 */
+  function obDensity() {
+    const map = G.MAPS[state.mapIdx % G.MAPS.length];
+    return (map && map.obDensity) || 1;
+  }
+
   /**
    * 生成一条障碍脉：沿随机折线排布若干块。
    * 形状按地图主题变化：森林=树根/石头混合，白骨=骨堆，冰川=冰柱，火山=熔岩块。
@@ -257,7 +263,7 @@
     const W = CFG.world;
     const C = CFG.obstacles;
     const p = state.player;
-    if (!p || state.obstacles.length >= C.cap * 4) return false;
+    if (!p || state.obstacles.length >= C.cap * 4 * obDensity()) return false;
     if (!currentObTypes()) return false;   // 无障碍物地图
 
     for (let tries = 0; tries < 16; tries++) {
@@ -293,6 +299,6 @@
   Object.assign(G, {
     state, saveBest, makeUnit, makePlayer,
     spawnObstaclesRandom, spawnObstacleNearPlayer, cullObstacles, rectsOverlap,
-    makePoly, makeVein, polyConflict, screenOutsideDist
+    makePoly, makeVein, polyConflict, screenOutsideDist, obDensity
   });
 })(window.ABYSS = window.ABYSS || {});
