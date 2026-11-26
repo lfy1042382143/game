@@ -37,5 +37,20 @@
     return cache[u.type] || null;
   }
 
-  Object.assign(G, { sprites: { load, getSprite, NAMES, ready: () => NAMES.filter(n => !!cache[n]).length } });
+  /**
+   * 素材原图朝向：1 = 朝右，-1 = 朝左，0 = 正面（无左右差别）。
+   * 实测只有弓手(ranged)原图朝右，其余按朝左/正面处理即为正确。
+   */
+  const BASE_FACE = {
+    player: -1, melee: -1, brute: -1, flyer: 0, ranged: 1,
+    mage: -1, elite: -1, boss: 0, mimic: 0, companion: 0, crystal: 0
+  };
+
+  function baseFace(u, isPlayer) {
+    if (isPlayer) return BASE_FACE.player;
+    const key = (u.elite && u.type !== 'boss') ? 'elite' : u.type;
+    return BASE_FACE[key] !== undefined ? BASE_FACE[key] : -1;
+  }
+
+  Object.assign(G, { sprites: { load, getSprite, baseFace, BASE_FACE, NAMES, ready: () => NAMES.filter(n => !!cache[n]).length } });
 })(window.ABYSS = window.ABYSS || {});

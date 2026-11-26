@@ -18,11 +18,18 @@
   }
 
   /**
-   * 素材原图角色一律朝左：返回 1 = 保持朝左，-1 = 镜像朝右。
-   * 目标在角色左边 → 朝左(1)；目标在右边 → 翻面朝右(-1)。
+   * 计算图片水平缩放符号：1 = 原样，-1 = 镜像。
+   * baseFace 是素材原图朝向（1 朝右 / -1 朝左 / 0 正面）。
+   * 目标在右 → 角色应朝右；目标在左 → 应朝左。
+   * 原图已朝目标方向就不翻，反着才翻；正面素材不影响。
    */
-  function spriteFace(x, targetX) {
-    return (targetX !== undefined && targetX >= x) ? -1 : 1;
+  function spriteFace(x, targetX, baseFace) {
+    baseFace = baseFace === undefined ? -1 : baseFace;
+    if (targetX === undefined || baseFace === 0) return 1;
+    const wantRight = targetX >= x;
+    // 原图朝左(-1)：想朝右就镜像(-1)、想朝左保持(1)
+    // 原图朝右(+1)：想朝右保持(1)、想朝左镜像(-1)
+    return wantRight ? baseFace : -baseFace;
   }
 
   function init() {
@@ -366,18 +373,19 @@
       const scale = (u.type === 'boss' ? 3.1 : (u.fly ? 2.2 : 2.5));
       const h = u.r * scale;
       const w = h * (sprite.width / sprite.height);
-      // 翻面：玩家按攻击方向，敌人按玩家方位；素材原图一律朝左
+      // 翻面：玩家按攻击方向，敌人按玩家方位；同时考虑每个素材的原图朝向
+      const baseFace = G.sprites.baseFace ? G.sprites.baseFace(u, isPlayer) : -1;
       let face = 1;
       if (isPlayer) {
         const m = G.engine.mouse;
-        if (m && m.active) face = spriteFace(x, m.cx + cam.x);
+        if (m && m.active) face = spriteFace(x, m.cx + cam.x, baseFace);
         else {
           const t = G.nearestFoe ? G.nearestFoe(state.player) : null;
-          face = t ? spriteFace(x, t.x) : 1;
+          face = t ? spriteFace(x, t.x, baseFace) : 1;
         }
       } else {
         const p = state.player;
-        face = p ? spriteFace(x, p.x) : 1;
+        face = p ? spriteFace(x, p.x, baseFace) : 1;
       }
       ctx.save();
       ctx.translate(x, yy);

@@ -1324,12 +1324,12 @@ function featureTests() {
   const t32 = i => G.makeEnemy(1, i).type;
   assert(t32(0) === 'melee' && t32(3) === 'brute' && t32(4) === 'flyer'
     && t32(6) === 'ranged' && t32(8) === 'melee' && t32(9) === 'mage',
-    'T32 敌人分布（近战/重甲/飞行近战/远程1%/法师；轰炸者已删除）',
+    'T32 敌人分布（近战/重甲/飞行近战/远程5%/法师；轰炸者已删除）',
     [0, 3, 4, 6, 8, 9].map(t32).join(','));
-  // 远程占比 = 现有的 1/10（idx%100===6 一档 ≈1%）；轰炸者不再出现
+  // 远程占比 5%（idx%20===6，每 20 只 1 只）；轰炸者不再出现
   const dist200 = Array.from({ length: 200 }, (_, i) => G.makeEnemy(1, i).type);
-  assert(dist200.filter(t => t === 'ranged').length === 2 && dist200.every(t => t !== 'bomber'),
-    'T32 远程怪占比降至1%（现有1/10）且无轰炸者',
+  assert(dist200.filter(t => t === 'ranged').length === 10 && dist200.every(t => t !== 'bomber'),
+    'T32 远程怪占比 5% 且无轰炸者',
     { ranged: dist200.filter(t => t === 'ranged').length, bomber: dist200.filter(t => t === 'bomber').length });
   const p32 = G.state.player;
   const mk32 = t => {
@@ -1681,14 +1681,14 @@ function featureTests() {
     p34g.sk.chain.ultNoDecay === true && p34g.sk.shock.ultNoFalloff === true,
     'T34g 作弊码可叠加多把终极（互不覆盖）');
 
-  // ===== T36 远程怪极少化 + 飞刃终极三层反向刀阵 + 多段伤害 =====
-  // T36a 类型分布：远程 idx%100===6 一档（≈1%，现有 1/10），idx7/8 改刷近战，轰炸者已删除
+  // ===== T36 远程怪占比 5% + 飞刃终极三层反向刀阵 + 多段伤害 =====
+  // T36a 类型分布：远程 idx%20===6（5%），idx7/8 改刷近战，轰炸者已删除
   const dist36 = Array.from({ length: 10 }, (_, i) => G.makeEnemy(1, i).type);
   assert(dist36[6] === 'ranged' && dist36[7] === 'melee' && dist36[8] === 'melee',
-    'T36a idx6远程(idx%100===6)/idx7、idx8近战', dist36.join(','));
+    'T36a idx6远程(idx%20===6)/idx7、idx8近战', dist36.join(','));
   const dist100 = Array.from({ length: 100 }, (_, i) => G.makeEnemy(1, i).type);
-  assert(dist100.filter(t => t === 'ranged').length === 1 && dist100.every(t => t !== 'bomber'),
-    'T36a 远程怪占比降至1%（现有1/10）且无轰炸者',
+  assert(dist100.filter(t => t === 'ranged').length === 5 && dist100.every(t => t !== 'bomber'),
+    'T36a 远程怪占比 5% 且无轰炸者',
     { ranged: dist100.filter(t => t === 'ranged').length, bomber: dist100.filter(t => t === 'bomber').length });
 
   // T36b 飞刃终极三层结构：ring 0/1/2 三层，外/内环反向（dir=-1）、半径递增
@@ -2260,12 +2260,19 @@ function featureTests() {
   assert(G.sprites.NAMES.includes('player') && spTypes.every(t => G.sprites.NAMES.includes(t)),
     'T-SP1 素材覆盖玩家与全部敌人类型', G.sprites.NAMES);
   assert(G.sprites.NAMES.includes('elite'), 'T-SP1 精英专用骑士素材存在');
-  // T-SP2 翻面方向：素材原图朝左，目标在右必须镜像(-1)，在左保持(1)
-  assert(G.render.spriteFace(100, 200) === -1 && G.render.spriteFace(100, 50) === 1,
-    'T-SP2 目标在右翻面朝右、在左保持朝左',
-    { right: G.render.spriteFace(100, 200), left: G.render.spriteFace(100, 50) });
-  assert(G.render.spriteFace(100, 100) === -1 && G.render.spriteFace(100) === 1,
-    'T-SP2 同位置按朝右处理、无目标保持默认');
+  // T-SP2 翻面方向：按素材原图朝向决定，目标在角色右边应朝右、左边应朝左
+  assert(G.render.spriteFace(100, 200, -1) === -1 && G.render.spriteFace(100, 50, -1) === 1,
+    'T-SP2 朝左素材：目标在右镜像、在左保持',
+    { right: G.render.spriteFace(100, 200, -1), left: G.render.spriteFace(100, 50, -1) });
+  assert(G.render.spriteFace(100, 200, 1) === 1 && G.render.spriteFace(100, 50, 1) === -1,
+    'T-SP2 朝右素材（弓手/法师）：目标在右保持、在左镜像',
+    { right: G.render.spriteFace(100, 200, 1), left: G.render.spriteFace(100, 50, 1) });
+  assert(G.sprites.BASE_FACE.ranged === 1 && G.sprites.BASE_FACE.mage === -1
+    && G.sprites.BASE_FACE.player === -1,
+  'T-SP2 素材原始朝向标注正确（仅弓手朝右）');
+  assert(G.render.spriteFace(100, 100, -1) === -1 && G.render.spriteFace(100, undefined, -1) === 1
+    && G.render.spriteFace(100, 200, 0) === 1,
+  'T-SP2 同位置/无目标/正面素材的默认行为');
 
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;
