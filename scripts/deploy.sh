@@ -14,6 +14,11 @@ echo "==> 收集静态资源"
 cp "$ROOT/index.html" "$DIST/"
 cp -r "$ROOT/css" "$DIST/css"
 cp -r "$ROOT/js"  "$DIST/js"
+# 角色图片素材（源图不上传，只传切好的透明 PNG）
+if [ -d "$ROOT/assets/characters" ]; then
+  mkdir -p "$DIST/assets/characters"
+  cp "$ROOT/assets/characters/"*.png "$DIST/assets/characters/"
+fi
 
 # 静态资源文件名不带 hash，浏览器可能缓存旧代码。
 # 这里给引用加内容指纹破缓存（每次部署都会变）。
@@ -24,6 +29,10 @@ cp -r "$ROOT/js"  "$DIST/js"
 V=$(find "$DIST/js" "$DIST/css" -type f | sort | xargs cat | md5sum | cut -c1-8)
 echo "==> 资源版本指纹: $V"
 sed -i -E "s#(href=\"css/[^\"]+\.css)(\?v=[^\"]*)?#\1?v=$V#g; s#(src=\"js/[^\"]+\.js)(\?v=[^\"]*)?#\1?v=$V#g" "$DIST/index.html"
+# 图片引用指纹写进 sprites.js，改图后线上也刷新缓存
+if [ -f "$DIST/js/render/sprites.js" ]; then
+  sed -i -E "s#version = '';#version = '$V';#" "$DIST/js/render/sprites.js"
+fi
 
 echo "==> 产物清单"
 find "$DIST" -type f | sed "s|$DIST/||" | sort

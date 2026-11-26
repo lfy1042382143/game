@@ -8,6 +8,7 @@
   function boot() {
     G.ui.initDom();
     G.render.init();
+    if (G.sprites && G.sprites.load) G.sprites.load();
 
     // 移动端：启用虚拟摇杆；触屏设备开启性能降级与专属提示
     const touchOn = G.touch && G.touch.init ? G.touch.init() : false;

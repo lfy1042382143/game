@@ -87,7 +87,7 @@ const SCRIPTS = [
   'js/game/equipment.js', 'js/game/skills.js', 'js/game/build.js', 'js/game/state.js', 'js/game/combat.js',
   'js/game/bullets.js', 'js/game/player.js', 'js/game/enemies.js', 'js/game/waves.js',
   'js/game/loot.js', 'js/game/cards.js', 'js/game/events.js', 'js/game/hazards.js', 'js/game/tasks.js', 'js/game/flow.js',
-  'js/ui/ui.js', 'js/render/render.js', 'js/main.js'
+  'js/ui/ui.js', 'js/render/sprites.js', 'js/render/render.js', 'js/main.js'
 ];
 
 for (const s of SCRIPTS) {
@@ -2252,6 +2252,14 @@ function featureTests() {
     'T-NW9 卡片含自动生成的进化路线与数值标签');
   G.el.startOverlay.classList.remove('show');
   reset();
+
+  // T-SP1 角色素材模块已导出，映射覆盖全部敌人类型与玩家
+  assert(typeof G.sprites === 'object' && typeof G.sprites.getSprite === 'function',
+    'T-SP1 角色素材模块已加载');
+  const spTypes = ['melee', 'brute', 'flyer', 'ranged', 'mage', 'boss', 'mimic', 'companion', 'crystal'];
+  assert(G.sprites.NAMES.includes('player') && spTypes.every(t => G.sprites.NAMES.includes(t)),
+    'T-SP1 素材覆盖玩家与全部敌人类型', G.sprites.NAMES);
+  assert(G.sprites.NAMES.includes('elite'), 'T-SP1 精英专用骑士素材存在');
 
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;

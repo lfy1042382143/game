@@ -351,25 +351,66 @@
     ctx.ellipse(x, y + u.r * 0.9 + (u.fly ? 10 : 0), u.r * (u.fly ? 0.55 : 0.8), u.r * 0.3, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 身体
-    ctx.beginPath();
-    ctx.arc(x, yy, u.r, 0, Math.PI * 2);
-    const bodyC = {
-      boss: '#dc2626', mage: '#8b5cf6', mimic: '#d97706', ranged: '#b45309',
-      melee: '#92400e', brute: '#78350f', flyer: '#0369a1',
-      npc: '#16a34a', companion: '#f59e0b', crystal: '#7c3aed'
-    }[u.type] || '#b45309';
-    ctx.fillStyle = u.flashT > 0 ? '#ffffff' : (isPlayer ? '#3b82f6' : bodyC);
-    ctx.fill();
-    ctx.lineWidth = isPlayer ? 2.5 : 2;
-    ctx.strokeStyle = isPlayer ? '#93c5fd' : (u.type === 'boss' ? '#fca5a5' : (u.elite ? '#fbbf24' : '#d9a05b'));
-    ctx.stroke();
-
-    // 图标
-    ctx.font = Math.round(u.r * 1.25) + 'px serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(u.emoji || '?', x, yy + 1);
+    // 身体：优先用角色素材图片（未加载完时回退圆形+emoji）
+    const sprite = G.sprites && G.sprites.getSprite ? G.sprites.getSprite(u, isPlayer) : null;
+    if (sprite) {
+      // 显示尺寸：高度按角色半径放大，BOSS 更大、飞行单位略小
+      const scale = (u.type === 'boss' ? 3.1 : (u.fly ? 2.2 : 2.5));
+      const h = u.r * scale;
+      const w = h * (sprite.width / sprite.height);
+      // 翻面：玩家按攻击方向，敌人按朝玩家/移动方向
+      let face = 1;
+      if (isPlayer) {
+        const m = G.engine.mouse;
+        if (m && m.active) face = (m.cx + cam.x >= x) ? 1 : -1;
+        else {
+          const t = G.nearestFoe ? G.nearestFoe(state.player) : null;
+          face = t && t.x < x ? -1 : 1;
+        }
+      } else {
+        const p = state.player;
+        face = (p && p.x < x) ? -1 : 1;
+      }
+      ctx.save();
+      ctx.translate(x, yy);
+      ctx.scale(face, 1);
+      ctx.drawImage(sprite, -w / 2, -h / 2, w, h);
+      ctx.restore();
+      // 受击闪白：在图片位置叠一个白色圆点提示，避免改全局合成模式
+      if (u.flashT > 0) {
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.75;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(x, yy, u.r * 0.85, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+      // 精英金色描边光环（保留原有辨识度）
+      if (u.elite && u.type !== 'boss') {
+        ctx.beginPath();
+        ctx.arc(x, yy, u.r + 3, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(251,191,36,0.85)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    } else {
+      // 回退：原圆形+emoji
+      ctx.beginPath();
+      ctx.arc(x, yy, u.r, 0, Math.PI * 2);
+      const bodyC = {
+        boss: '#dc2626', mage: '#8b5cf6', mimic: '#d97706', ranged: '#b45309',
+        melee: '#92400e', brute: '#78350f', flyer: '#0369a1',
+        npc: '#16a34a', companion: '#f59e0b', crystal: '#7c3aed'
+      }[u.type] || '#b45309';
+      ctx.fillStyle = u.flashT > 0 ? '#ffffff' : (isPlayer ? '#3b82f6' : bodyC);
+      ctx.fill();
+      ctx.lineWidth = isPlayer ? 2.5 : 2;
+      ctx.strokeStyle = isPlayer ? '#93c5fd' : (u.type === 'boss' ? '#fca5a5' : (u.elite ? '#fbbf24' : '#d9a05b'));
+      ctx.stroke();
+      ctx.font = Math.round(u.r * 1.25) + 'px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(u.emoji || '?', x, yy + 1);
+    }
 
     // 护盾环
     if (u.shield > 0) {
