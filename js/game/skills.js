@@ -1,18 +1,16 @@
 /* ============================================================
    游戏层 · skills.js
-   攻击方式系统 v2：六条攻击线
-   箭矢 / 连锁闪电 / 震荡波 / 环绕飞刃 / 浮游炮 / 感应地雷
+   攻击方式系统 v2：七条攻击线
+   箭矢 / 连锁闪电 / 震荡波 / 环绕飞刃 / 浮游炮
    - 每条线先「解锁」，之后按维度随机升级（数量/伤害/频率/特殊方向…）
      升级方向不固定：各维度卡随机混入升级卡池
    - 全局冷却卡（cards.js）：箭矢/闪电/震荡波攻击间隔、
-     飞刃/浮游炮/地雷的下次出现间隔，全部缩短
+     飞刃/浮游炮/火球/回旋镖的下次出现间隔，全部缩短
    ============================================================ */
 (function (G) {
   'use strict';
 
   const { CFG } = G;
-
-  const MINE_FUSE = 6;   // 地雷过期自爆时间（秒）
 
   /* =========================================================
      线与维度定义（dims 顺序即卡池内文案顺序）
@@ -97,22 +95,6 @@
           eff: lv => '部署后存活 ' + (4 + 1.5 * lv).toFixed(1) + ' 秒（每 6.5 秒重新部署一批）' }
       ]
     },
-    mine: {
-      name: '感应地雷', icon: '🧨',
-      color: '#fbbf24',
-      tagline: '布设爆破 · 陷阱', stats: ['180% 伤害', '半径 80'],
-      unlockDesc: '解锁感应地雷：每 3.0 秒在身边布设地雷（180% 攻击，半径 80），敌人靠近或 6 秒到期后自爆；不会埋进障碍物',
-      dims: [
-        { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
-          eff: lv => '每枚地雷爆炸造成 ' + Math.round((1.8 + 0.3 * lv) * 100) + '% 攻击的伤害' },
-        { key: 'count', name: '布雷数量', icon: '🧨', max: 3,
-          eff: lv => '每次部署 ' + (1 + lv) + ' 枚地雷（散布在玩家两侧）' },
-        { key: 'rate',  name: '部署冷却', icon: '⏱️', max: 4,
-          eff: lv => '每 ' + (3.0 * Math.pow(0.88, lv)).toFixed(2) + ' 秒布设一批' },
-        { key: 'range', name: '范围扩大', icon: '🌐', max: 4,
-          eff: lv => '爆炸半径 ' + (80 + 20 * lv) + ' 像素' }
-      ]
-    },
     fireball: {
       name: '火球', icon: '🔥',
       color: '#fb923c',
@@ -165,8 +147,6 @@
       desc: '飞刃常驻不收起 · 数量 +6 · 命中半径 ×1.5 · 转速 ×1.4' },
     drone: { name: '浮游炮阵', icon: '🔮', tier: 'focused',
       desc: '炮台常驻 · 数量 +3 · 子弹穿透 3 人 · 射速 ×1.6' },
-    mine:  { name: '灭世雷区', icon: '🧨', tier: 'focused',
-      desc: '布雷数翻倍 · 半径 ×2 · 引爆连锁引爆范围内其他地雷' },
     fireball: { name: '陨火焚天', icon: '🔥', tier: 'extreme',
       desc: '数量翻倍 · 爆炸半径 ×1.5 · 火球穿透 2 名敌人才爆炸' },
     boomerang: { name: '无尽回旋', icon: '🪃', tier: 'focused',
@@ -177,6 +157,12 @@
   function isLineMaxed(p, k) {
     if (!p || !p.sd || !p.sd[k]) return false;
     return LINES[k].dims.every(d => (p.sd[k][d.key] || 0) >= d.max);
+  }
+
+  /** 作弊码：数字键 1~9 → 武器线 key（1=箭矢 … 8=回旋镖，越界返回 null） */
+  function lineByNumber(n) {
+    const i = parseInt(n, 10) - 1;
+    return (i >= 0 && i < LINE_KEYS.length) ? LINE_KEYS[i] : null;
   }
 
   /** 作弊码：直接赋予某条线的超级武器（解锁 + 全维度拉满 + 标记进化 + 重算，可叠加多把） */
@@ -217,13 +203,11 @@
       shock: { t: 0 },
       orbit: { t: 0.3, active: 0 },   // 首次部署延迟 0.5→0.3，开局飞刃更快出现
       drone: { t: 0.5, active: 0, shootT: 0 },
-      mine: { t: 0 },
       fireball: { t: 0.6 },
       boomerang: { t: 0.9, queue: 0, shootT: 0 }
     };
     p.orbits = 0;
     applySkillBuild(p);
-    if (G.state && !G.state.mines) G.state.mines = [];
     if (G.state && !G.state.skillFx) G.state.skillFx = [];
     if (G.state && !G.state.fireballs) G.state.fireballs = [];
     if (G.state && !G.state.boomerangs) G.state.boomerangs = [];
@@ -320,19 +304,6 @@
       dr.ultPersistent = true;
     } else { dr.ultPierce = 0; dr.ultPersistent = false; }
 
-    /* 感应地雷（近身陷阱：1.6×攻 / 3s / 半径 80） */
-    const m = g('mine'), mi = p.sk.mine;
-    mi.cd = Math.max(1.5, 3.0 * Math.pow(0.88, m.rate || 0) * D);
-    mi.count = 1 + (m.count || 0);
-    mi.r = 80 + 20 * (m.range || 0);
-    mi.mult = 1.8 + 0.3 * (m.dmg || 0);
-    // 终极·灭世雷区（收敛档）：布雷数翻倍、半径 ×2、连锁引爆
-    if (isUlt('mine')) {
-      mi.count *= 2;
-      mi.r *= 2;
-      mi.ultChain = true;
-    } else mi.ultChain = false;
-
     /* 火球（低频高伤的单发范围炮：2.2×攻 / 3.6s / 半径 70） */
     const f = g('fireball'), fi = p.sk.fireball;
     fi.cd = Math.max(1.8, 3.6 * Math.pow(0.94, f.rate || 0) * D);
@@ -382,7 +353,7 @@
         desc: p => p.skills[k] ? L.name + '已解锁' : L.unlockDesc,
         apply(p) {
           p.skills[k] = 1;
-          if (k === 'orbit' || k === 'drone' || k === 'mine') p.sk[k].t = k === 'orbit' ? 0.3 : 0.5;  // 解锁后出现第一批（飞刃更快）
+          if (k === 'orbit' || k === 'drone') p.sk[k].t = k === 'orbit' ? 0.3 : 0.5;  // 解锁后出现第一批（飞刃更快）
           applySkillBuild(p);
         }
       });
@@ -607,28 +578,6 @@
   }
 
   /* =========================================================
-     感应地雷
-     ========================================================= */
-  function explodeMine(m, p, trigger, chained) {
-    G.state.skillFx.push({ kind: 'shockEcho', x: m.x, y: m.y, r: m.r, t: 0, dur: 0.35 });
-    // 首个触碰的敌人受全额伤害，范围内其余敌人只受一半
-    const inRange = G.state.foes.filter(f => !f.dead && !f.fly && G.dist(f.x, f.y, m.x, m.y) <= m.r);
-    for (const f of inRange) {
-      const mul = f === trigger ? 1 : 0.5;
-      G.dealDamage(p, f, Math.max(1, Math.round(m.dmg * mul)), { noThorn: true, noShock: true, noSplash: true, tag: 'mine' });
-    }
-    // 终极·灭世雷区：连锁引爆范围内其他地雷（只连锁一次，避免无限递归）
-    if (p.sk.mine.ultChain && !chained) {
-      const others = G.state.mines.filter(o => o !== m && G.dist(o.x, o.y, m.x, m.y) <= m.r);
-      others.forEach(o => {
-        const idx = G.state.mines.indexOf(o);
-        if (idx >= 0) G.state.mines.splice(idx, 1);
-        explodeMine(o, p, null, true);
-      });
-    }
-  }
-
-  /* =========================================================
      火球：直线飞行，命中炸开范围伤害；终极穿透 2 敌才爆炸
      ========================================================= */
   function explodeFireball(p, f) {
@@ -842,57 +791,6 @@
       }
     }
 
-    /* ---- 感应地雷 ---- */
-    if (p.skills.mine) {
-      sk.mine.t -= dt;
-      if (sk.mine.t <= 0) {
-        sk.mine.t = sk.mine.cd;
-        const cfg = sk.mine;
-        for (let i = 0; i < cfg.count; i++) {
-          // 选一个不在障碍物内部的位置（地雷不能埋进石头里）
-          let mx = p.x, my = p.y, placed = false;
-          for (let t = 0; t < 8; t++) {
-            const a = Math.random() * Math.PI * 2;
-            const dd = 60 + Math.random() * 40;
-            const tx = p.x - Math.cos(a) * dd * (i ? -1 : 1);
-            const ty = p.y - Math.sin(a) * dd * (i ? -1 : 1);
-            let blocked = false;
-            const obs = G.state.obstacles || [];
-            for (const o of obs) {
-              if (G.circlePoly(tx, ty, 10, o)) { blocked = true; break; }
-            }
-            if (!blocked) { mx = tx; my = ty; placed = true; break; }
-          }
-          if (!placed) continue;   // 周围全是障碍物：这枚不埋
-          G.state.mines.push({
-            x: mx, y: my,
-            r: cfg.r, t: 0, dmg: skillDamage(p, cfg.mult), armed: 0.4,
-            ult: !!cfg.ultChain,   // 终极·灭世雷区：专属外观
-            fuse: MINE_FUSE   // 过期自爆（反挂机）
-          });
-        }
-      }
-      // 触发判定
-      for (let i = G.state.mines.length - 1; i >= 0; i--) {
-        const m = G.state.mines[i];
-        if (!m) continue;
-        m.t += dt;
-        if (m.armed > 0) { m.armed -= dt; continue; }
-        const trigger = G.state.foes.find(f => !f.dead && !f.fly && G.dist(f.x, f.y, m.x, m.y) < f.r + 18);
-        if (trigger) {
-          G.state.mines.splice(i, 1);
-          explodeMine(m, p, trigger);
-          continue;
-        }
-        // 过期自爆：一段时间未触发也会爆炸（挂机布雷不再是无限收益）
-        m.fuse -= dt;
-        if (m.fuse <= 0) {
-          G.state.mines.splice(i, 1);
-          explodeMine(m, p, null);
-        }
-      }
-    }
-
     /* ---- 火球 ---- */
     if (p.skills.fireball) {
       sk.fireball.t -= dt;
@@ -937,10 +835,10 @@
 
   Object.assign(G, {
     LINES, LINE_KEYS, SKILL_CARDS, ULT,
-    isLineMaxed, grantUltimate,
+    isLineMaxed, grantUltimate, lineByNumber,
     applySkillBuild, initSkills, updateSkills,
     skillDamage, nearestFoe, nearestFoeFrom,
-    dronePos, explodeMine, fireChainBolt, shockBlast, spawnShockWave, advanceShockWaves, SHOCK_WAVE_SPEED, MINE_FUSE,
+    dronePos, fireChainBolt, shockBlast, spawnShockWave, advanceShockWaves, SHOCK_WAVE_SPEED,
     explodeFireball, fireFireballs, updateFireballs, fireBoomerangs, fireOneBoomerang, updateBoomerangs
   });
 })(window.ABYSS = window.ABYSS || {});

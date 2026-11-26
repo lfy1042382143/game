@@ -10,6 +10,13 @@
 
   const el = {};
 
+  /** 武器线显示元数据（图标/名字直接取自 LINES，增删武器线无需改 UI） */
+  function lineMetaOf() {
+    const map = {};
+    (G.LINE_KEYS || []).forEach(k => { map[k] = [G.LINES[k].icon, G.LINES[k].name]; });
+    return map;
+  }
+
   function initDom() {
     [
       'canvas', 'waveNum', 'lvNum', 'xpFill', 'mapName', 'recordNum', 'soundBtn', 'restartBtn', 'buildBtn',
@@ -76,7 +83,6 @@
       case 'shock': txt = s.shock.mult.toFixed(2) + '× · 半径 ' + Math.round(s.shock.r) + ' · ' + s.shock.cd.toFixed(1) + 's' + (s.shock.echo ? ' · 次级×' + s.shock.echo : ''); break;
       case 'orbit': txt = s.orbit.count + ' 枚 · ' + (s.orbit.ultPersistent ? '<b style="color:#fbbf24">常驻</b>' : '每 ' + s.orbit.interval.toFixed(1) + 's 展开 ' + s.orbit.dur.toFixed(1) + 's') + ' · 半径 ' + Math.round(s.orbit.r); break;
       case 'drone': txt = s.drone.count + ' 座 · ' + s.drone.mult.toFixed(2) + '× · ' + (s.drone.ultPersistent ? '<b style="color:#fbbf24">常驻</b>' : '存活 ' + s.drone.life.toFixed(1) + 's · 每 ' + s.drone.interval.toFixed(1) + 's 部署'); break;
-      case 'mine': txt = s.mine.count + ' 枚 · ' + s.mine.mult.toFixed(2) + '× · 每 ' + s.mine.cd.toFixed(1) + 's · 半径 ' + Math.round(s.mine.r); break;
       case 'fireball': txt = s.fireball.count + ' 颗 · ' + s.fireball.mult.toFixed(2) + '× · 半径 ' + Math.round(s.fireball.r) + ' · 每 ' + s.fireball.cd.toFixed(1) + 's'; break;
       case 'boomerang': txt = s.boomerang.count + ' 把 · ' + s.boomerang.mult.toFixed(2) + '× · 穿透' + s.boomerang.pierce + ' · ' + s.boomerang.legs + ' 段'; break;
     }
@@ -101,7 +107,7 @@
     let html = '';
     if (hasBuild) {
       // VS 构筑展示：武器槽（含等级/进化配方）+ 被动槽
-      const lineMeta = { arrow: ['🏹', '箭矢'], chain: ['⚡', '连锁闪电'], shock: ['💥', '震荡波'], orbit: ['🌀', '环绕飞刃'], drone: ['🔮', '浮游炮'], mine: ['🧨', '感应地雷'], fireball: ['🔥', '火球'], boomerang: ['🪃', '回旋镖'] };
+      const lineMeta = lineMetaOf();
       html += '<div class="eq-side-head">⚔ 武器构筑<small>LV.' + p.level + '</small></div>';
       html += '<div class="eq-section-title">武器 ' + G.weaponCount(p) + '/' + B.WEAPON_SLOTS + '</div>' +
         '<div class="skill-blocks">';
@@ -136,7 +142,7 @@
     } else {
       // 兼容回退：旧维度展示
       html = '<div class="eq-side-head">🗡️ 攻击方式<small>LV.' + p.level + '</small></div><div class="skill-blocks">';
-      const lineMeta = { arrow: ['🏹', '箭矢'], chain: ['⚡', '连锁闪电'], shock: ['💥', '震荡波'], orbit: ['🌀', '环绕飞刃'], drone: ['🔮', '浮游炮'], mine: ['🧨', '感应地雷'], fireball: ['🔥', '火球'], boomerang: ['🪃', '回旋镖'] };
+      const lineMeta = lineMetaOf();
       G.LINE_KEYS.forEach(k => {
         if (!p.skills[k]) return;
         const sd = (p.sd && p.sd[k]) || {};
@@ -209,7 +215,7 @@
      ========================================================= */
   const DMG_META = [
     ['arrow', '🏹', '箭矢'], ['chain', '⚡', '连锁闪电'], ['shock', '💥', '震荡波'],
-    ['orbit', '🌀', '环绕飞刃'], ['drone', '🔮', '浮游炮'], ['mine', '🧨', '感应地雷'],
+    ['orbit', '🌀', '环绕飞刃'], ['drone', '🔮', '浮游炮'],
     ['fireball', '🔥', '火球'], ['boomerang', '🪃', '回旋镖']
   ];
 

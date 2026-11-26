@@ -37,10 +37,9 @@
     state.eliteT = 0;
     state.mageAoes = [];
     state.skillFx = [];
-    state.mines = [];
     state.fireballs = [];
     state.boomerangs = [];
-    state.dmgStats = { arrow: 0, chain: 0, shock: 0, orbit: 0, drone: 0, mine: 0, fireball: 0, boomerang: 0 };  // 输出统计
+    state.dmgStats = { arrow: 0, chain: 0, shock: 0, orbit: 0, drone: 0, fireball: 0, boomerang: 0 };  // 输出统计
     state.task = null;            // 活动任务
     state.taskT = 100;            // 首个任务出现倒计时（秒）
     state.companion = null;       // 护送任务奖励：同伴

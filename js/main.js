@@ -43,23 +43,21 @@
       G.el.soundBtn.textContent = muted ? '🔇' : '🔊';
     });
 
-    // 作弊码：U 键循环赋予八条终极武器（逐个试玩）；R 键快速重开
-    const ultOrder = ['arrow', 'chain', 'shock', 'orbit', 'drone', 'mine', 'fireball', 'boomerang'];
-    let ultIdx = -1;
+    // 作弊码：数字键 1~8 直接赋予对应武器线的终极武器（1=箭矢 … 8=回旋镖）；R 键快速重开
     G.onKeyDown = k => {
       if (k === 'r' && (G.state.phase === 'over' || G.state.phase === 'play')) {
-        ultIdx = -1;
         backToSelect();
+        return;
       }
-      if (k === 'u' && G.state.player) {
-        ultIdx = (ultIdx + 1) % ultOrder.length;
-        const line = ultOrder[ultIdx];
-        G.grantUltimate(G.state.player, line);
-        const meta = G.LINES[line], u = G.ULT[line];
-        G.state.banner = { text: '★ 作弊码 · 终极武器', sub: meta.icon + ' ' + u.name + ' 已赋予', t: 2.6 };
-        if (G.ui && G.ui.syncEqPanel) G.ui.syncEqPanel();
-        if (G.tone) G.tone({ freq: 880, type: 'sine', dur: 0.15, vol: 0.1 });
-      }
+      const num = parseInt(k, 10);
+      if (!(num >= 1 && num <= 9) || !G.state.player || !G.lineByNumber) return;
+      const line = G.lineByNumber(num);
+      if (!line) return;
+      G.grantUltimate(G.state.player, line);
+      const meta = G.LINES[line], u = G.ULT[line];
+      G.state.banner = { text: '★ 作弊码 [' + num + '] · 终极武器', sub: meta.icon + ' ' + u.name + ' 已赋予', t: 2.6 };
+      if (G.ui && G.ui.syncEqPanel) G.ui.syncEqPanel();
+      if (G.tone) G.tone({ freq: 880, type: 'sine', dur: 0.15, vol: 0.1 });
     };
 
     // 首次交互后解锁音频（浏览器自动播放策略）

@@ -50,16 +50,16 @@
   }
 
   /* =========================================================
-     类型抗性/弱点乘区：按玩家攻击方式 tag 匹配（arrow/chain/shock/orbit/drone/mine）
-     - 0 = 免疫（飞行系悬空：仍免疫地雷；震荡波对飞行单位改为 ×0.5 半伤）
+     类型抗性/弱点乘区：按玩家攻击方式 tag 匹配（arrow/chain/shock/orbit/drone；火球/回旋镖默认 ×1）
+     - 飞行系悬空：震荡波半伤 ×0.5，贴身系（震荡波/飞刃）不吃满伤
      - 未列出的 tag 默认 ×1
      ========================================================= */
   const ENEMY_RES = {
-    melee:  { arrow: 0.85, drone: 0.85, chain: 1.0,  shock: 1.3,  orbit: 1.3,  mine: 1.4 },
-    brute:  { arrow: 0.55, drone: 0.6,  chain: 0.9,  shock: 1.5,  orbit: 1.4,  mine: 1.7 },
-    ranged: { arrow: 1.1,  drone: 1.0,  chain: 1.1,  shock: 0.65, orbit: 0.7,  mine: 0.7 },
-    mage:   { arrow: 1.0,  drone: 1.0,  chain: 1.3,  shock: 0.85, orbit: 0.75, mine: 0.85 },
-    flyer:  { arrow: 1.15, drone: 1.0,  chain: 1.0,  shock: 0.5,  orbit: 1.0,  mine: 0 }
+    melee:  { arrow: 0.85, drone: 0.85, chain: 1.0,  shock: 1.3,  orbit: 1.3 },
+    brute:  { arrow: 0.55, drone: 0.6,  chain: 0.9,  shock: 1.5,  orbit: 1.4 },
+    ranged: { arrow: 1.1,  drone: 1.0,  chain: 1.1,  shock: 0.65, orbit: 0.7 },
+    mage:   { arrow: 1.0,  drone: 1.0,  chain: 1.3,  shock: 0.85, orbit: 0.75 },
+    flyer:  { arrow: 1.15, drone: 1.0,  chain: 1.0,  shock: 0.5,  orbit: 1.0 }
   };
 
   /* =========================================================

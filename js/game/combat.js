@@ -62,7 +62,7 @@
       critHit = true;
     }
 
-    // 类型抗性/弱点：玩家攻击按 tag 匹配敌人抗性乘区（0 = 免疫，如飞行系免疫地雷；震荡波对飞行 ×0.5）
+    // 类型抗性/弱点：玩家攻击按 tag 匹配敌人抗性乘区（0 = 免疫；震荡波对飞行 ×0.5）
     if (src === state.player && tgt.isMon && opts.tag && tgt.res) {
       const m = tgt.res[opts.tag];
       if (m !== undefined) {

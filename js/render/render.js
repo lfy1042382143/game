@@ -850,68 +850,6 @@
       }
     }
 
-    // 感应地雷（未引爆时躺在地上，闪烁提醒）
-    (state.mines || []).forEach(m => {
-      const pulse = 0.75 + Math.sin(state.time * 5 + m.x) * 0.25;
-      if (m.ult) {
-        // 终极·灭世雷区：金色六芒雷纹 + 双层旋转符文圈 + 范围金环
-        ctx.save();
-        ctx.translate(m.x, m.y);
-        ctx.globalAlpha = pulse;
-        // 范围金环
-        ctx.strokeStyle = 'rgba(251,191,36,0.42)';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([8, 5]);
-        ctx.beginPath(); ctx.arc(0, 0, m.r, 0, Math.PI * 2); ctx.stroke();
-        ctx.setLineDash([]);
-        // 双层旋转符文
-        ctx.rotate(state.time * 1.2 + m.x);
-        ctx.strokeStyle = 'rgba(253,224,71,0.7)'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.stroke();
-        ctx.setLineDash([4, 6]);
-        ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
-        ctx.setLineDash([]);
-        // 六芒星雷纹
-        ctx.rotate(-state.time * 2.4 - m.x);
-        ctx.shadowColor = '#fbbf24'; fxBlur(14);
-        ctx.strokeStyle = m.armed > 0 ? 'rgba(148,163,184,0.7)' : '#fde68a';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        for (let s = 0; s < 6; s++) {
-          const a = s * Math.PI / 3;
-          ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 11, Math.sin(a) * 11);
-        }
-        ctx.stroke();
-        ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff7ed'; ctx.fill();
-        ctx.restore();
-        return;
-      }
-      // 普通地雷
-      ctx.beginPath();
-      ctx.arc(m.x, m.y, 9, 0, Math.PI * 2);
-      ctx.fillStyle = m.armed > 0 ? 'rgba(148,163,184,0.6)' : '#f59e0b';
-      ctx.globalAlpha = pulse;
-      ctx.shadowColor = '#fbbf24';
-      fxBlur(10);
-      ctx.fill();
-      fxBlur(0);
-      ctx.globalAlpha = 1;
-      // 中心火花
-      ctx.fillStyle = '#fff7ed';
-      ctx.beginPath();
-      ctx.arc(m.x, m.y - 2, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-      // 触发范围虚线圈
-      ctx.strokeStyle = 'rgba(251,191,36,0.30)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath();
-      ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    });
-
     // 技能特效
     (state.skillFx || []).forEach(fx => {
       if (fx.delay > 0) return;

@@ -78,16 +78,6 @@
       { count: 2, dmg: 3, life: 1 },
       { count: 3, dmg: 4, life: 2 }
     ],
-    mine: [
-      { dmg: 0, count: 0, rate: 0, range: 0 },
-      { dmg: 0, count: 0, rate: 0, range: 1 },
-      { dmg: 1, count: 0, rate: 0, range: 1 },
-      { dmg: 1, count: 1, rate: 0, range: 1 },
-      { dmg: 2, count: 1, rate: 0, range: 1 },
-      { dmg: 2, count: 1, rate: 1, range: 1 },
-      { dmg: 2, count: 2, rate: 1, range: 2 },
-      { dmg: 3, count: 3, rate: 2, range: 3 }
-    ],
     fireball: [
       { count: 0, radius: 0, dmg: 0, rate: 0 },
       { count: 1, radius: 0, dmg: 0, rate: 0 },
@@ -111,11 +101,10 @@
   };
 
   /* =========================================================
-     被动道具：6 格，每个 5 级。apply 直接改基础属性 / 全局乘区
+     被动道具：7 个，每个 5 级。apply 直接改基础属性 / 全局乘区
      ========================================================= */
   const PASSIVES = {
     might:     { name: '力量',   icon: '💪', desc: '每级攻击力 +8%',              apply: (p, lv) => { p.pasAtkMul = 1 + 0.08 * lv; } },
-    armor:     { name: '护甲',   icon: '🛡', desc: '每级受到伤害 -4%',            apply: (p, lv) => { p.pasArmor = 0.04 * lv; } },
     vitality:  { name: '活力',   icon: '❤',  desc: '每级最大生命 +12',           apply: (p, lv) => { p.pasHp = 12 * lv; } },
     haste:     { name: '急速',   icon: '⏱️', desc: '每级全部攻击间隔 -5%',       apply: (p, lv) => { p.pasCdr = lv; } },
     area:      { name: '扩大',   icon: '🌐', desc: '每级攻击范围 +8%',           apply: (p, lv) => { p.pasArea = 1 + 0.08 * lv; } },
@@ -134,14 +123,13 @@
      （复用 skills.js ULT 的质变效果；p.evolved 记录所有已进化线，
       每局可同时拥有多把超级武器）
      ========================================================= */
-  // 六把武器 ↔ 六个被动一一对应，避免配方重复导致被动与武器绑定关系混乱
+  // 七把武器 ↔ 七个被动一一对应，避免配方重复导致被动与武器绑定关系混乱
   const EVOLVE_RECIPE = {
     arrow: 'might',      // 箭矢 → 力量（单体输出）
     chain: 'haste',      // 闪电 → 急速（高频弹射）
     shock: 'area',       // 震荡波 → 扩大（范围冲击）
     orbit: 'duration',   // 飞刃 → 持久（常驻环绕）
     drone: 'vitality',   // 浮游炮 → 活力（持续部署）
-    mine: 'armor',       // 地雷 → 护甲（防御陷阱）
     fireball: 'crit',      // 火球 → 暴击（高伤单发）
     boomerang: 'movespeed' // 回旋镖 → 移速（走位风筝）
   };
@@ -234,7 +222,7 @@
       (G.LINES[k].dims || []).forEach(d => { p.sd[k][d.key] = dimVals[d.key] || 0; });
     });
     // 被动 → 全局属性（先清旧值再重算，避免叠加）
-    p.pasAtkMul = 1; p.pasArmor = 0; p.pasHp = 0; p.pasCdr = 0; p.pasArea = 1; p.pasDuration = 1;
+    p.pasAtkMul = 1; p.pasHp = 0; p.pasCdr = 0; p.pasArea = 1; p.pasDuration = 1;
     p.pasCrit = 0; p.pasMoveSpeed = 0;
     PASSIVE_IDS.forEach(id => {
       const lv = passiveLevel(p, id);
@@ -266,13 +254,11 @@
       shock: { t: 0 },
       orbit: { t: 0.3, active: 0 },
       drone: { t: 0.5, active: 0, shootT: 0 },
-      mine: { t: 0 },
       fireball: { t: 0.6 },
       boomerang: { t: 0.9, queue: 0, shootT: 0 }
     };
     p.orbits = 0;
     rebuildFromBuild(p);
-    if (G.state && !G.state.mines) G.state.mines = [];
     if (G.state && !G.state.skillFx) G.state.skillFx = [];
     if (G.state && !G.state.fireballs) G.state.fireballs = [];
     if (G.state && !G.state.boomerangs) G.state.boomerangs = [];

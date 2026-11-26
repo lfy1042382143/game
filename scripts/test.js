@@ -249,14 +249,14 @@ function featureTests() {
   assert(p15.baseAtk === atk0 && p15.baseHp === hp0b, 'T15 升级不再自动成长三维', { atk0, atk1: p15.baseAtk });
   assert(G.state.pendingLevelUps === 1, 'T15 升级累积待处理选项', G.state.pendingLevelUps);
 
-  // T16 六条攻击方式线：解锁卡 + 随机维度卡（v9.18 重设计）
+  // T16 七条攻击方式线：解锁卡 + 随机维度卡（v9.18 重设计）
   const modeByKey = k => G.MODE_POOL.find(c => c.key === k);
   const unlockCard = k => G.SKILL_CARDS.find(c => c.kind === 'skill' && c.line === k && c.sub === 'unlock');
   const dimCard = (k, d) => G.SKILL_CARDS.find(c => c.kind === 'skill' && c.line === k && c.dim === d);
   const dimTotal = G.LINE_KEYS.reduce((n, k) => n + G.LINES[k].dims.length, 0);
-  assert(G.LINE_KEYS.length === 8 && G.SKILL_CARDS.length === 8 + dimTotal,
-    'T16 八条攻击方式线（解锁卡+维度卡）', { lines: G.LINE_KEYS, cards: G.SKILL_CARDS.length });
-  assert(G.LINE_KEYS.includes('mine'), 'T16 地雷线保留', G.LINE_KEYS);
+  assert(G.LINE_KEYS.length === 7 && G.SKILL_CARDS.length === 7 + dimTotal,
+    'T16 七条攻击方式线（解锁卡+维度卡）', { lines: G.LINE_KEYS, cards: G.SKILL_CARDS.length });
+  assert(!G.LINE_KEYS.includes('mine') && !dimCard('mine', 'dmg'), 'T16 地雷线已彻底删除', G.LINE_KEYS);
   assert(G.LINE_KEYS.includes('fireball') && G.LINE_KEYS.includes('boomerang'), 'T16 火球/回旋镖线已加入', G.LINE_KEYS);
   assert(!modeByKey('homing'), 'T16 追踪箭已从卡池删除');
   // 箭矢维度：数量/射速/弹射/穿透（分裂弹幕已删除）
@@ -276,7 +276,7 @@ function featureTests() {
   // 解锁其余五条线；未解锁时其维度卡不出现
   const chainDimBefore = dimCard('chain', 'jumps');
   assert(chainDimBefore.max(p15) === true, 'T16 未解锁线的维度卡不入池');
-  ['shock', 'chain', 'drone', 'mine', 'orbit'].forEach(k => {
+  ['shock', 'chain', 'drone', 'orbit'].forEach(k => {
     const c = unlockCard(k);
     c.apply(p15);
     assert(p15.skills[k] === 1, 'T16 解锁 ' + G.LINES[k].name, p15.skills[k]);
@@ -302,15 +302,6 @@ function featureTests() {
   assert(p15.sk.drone.count === 2, 'T16 浮游炮·数量维度', p15.sk.drone.count);
   dimCard('drone', 'life').apply(p15);
   assert(Math.abs(p15.sk.drone.life - 5.5) < 1e-9, 'T16 浮游炮·存在时间维度', p15.sk.drone.life);
-  // 地雷维度：伤害/数量/冷却/范围
-  dimCard('mine', 'dmg').apply(p15);
-  assert(Math.abs(p15.sk.mine.mult - 2.1) < 1e-9, 'T16 地雷·伤害维度 +0.3', p15.sk.mine.mult);
-  dimCard('mine', 'count').apply(p15);
-  assert(p15.sk.mine.count === 2, 'T16 地雷·布雷数量维度', p15.sk.mine.count);
-  dimCard('mine', 'rate').apply(p15);
-  assert(Math.abs(p15.sk.mine.cd - 3.0 * 0.88) < 1e-9, 'T16 地雷·部署冷却维度', p15.sk.mine.cd);
-  dimCard('mine', 'range').apply(p15);
-  assert(p15.sk.mine.r === 100, 'T16 地雷·范围维度 +20', p15.sk.mine.r);
   // 全局冷却卡：所有间隔 −10%
   const cdrCard16 = modeByKey('cdr');
   assert(!!cdrCard16, 'T16 全局冷却卡存在');
@@ -318,8 +309,8 @@ function featureTests() {
   assert(p15.cdr === 1 && Math.abs(p15.sk.chain.cd - 3.0 * 0.9) < 1e-9
     && Math.abs(p15.sk.orbit.interval - 3.5 * 0.9) < 1e-9
     && Math.abs(p15.sk.drone.interval - 6.5 * 0.9) < 1e-9
-    && Math.abs(p15.sk.mine.cd - 3.0 * 0.88 * 0.9) < 1e-9,
-    'T16 全局冷却卡同时缩短所有攻击间隔', { cdr: p15.cdr, chain: p15.sk.chain.cd, orbit: p15.sk.orbit.interval, drone: p15.sk.drone.interval, mine: p15.sk.mine.cd });
+    && Math.abs(p15.sk.fireball.cd - 3.6 * 0.9) < 1e-9,
+    'T16 全局冷却卡同时缩短所有攻击间隔', { cdr: p15.cdr, chain: p15.sk.chain.cd, orbit: p15.sk.orbit.interval, drone: p15.sk.drone.interval, fireball: p15.sk.fireball.cd });
 
   // T16b 通用辅助卡：减速箭 / 护盾生成 / 幸运
   const slowC = modeByKey('slow'), aegisC = modeByKey('aegis'), luckCard16 = modeByKey('luck');
@@ -488,12 +479,12 @@ function featureTests() {
   // T9-passive 灵魂献祭：1 级被动转移给另一被动（推动进化配方）
   reset();
   const pTr = G.state.player;
-  G.upgradePassive(pTr, 'might'); G.upgradePassive(pTr, 'armor');
-  const m0 = G.passiveLevel(pTr, 'might'), a0 = G.passiveLevel(pTr, 'armor');
+  G.upgradePassive(pTr, 'might'); G.upgradePassive(pTr, 'haste');
+  const m0 = G.passiveLevel(pTr, 'might'), a0 = G.passiveLevel(pTr, 'haste');
   G.state.sites.push({ x: pTr.x, y: pTr.y, evt: G.EVENTS[0], used: false });
   run(0.3);
   G.chooseEventOption(G.EVENTS[0].options[1]);
-  const m1 = G.passiveLevel(pTr, 'might'), a1 = G.passiveLevel(pTr, 'armor');
+  const m1 = G.passiveLevel(pTr, 'might'), a1 = G.passiveLevel(pTr, 'haste');
   assert(m1 + a1 === m0 + a0 && (m1 !== m0 || a1 !== a0), 'T9-passive 献祭一级被动、另一被动 +1 级', { before: [m0, a0], after: [m1, a1] });
 
   // T9-merchant 商人：付血 → 三选一「指定」构筑升级弹窗
@@ -1111,17 +1102,6 @@ function featureTests() {
   // 飞刃：落在障碍物内的刀刃被判定失效（不伤害也不绘制）
   assert(G.bladeBlocked(wall.x + 30, wall.y + 60) === true && G.bladeBlocked(pW.x, pW.y) === false,
     'T17b 飞刃撞墙后失效');
-  // 地雷不会埋进障碍物
-  reset();
-  const pM17 = G.state.player;
-  G.state.obstacles = [{ x: pM17.x + 40, y: pM17.y - 120, w: 80, h: 240 }];
-  G.SKILL_CARDS.find(c => c.line === 'mine' && c.sub === 'unlock').apply(pM17);
-  G.upgradeWeapon(pM17, 'mine'); G.upgradeWeapon(pM17, 'mine');
-  pM17.sk.mine.t = 0;
-  run(2.5);
-  const mineInWall = (G.state.mines || []).filter(m => m.x + 10 > pM17.x + 40 && m.x - 10 < pM17.x + 120
-    && m.y > pM17.y - 120 && m.y < pM17.y + 120);
-  assert(mineInWall.length === 0, 'T17b 地雷不埋进障碍物', mineInWall.length);
   // 闪电不能穿墙
   reset();
   const pC17 = G.state.player;
@@ -1417,11 +1397,11 @@ function featureTests() {
   assert(new Set(rocks.map(o => o.veinId)).size >= 1 && rocks.some(o => o.veinId),
     'T29c 多边形组成岩脉', [...new Set(rocks.map(o => o.veinId))].length);
 
-  // T29d 六条技能线实际生效（解锁 + 周期触发）
+  // T29d 技能线实际生效（解锁 + 周期触发）
   reset();
   const p29 = G.state.player;
   const unlock29 = k => G.SKILL_CARDS.find(c => c.line === k && c.sub === 'unlock');
-  ['shock', 'chain', 'drone', 'mine'].forEach(k => unlock29(k).apply(p29));
+  ['shock', 'chain', 'drone', 'orbit'].forEach(k => unlock29(k).apply(p29));
   const foe29 = G.makeEnemy(1, 0);
   foe29.x = p29.x + 100; foe29.y = p29.y;
   p29.sk.shock.t = 0;
@@ -1429,7 +1409,7 @@ function featureTests() {
   G.state.foes = [foe29];
   run(0.1);
   assert(G.state.skillFx.some(f => f.kind === 'shock'), 'T29d 震荡波触发特效');
-  assert(p29.skills.shock === 1 && p29.skills.chain === 1 && p29.skills.drone === 1 && p29.skills.mine === 1,
+  assert(p29.skills.shock === 1 && p29.skills.chain === 1 && p29.skills.drone === 1 && p29.skills.orbit === 1,
     'T29d 四条新技能线已解锁', p29.skills);
 
   // T30 输出统计：伤害按攻击方式归集
@@ -1446,9 +1426,9 @@ function featureTests() {
   G.dealDamage(p30, foe30, 5, { tag: 'shock', flat: true, noThorn: true });
   G.dealDamage(p30, foe30, 7, { tag: 'orbit', flat: true, noThorn: true });
   G.dealDamage(p30, foe30, 9, { tag: 'drone', flat: true, noThorn: true });
-  G.dealDamage(p30, foe30, 12, { tag: 'mine', flat: true, noThorn: true });
+  G.dealDamage(p30, foe30, 12, { tag: 'fireball', flat: true, noThorn: true });
   assert(G.state.dmgStats.arrow === 10 && G.state.dmgStats.chain === 15 && G.state.dmgStats.shock === 5
-    && G.state.dmgStats.orbit === 7 && G.state.dmgStats.drone === 9 && G.state.dmgStats.mine === 12,
+    && G.state.dmgStats.orbit === 7 && G.state.dmgStats.drone === 9 && G.state.dmgStats.fireball === 12,
     'T30 六种攻击方式伤害分别归集', G.state.dmgStats);
   // 玩家承受的伤害（无 tag / 敌人来源）不计入
   const php30 = p30.hp;
@@ -1457,8 +1437,9 @@ function featureTests() {
   assert(G.state.dmgStats.arrow === 10 && p30.hp < php30, 'T30 无 tag 与玩家承伤不计数', G.state.dmgStats);
   // UI：伤害行 HTML 可生成且含六类
   const dmgHtml30 = G.ui.dmgRowsHtml(G.state.dmgStats);
-  assert(['箭矢', '连锁闪电', '震荡波', '环绕飞刃', '浮游炮', '感应地雷'].every(n => dmgHtml30.indexOf(n) >= 0),
-    'T30 输出统计 UI 含全部六类');
+  assert(['箭矢', '连锁闪电', '震荡波', '环绕飞刃', '浮游炮', '火球', '回旋镖'].every(n => dmgHtml30.indexOf(n) >= 0),
+    'T30 输出统计 UI 含全部七类');
+  assert(dmgHtml30.indexOf('感应地雷') < 0, 'T30 输出统计不再出现地雷');
 
   // T31 障碍绕行：敌人被障碍物挡路时能绕过去，不会永久卡住
   reset();  const p31 = G.state.player;
@@ -1500,21 +1481,19 @@ function featureTests() {
   };
   const m32 = mk32('melee'), b32 = mk32('brute'), f32 = mk32('flyer'), r32 = mk32('ranged');
   G.state.foes = [m32, b32, f32, r32];
-  // 重甲：地雷弱点 ×1.7 > 近战 ×1.4
-  G.dealDamage(p32, m32, 10, { tag: 'mine', flat: true, noThorn: true });
-  G.dealDamage(p32, b32, 10, { tag: 'mine', flat: true, noThorn: true });
-  assert(500 - b32.hp > 500 - m32.hp, 'T32 重甲受到的地雷伤害高于普通近战（弱点）',
+  // 重甲：近身爆炸弱点 震荡波 ×1.5 > 飞刃 ×1.3（普通近战）
+  G.dealDamage(p32, m32, 10, { tag: 'orbit', flat: true, noThorn: true });
+  G.dealDamage(p32, b32, 10, { tag: 'shock', flat: true, noThorn: true });
+  assert(500 - b32.hp > 500 - m32.hp, 'T32 重甲受到的近身爆炸伤害高于普通近战（弱点）',
     { melee: 500 - m32.hp, brute: 500 - b32.hp });
   // 重甲：弹幕抗性 ×0.55（比近战 0.85 更低）
   const bHp0_32 = b32.hp;
   G.dealDamage(p32, b32, 10, { tag: 'arrow', flat: true, noThorn: true });
   assert(500 - bHp0_32 + b32.hp === 0 || (bHp0_32 - b32.hp) <= 7,
     'T32 重甲受箭矢伤害降低（×0.55）', bHp0_32 - b32.hp);
-  // 飞行：震荡波半伤(×0.5)、地雷仍免疫，箭矢弱点
+  // 飞行：震荡波半伤(×0.5)，箭矢弱点
   const dealt32 = G.dealDamage(p32, f32, 50, { tag: 'shock', flat: true, noThorn: true });
-  const dealt32b = G.dealDamage(p32, f32, 50, { tag: 'mine', flat: true, noThorn: true });
   assert(dealt32 === 25 && f32.hp === 475, 'T32 飞行单位受震荡波半伤(×0.5)', dealt32);
-  assert(dealt32b === 0, 'T32 飞行单位仍免疫地雷', dealt32b);
   const dealt32c = G.dealDamage(p32, f32, 10, { tag: 'arrow', flat: true, noThorn: true });
   assert(dealt32c > 10, 'T32 飞行单位弱箭矢（×1.15）', dealt32c);
   // 远程：近身伤害降低（震荡波 ×0.65）
@@ -1528,7 +1507,8 @@ function featureTests() {
     ['震荡波', p32.sk.shock.mult * p32.atk * 3 / p32.sk.shock.cd],      // 半径内 3 目标
     ['飞刃', p32.orbitDmgMul * p32.atk / 0.45],                          // 贴身每 0.45s
     ['浮游炮', p32.sk.drone.mult * p32.atk / p32.sk.drone.cd],
-    ['地雷', p32.sk.mine.mult * p32.atk * 2 / p32.sk.mine.cd]           // 常炸到 2 个
+    ['火球', p32.sk.fireball.mult * p32.atk * 1.5 / p32.sk.fireball.cd],  // 半径内约 1.5 目标
+    ['回旋镖', p32.sk.boomerang.mult * p32.atk * 2 / p32.sk.boomerang.cd] // 去回各命中一次
   ];
   dpsPairs32.forEach(pr => {
     const ratio32 = pr[1] / arrowDps32;
@@ -1591,19 +1571,6 @@ function featureTests() {
   G.shockBlast(p33b2, p33b2.x, p33b2.y, p33b2.sk.shock.r, p33b2.sk.shock.mult, true);
   assert(!G.state.skillFx.some(f => f.kind === 'shockBounce'), 'T33b2 震荡波不再生成反弹特效',
     G.state.skillFx.map(f => f.kind));
-
-  // T33c 地雷引信：到期自动引爆
-  reset();
-  const p33c = G.state.player;
-  G.SKILL_CARDS.find(c => c.line === 'mine' && c.sub === 'unlock').apply(p33c);
-  p33c.sk.mine.t = 0;
-  G.state.foes = [];
-  run(0.3);
-  assert(G.state.mines.length === 1, 'T33c 地雷已布设', G.state.mines.length);
-  p33c.sk.mine.cd = 999;   // 拉长冷却，专测引信
-  p33c.sk.mine.t = 999;    // 取消下一次部署
-  run(G.MINE_FUSE + 0.2);
-  assert(G.state.mines.length === 0, 'T33c 地雷到期自动引爆', G.state.mines.length);
 
   // T33d 解救俘虏任务（清怪解救）
   reset();
@@ -1761,22 +1728,22 @@ function featureTests() {
   p34e.passives.area = G.BUILD.PASSIVE_MAX;
   G.rebuildFromBuild(p34e);
   const evo1 = G.checkEvolution(p34e);
-  p34e.weapons.mine = G.BUILD.WEAPON_MAX;
-  p34e.passives.armor = G.BUILD.PASSIVE_MAX;   // 地雷配方需 armor
+  p34e.weapons.fireball = G.BUILD.WEAPON_MAX;
+  p34e.passives.crit = G.BUILD.PASSIVE_MAX;   // 火球配方需 crit
   G.rebuildFromBuild(p34e);
   const evo2 = G.checkEvolution(p34e);
-  assert(evo1 === 'shock' && evo2 === 'mine' && G.evolvedCount(p34e) === 2 &&
-    p34e.evolved.shock === true && p34e.evolved.mine === true,
+  assert(evo1 === 'shock' && evo2 === 'fireball' && G.evolvedCount(p34e) === 2 &&
+    p34e.evolved.shock === true && p34e.evolved.fireball === true,
     'T34e 一局可进化多把超级武器', { evo1, evo2, count: G.evolvedCount(p34e) });
-  // 各自的终极质变同时生效：震荡波无视衰减 + 地雷连锁引爆
-  assert(p34e.sk.shock.ultNoFalloff === true && p34e.sk.mine.ultChain === true,
+  // 各自的终极质变同时生效：震荡波无视衰减 + 火球穿透 2 敌
+  assert(p34e.sk.shock.ultNoFalloff === true && p34e.sk.fireball.pierce === 2,
     'T34e 多把超级武器的质变效果并存',
-    { shock: p34e.sk.shock.ultNoFalloff, mine: p34e.sk.mine.ultChain });
+    { shock: p34e.sk.shock.ultNoFalloff, pierce: p34e.sk.fireball.pierce });
   // 已进化的线不会重复进化
   const evo3 = G.checkEvolution(p34e);
   assert(evo3 === null && G.evolvedCount(p34e) === 2, 'T34e 已进化武器不重复进化', evo3);
 
-  // T34f 六条超级武器质变效果（用作弊码赋予终极后断言运行参数）
+  // T34f 七条超级武器质变效果（用作弊码赋予终极后断言运行参数）
   const checkUlt = (k, fn) => {
     reset();
     const p = G.state.player;
@@ -1821,13 +1788,6 @@ function featureTests() {
     assert(p.sk.drone.count >= 4 && p.sk.drone.cd < 0.8, 'T34f 浮游炮终极数量+3射速提升',
       { count: p.sk.drone.count, cd: p.sk.drone.cd });
   });
-  // 地雷：布雷翻倍、半径×2、连锁引爆
-  checkUlt('mine', (p) => {
-    assert(p.sk.mine.ultChain === true, 'T34f 地雷终极连锁引爆标记');
-    const base = 80 + 20 * G.LINES.mine.dims.find(d => d.key === 'range').max;
-    assert(Math.abs(p.sk.mine.r - base * 2) < 1, 'T34f 地雷终极半径×2', p.sk.mine.r);
-  });
-
   // T34g 作弊码：直接赋予终极武器
   reset();
   const p34g = G.state.player;
@@ -1835,6 +1795,15 @@ function featureTests() {
   assert(p34g.evolved && p34g.evolved.shock === true, 'T34g 作弊码锁定终极', p34g.evolved);
   assert(G.isLineMaxed(p34g, 'shock'), 'T34g 作弊码拉满该线全维度');
   assert(p34g.sk.shock.ultNoFalloff === true, 'T34g 作弊码终极质变已生效');
+  // T34g2 数字键映射：1~7 依次对应七条武器线，越界无对应
+  const keyMap = ['arrow', 'chain', 'shock', 'orbit', 'drone', 'fireball', 'boomerang'];
+  const keyOk = keyMap.every((k, i) => G.lineByNumber(String(i + 1)) === k);
+  assert(keyOk, 'T34g2 数字键 1~7 对应七条武器线',
+    keyMap.map((k, i) => (i + 1) + ':' + G.lineByNumber(String(i + 1))).join(' '));
+  assert(G.lineByNumber('1') === 'arrow' && G.lineByNumber('7') === 'boomerang',
+    'T34g2 1 是箭矢、7 是回旋镖');
+  assert(G.lineByNumber('8') === null && G.lineByNumber('0') === null && G.lineByNumber('u') === null,
+    'T34g2 超出范围的键不映射', { eight: G.lineByNumber('8'), zero: G.lineByNumber('0') });
   // 叠加：再赋予另一条线，两把超级武器质变并存
   G.grantUltimate(p34g, 'chain');
   assert(p34g.evolved.shock === true && p34g.evolved.chain === true &&
@@ -1903,7 +1872,7 @@ function featureTests() {
 
   // T37b 每把武器都能作为初始武器，且仅解锁该线
   const allLines = G.LINE_KEYS;
-  assert(allLines.length === 8, 'T37b 共八条攻击线可选', allLines.length);
+  assert(allLines.length === 7, 'T37b 共七条攻击线可选', allLines.length);
   allLines.forEach(line => {
     G.startRun(line);
     const p = G.state.player;
@@ -2077,13 +2046,13 @@ function featureTests() {
   assert(G.checkEvolution(p41e) === 'arrow' && p41e.evolved.arrow === true,
     'T41e 武器满级+力量满级→进化贯穿诸天', p41e.ultimate);
 
-  // T41e2 八把武器进化配方一一对应，无重复被动
+  // T41e2 七把武器进化配方一一对应，无重复被动
   const recipes41 = G.BUILD.EVOLVE_RECIPE;
   const recipeVals41 = Object.keys(recipes41).map(k => recipes41[k]);
-  assert(G.LINE_KEYS.length === 8 && Object.keys(recipes41).length === 8,
-    'T41e2 八把武器均有进化配方', recipes41);
-  assert(new Set(recipeVals41).size === 8,
-    'T41e2 八配方被动互不重复', recipeVals41);
+  assert(G.LINE_KEYS.length === 7 && Object.keys(recipes41).length === 7,
+    'T41e2 七把武器均有进化配方', recipes41);
+  assert(new Set(recipeVals41).size === 7,
+    'T41e2 七配方被动互不重复', recipeVals41);
   assert(recipeVals41.every(id => !!G.BUILD.PASSIVES[id]),
     'T41e2 配方被动均为合法被动道具', recipeVals41);
 
