@@ -39,12 +39,12 @@
       name: '连锁闪电', icon: '⚡',
       color: '#a78bfa',
       tagline: '弹射清场 · 高频', stats: ['30% 伤害', '2 跳'],
-      unlockDesc: '解锁连锁闪电：每 3.0 秒劈向最近敌人并弹射 2 个目标（主目标 30% 攻击，每跳 ×0.8）',
+      unlockDesc: '解锁连锁闪电：每 3.0 秒劈向最近敌人并弹射 2 个目标（主目标 50% 攻击，每跳 ×0.8）',
       dims: [
         { key: 'jumps', name: '弹射数量', icon: '🔗', max: 4,
           eff: lv => '每次攻击弹射跳跃 ' + (2 + lv) + ' 个目标' },
         { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
-          eff: lv => '每道闪电造成 ' + Math.round((0.3 + 0.25 * lv) * 100) + '% 攻击的伤害（每多弹射 1 目标 ×0.8）' },
+          eff: lv => '每道闪电造成 ' + Math.round((0.5 + 0.25 * lv) * 100) + '% 攻击的伤害（每多弹射 1 目标 ×0.8）' },
         { key: 'rate',  name: '攻击频率', icon: '⏱️', max: 4,
           eff: lv => '每 ' + (3.0 * Math.pow(0.88, lv)).toFixed(2) + ' 秒发动一轮攻击' },
         { key: 'bolts', name: '闪电数量', icon: '🌩️', max: 3,
@@ -259,7 +259,7 @@
     const c = g('chain'), ch = p.sk.chain;
     ch.cd = Math.max(1.1, 3.0 * Math.pow(0.88, c.rate || 0) * D);
     ch.jumps = 2 + (c.jumps || 0);
-    ch.mult = 0.3 + 0.25 * (c.dmg || 0);
+    ch.mult = 0.5 + 0.25 * (c.dmg || 0);
     ch.bolts = 1 + (c.bolts || 0);
     // 终极·雷狱（极致档）：每跳固定 100%、弹射目标 +4、道数翻倍、麻痹延长
     if (isUlt('chain')) {

@@ -282,10 +282,10 @@ function featureTests() {
     assert(p15.skills[k] === 1, 'T16 解锁 ' + G.LINES[k].name, p15.skills[k]);
   });
   assert(chainDimBefore.max(p15) === false, 'T16 解锁后维度卡可入池');
-  // 闪电初始伤害明显偏低（0.5×攻击），伤害维度 +0.15
-  assert(Math.abs(p15.sk.chain.mult - 0.3) < 1e-9, 'T16 闪电初始伤害 0.3×攻击', p15.sk.chain.mult);
+  // 闪电初始伤害 0.5×攻击，伤害维度 +0.25
+  assert(Math.abs(p15.sk.chain.mult - 0.5) < 1e-9, 'T16 闪电初始伤害 0.5×攻击', p15.sk.chain.mult);
   dimCard('chain', 'dmg').apply(p15);
-  assert(Math.abs(p15.sk.chain.mult - 0.55) < 1e-9, 'T16 闪电·伤害维度 +0.25', p15.sk.chain.mult);
+  assert(Math.abs(p15.sk.chain.mult - 0.75) < 1e-9, 'T16 闪电·伤害维度 +0.25', p15.sk.chain.mult);
   dimCard('chain', 'bolts').apply(p15);
   assert(p15.sk.chain.bolts === 2, 'T16 闪电·闪电数量维度', p15.sk.chain.bolts);
   // 震荡波次级震荡波维度
