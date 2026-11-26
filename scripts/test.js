@@ -267,7 +267,7 @@ function featureTests() {
   assert(p15.shots === 2, 'T16 箭矢·数量维度 +1 支', p15.shots);
   const aRate16 = dimCard('arrow', 'rate');
   aRate16.apply(p15);
-  assert(Math.abs(p15.atkCdMul - 0.88) < 1e-9, 'T16 箭矢·射速维度间隔 −12%', p15.atkCdMul);
+  assert(Math.abs(p15.atkCdMul - 0.90) < 1e-9, 'T16 箭矢·射速维度间隔 −10%', p15.atkCdMul);
   dimCard('arrow', 'pierce').apply(p15);
   assert(p15.pierce === 1, 'T16 箭矢·穿透维度', p15.pierce);
   dimCard('arrow', 'bounce').apply(p15);
@@ -282,10 +282,10 @@ function featureTests() {
     assert(p15.skills[k] === 1, 'T16 解锁 ' + G.LINES[k].name, p15.skills[k]);
   });
   assert(chainDimBefore.max(p15) === false, 'T16 解锁后维度卡可入池');
-  // 闪电初始伤害 0.5×攻击，伤害维度 +0.25
-  assert(Math.abs(p15.sk.chain.mult - 0.5) < 1e-9, 'T16 闪电初始伤害 0.5×攻击', p15.sk.chain.mult);
+  // 闪电初始伤害 0.8×攻击，伤害维度 +0.2
+  assert(Math.abs(p15.sk.chain.mult - 0.8) < 1e-9, 'T16 闪电初始伤害 0.8×攻击', p15.sk.chain.mult);
   dimCard('chain', 'dmg').apply(p15);
-  assert(Math.abs(p15.sk.chain.mult - 0.75) < 1e-9, 'T16 闪电·伤害维度 +0.25', p15.sk.chain.mult);
+  assert(Math.abs(p15.sk.chain.mult - 1.0) < 1e-9, 'T16 闪电·伤害维度 +0.2', p15.sk.chain.mult);
   dimCard('chain', 'bolts').apply(p15);
   assert(p15.sk.chain.bolts === 2, 'T16 闪电·闪电数量维度', p15.sk.chain.bolts);
   // 震荡波次级震荡波维度
@@ -304,7 +304,7 @@ function featureTests() {
   assert(Math.abs(p15.sk.drone.life - 5.5) < 1e-9, 'T16 浮游炮·存在时间维度', p15.sk.drone.life);
   // 地雷维度：伤害/数量/冷却/范围
   dimCard('mine', 'dmg').apply(p15);
-  assert(Math.abs(p15.sk.mine.mult - 1.85) < 1e-9, 'T16 地雷·伤害维度 +0.25', p15.sk.mine.mult);
+  assert(Math.abs(p15.sk.mine.mult - 2.1) < 1e-9, 'T16 地雷·伤害维度 +0.3', p15.sk.mine.mult);
   dimCard('mine', 'count').apply(p15);
   assert(p15.sk.mine.count === 2, 'T16 地雷·布雷数量维度', p15.sk.mine.count);
   dimCard('mine', 'rate').apply(p15);
@@ -1080,6 +1080,73 @@ function featureTests() {
     return dx < soV.w / 2 - o.r && dy < soV.h / 2 - o.r;   // 整块完全在视口内才算违规
   });
   assert(inView.length === 0, 'T17 新生成障碍物不在玩家屏幕内', inView.map(o => [Math.round(o.x - p17b.x), Math.round(o.y - p17b.y)]));
+
+  // T17b 弹道与障碍物交互：不能穿墙 / 撞墙有对应反应
+  reset();
+  const pW = G.state.player;
+  pW.x = 5000; pW.y = 5000;
+  pW.skills.arrow = 0;              // 关闭自动射击，避免新箭矢混入断言
+  const wall = { x: pW.x + 100, y: pW.y - 120, w: 60, h: 240 };   // 右侧竖墙
+  G.state.obstacles = [wall];
+  // 箭矢撞墙消失
+  G.state.bullets = [{ x: pW.x + 40, y: pW.y, vx: 400, vy: 0, r: 4, dmg: 5, side: 'p', life: 2, hit: [] }];
+  run(0.5);
+  assert(G.state.bullets.length === 0, 'T17b 箭矢撞墙后消失', G.state.bullets.length);
+  // 浮游炮子弹同样消失
+  G.state.bullets = [{ x: pW.x + 40, y: pW.y, vx: 400, vy: 0, r: 4, dmg: 5, side: 'p', life: 2, hit: [], skill: 'drone' }];
+  run(0.5);
+  assert(G.state.bullets.length === 0, 'T17b 浮游炮子弹撞墙后消失', G.state.bullets.length);
+  // 火球撞墙立刻爆炸
+  G.state.fireballs = [{ x: pW.x + 40, y: pW.y, vx: 300, vy: 0, r: 8, dmg: 20, splash: 70, life: 2, owner: pW, pierceLeft: 0, hit: [] }];
+  const fxW0 = (G.state.skillFx || []).length;
+  run(0.4);
+  assert(G.state.fireballs.length === 0 && (G.state.skillFx || []).length > fxW0,
+    'T17b 火球撞墙立刻炸开');
+  // 回旋镖撞墙立刻折返
+  G.state.boomerangs = [{ x: pW.x + 88, y: pW.y, dirX: 1, dirY: 0, r: 11, dmg: 10, owner: pW,
+    speed: 340, dist: 340, traveled: 0, phase: 0, legs: 2, legIdx: 0, pierce: 3, hit: [], rot: 0 }];
+  run(0.08);
+  const bmW = G.state.boomerangs[0];
+  assert(!bmW || bmW.phase === 1, 'T17b 回旋镖撞墙立刻折返', bmW && bmW.phase);
+  // 飞刃：落在障碍物内的刀刃被判定失效（不伤害也不绘制）
+  assert(G.bladeBlocked(wall.x + 30, wall.y + 60) === true && G.bladeBlocked(pW.x, pW.y) === false,
+    'T17b 飞刃撞墙后失效');
+  // 地雷不会埋进障碍物
+  reset();
+  const pM17 = G.state.player;
+  G.state.obstacles = [{ x: pM17.x + 40, y: pM17.y - 120, w: 80, h: 240 }];
+  G.SKILL_CARDS.find(c => c.line === 'mine' && c.sub === 'unlock').apply(pM17);
+  G.upgradeWeapon(pM17, 'mine'); G.upgradeWeapon(pM17, 'mine');
+  pM17.sk.mine.t = 0;
+  run(2.5);
+  const mineInWall = (G.state.mines || []).filter(m => m.x + 10 > pM17.x + 40 && m.x - 10 < pM17.x + 120
+    && m.y > pM17.y - 120 && m.y < pM17.y + 120);
+  assert(mineInWall.length === 0, 'T17b 地雷不埋进障碍物', mineInWall.length);
+  // 闪电不能穿墙
+  reset();
+  const pC17 = G.state.player;
+  pC17.x = 8000; pC17.y = 8000;
+  G.state.obstacles = [{ x: pC17.x + 80, y: pC17.y - 100, w: 50, h: 200 }];
+  const fA17 = G.makeEnemy(1, 0, 'melee'); fA17.maxHp = 500; fA17.hp = 500; fA17.x = pC17.x + 40; fA17.y = pC17.y;
+  const fB17 = G.makeEnemy(1, 0, 'melee'); fB17.maxHp = 500; fB17.hp = 500; fB17.x = pC17.x + 220; fB17.y = pC17.y;
+  G.state.foes = [fA17, fB17];
+  G.SKILL_CARDS.find(c => c.line === 'chain' && c.sub === 'unlock').apply(pC17);
+  pC17.sk.chain.jumps = 3;
+  const hpB17 = fB17.hp, hpA17 = fA17.hp;
+  G.fireChainBolt(pC17, fA17);
+  assert(fA17.hp < hpA17 && fB17.hp === hpB17,
+    'T17b 闪电不能穿墙命中墙后敌人', { a: fA17.hp, b: fB17.hp, b0: hpB17 });
+  // 震荡波不能穿墙
+  reset();
+  const pS17 = G.state.player;
+  pS17.x = 8000; pS17.y = 8000;
+  G.state.obstacles = [{ x: pS17.x + 80, y: pS17.y - 100, w: 50, h: 200 }];
+  const fS17 = G.makeEnemy(1, 0, 'melee'); fS17.maxHp = 500; fS17.hp = 500; fS17.x = pS17.x + 200; fS17.y = pS17.y;
+  G.state.foes = [fS17];
+  G.SKILL_CARDS.find(c => c.line === 'shock' && c.sub === 'unlock').apply(pS17);
+  const hpS17 = fS17.hp;
+  G.shockBlast(pS17, pS17.x, pS17.y, 300, pS17.sk.shock.mult, false);
+  assert(fS17.hp === hpS17, 'T17b 震荡波不能穿墙命中墙后敌人', { hp: fS17.hp, hp0: hpS17 });
 
   // T18 宝箱怪
   reset();
@@ -1878,7 +1945,7 @@ function featureTests() {
   // ===== T38 飞刃防贴身：飞行判定增强 + 伤害加强 =====
   G.startRun('orbit');
   const p38 = G.state.player;
-  assert(Math.abs(p38.orbitDmgMul - 1.1) < 1e-9, 'T38 飞刃单次伤害倍率提升到1.1', p38.orbitDmgMul);
+  assert(Math.abs(p38.orbitDmgMul - 1.2) < 1e-9, 'T38 飞刃单次伤害倍率基础 1.2', p38.orbitDmgMul);
   const groundFoe38 = G.makeEnemy(1, 0);    // melee 地面
   const flyFoe38 = G.makeEnemy(1, 4);       // flyer 飞行
   const reachGround38 = G.orbitHitRadiusFor(p38, groundFoe38);
@@ -2201,11 +2268,11 @@ function featureTests() {
   for (let i = 0; i < 7; i++) G.upgradeWeapon(pNW2, 'fireball');
   assert(G.weaponLevel(pNW2, 'fireball') === 8, 'T-NW2 火球可升到 Lv8');
   assert(pNW2.sk.fireball.count > fbDim0 && pNW2.sk.fireball.r > 70 && pNW2.sk.fireball.cd < 3.6
-      && pNW2.sk.fireball.mult >= 3.7,
+      && Math.round(pNW2.sk.fireball.mult * 100) >= 420,
     'T-NW2 火球 Lv8 维度映射（数量/半径/频率/高伤）',
     { count: pNW2.sk.fireball.count, r: pNW2.sk.fireball.r, cd: pNW2.sk.fireball.cd, mult: pNW2.sk.fireball.mult });
-  assert(G.LINES.fireball.dims.find(d => d.key === 'dmg').eff(3).indexOf('370') >= 0,
-    'T-NW2 火球满级单次 370% 攻击（低频高伤定位）');
+  assert(G.LINES.fireball.dims.find(d => d.key === 'dmg').eff(3).indexOf('420') >= 0,
+    'T-NW2 火球满级单次 420% 攻击（低频高伤定位）');
 
   // T-NW3 火球发射并爆炸命中敌人
   reset();

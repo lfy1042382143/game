@@ -759,6 +759,7 @@
       // 刀刃：用实际命中位置，画华丽回旋镖 + 长残影 + 卫星光点
       // ring0 主环金色 / ring1 外环橙红 / ring2 内环亮白金；dir=-1 的环切线朝向相反
       blades.forEach((b, idx) => {
+        if (G.bladeBlocked && G.bladeBlocked(b.x, b.y)) return;   // 撞墙消失（不绘制）
         const ang = Math.atan2(b.y - p.y, b.x - p.x) + (b.dir || 1) * Math.PI / 2;
         const ring = b.ring || 0;
         const bladeCol = ring === 1 ? '#fb923c' : ring === 2 ? '#fde68a' : '#fbbf24';
@@ -807,6 +808,7 @@
 
     // 普通飞刃：青色小矩形
     blades.forEach(b => {
+      if (G.bladeBlocked && G.bladeBlocked(b.x, b.y)) return;   // 撞墙消失（不绘制）
       ctx.save();
       ctx.translate(b.x, b.y);
       ctx.rotate(state.time * 8);

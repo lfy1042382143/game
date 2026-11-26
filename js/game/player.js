@@ -183,6 +183,16 @@
     return r;
   }
 
+  /** 飞刃是否被障碍物挡住（撞墙即消失：不造成伤害也不绘制） */
+  function bladeBlocked(x, y) {
+    const obs = state.obstacles;
+    if (!obs || !obs.length) return false;
+    for (const o of obs) {
+      if (G.circlePoly(x, y, 6, o)) return true;
+    }
+    return false;
+  }
+
   function updateOrbitBlades(p, dt) {
     if (!p.orbits) return;
     const blades = orbitPositions(p);
@@ -195,6 +205,7 @@
         // 普通飞刃：单环，每个敌人一个命中冷却
         if (f.orbitCd > 0) { f.orbitCd -= dt; continue; }
         for (const b of blades) {
+          if (bladeBlocked(b.x, b.y)) continue;   // 被障碍物挡住的刀刃不生效
           if (G.dist(b.x, b.y, f.x, f.y) < reach) {
             G.dealDamage(p, f, p.atk * p.orbitDmgMul, { tag: 'orbit' });
             f.orbitCd = ORBIT_CD;
@@ -209,6 +220,7 @@
       for (const b of blades) {
         const ring = b.ring || 0;
         if (f.orbitRingCd[ring] > 0) continue;
+        if (bladeBlocked(b.x, b.y)) continue;   // 被障碍物挡住的刀刃不生效
         if (G.dist(b.x, b.y, f.x, f.y) < reach) {
           G.dealDamage(p, f, p.atk * p.orbitDmgMul, { tag: 'orbit' });
           f.orbitRingCd[ring] = ORBIT_CD;
@@ -253,5 +265,5 @@
     return out;
   }
 
-  Object.assign(G, { updatePlayer, nearestFoe, fireVolley, orbitPositions, updateOrbitBlades, orbitHitRadiusFor, effAtkCd });
+  Object.assign(G, { updatePlayer, nearestFoe, fireVolley, orbitPositions, updateOrbitBlades, orbitHitRadiusFor, effAtkCd, bladeBlocked });
 })(window.ABYSS = window.ABYSS || {});

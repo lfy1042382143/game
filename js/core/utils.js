@@ -99,6 +99,43 @@
     return circleRect(cx, cy, r, o);
   }
 
+  /** 两条线段是否相交（标准跨立试验） */
+  function segCross(ax, ay, bx, by, cx, cy, dx, dy) {
+    const d1 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    const d2 = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
+    const d3 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx);
+    const d4 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
+    return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+  }
+
+  /** 线段是否穿过某障碍物（多边形或旧矩形） */
+  function segHitsObstacle(x1, y1, x2, y2, o) {
+    let pts = o.pts;
+    if (!pts) {
+      // 旧矩形 → 四条边
+      pts = [
+        { x: o.x, y: o.y }, { x: o.x + o.w, y: o.y },
+        { x: o.x + o.w, y: o.y + o.h }, { x: o.x, y: o.y + o.h }
+      ];
+    }
+    if (!pts || pts.length < 3) return false;
+    if (pointInPoly(x1, y1, pts) || pointInPoly(x2, y2, pts)) return true;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      if (segCross(x1, y1, x2, y2, pts[j].x, pts[j].y, pts[i].x, pts[i].y)) return true;
+    }
+    return false;
+  }
+
+  /** 两点之间是否被障碍物挡住（闪电/震荡波等「不能穿墙」判定用） */
+  function losBlocked(x1, y1, x2, y2) {
+    const obs = G.state && G.state.obstacles;
+    if (!obs || !obs.length) return false;
+    for (const o of obs) {
+      if (segHitsObstacle(x1, y1, x2, y2, o)) return true;
+    }
+    return false;
+  }
+
   /** 把圆推出多边形障碍（兼容旧矩形） */
   function pushOutOfPoly(u, o) {
     if (!o.pts) { pushOutOfRect(u, o); return; }
@@ -130,5 +167,6 @@
   }
 
   Object.assign(G, { $, sleep, pick, clamp, fmt, dist, norm, circleRect, pushOutOfRect,
-    nearestOnSeg, pointInPoly, nearestOnPoly, circlePoly, pushOutOfPoly, polyBounds });
+    nearestOnSeg, pointInPoly, nearestOnPoly, circlePoly, pushOutOfPoly, polyBounds,
+    segCross, segHitsObstacle, losBlocked });
 })(window.ABYSS = window.ABYSS || {});

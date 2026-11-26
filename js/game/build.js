@@ -59,14 +59,14 @@
       { range: 4, dmg: 4, rate: 2, echo: 2 }
     ],
     orbit: [
-      { count: 0, rate: 0, range: 0, speed: 0 },
-      { count: 1, rate: 0, range: 0, speed: 0 },
-      { count: 1, rate: 0, range: 1, speed: 0 },
-      { count: 2, rate: 0, range: 1, speed: 0 },
-      { count: 2, rate: 1, range: 1, speed: 0 },
-      { count: 2, rate: 1, range: 2, speed: 0 },
-      { count: 3, rate: 1, range: 2, speed: 1 },
-      { count: 4, rate: 2, range: 3, speed: 2 }
+      { count: 0, rate: 0, range: 0, dmg: 0 },
+      { count: 1, rate: 0, range: 0, dmg: 0 },
+      { count: 1, rate: 0, range: 1, dmg: 0 },
+      { count: 2, rate: 0, range: 1, dmg: 1 },
+      { count: 2, rate: 1, range: 1, dmg: 1 },
+      { count: 2, rate: 1, range: 2, dmg: 2 },
+      { count: 3, rate: 1, range: 2, dmg: 3 },
+      { count: 4, rate: 2, range: 3, dmg: 4 }
     ],
     drone: [
       { count: 0, dmg: 0, life: 0 },
@@ -99,14 +99,14 @@
       { count: 3, radius: 3, dmg: 3, rate: 3 }
     ],
     boomerang: [
-      { count: 0, dist: 0, dmg: 0, pierce: 0 },
-      { count: 1, dist: 0, dmg: 0, pierce: 0 },
-      { count: 1, dist: 1, dmg: 0, pierce: 0 },
-      { count: 1, dist: 1, dmg: 1, pierce: 0 },
-      { count: 1, dist: 1, dmg: 1, pierce: 1 },
-      { count: 2, dist: 2, dmg: 1, pierce: 1 },
-      { count: 2, dist: 2, dmg: 2, pierce: 2 },
-      { count: 2, dist: 3, dmg: 3, pierce: 3 }
+      { count: 0, rate: 0, dmg: 0, pierce: 0 },
+      { count: 1, rate: 0, dmg: 0, pierce: 0 },
+      { count: 1, rate: 0, dmg: 1, pierce: 0 },
+      { count: 1, rate: 0, dmg: 1, pierce: 1 },
+      { count: 1, rate: 1, dmg: 1, pierce: 1 },
+      { count: 2, rate: 1, dmg: 2, pierce: 1 },
+      { count: 2, rate: 2, dmg: 2, pierce: 2 },
+      { count: 2, rate: 2, dmg: 3, pierce: 3 }
     ]
   };
 
