@@ -545,7 +545,7 @@
       G.tickBleeds(e, dt);
       if (e.dead) continue;
 
-      if (e.type === 'melee' || e.type === 'brute') updateMelee(e, dt);
+      if (e.type === 'melee' || e.type === 'brute' || e.type === 'skeleton') updateMelee(e, dt);
       else if (e.type === 'ranged') updateRanged(e, dt);
       else if (e.type === 'flyer') updateFlyerMelee(e, dt);
       else if (e.type === 'mage') updateMage(e, dt);

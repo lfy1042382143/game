@@ -56,6 +56,62 @@
   /* =========================================================
      场景（世界坐标，已在相机变换内绘制）
      ========================================================= */
+  /**
+   * 障碍物外观配置表（统一骨架的数据源）。
+   * 以后给形象图：给某项加 image: Image 对象，drawObstacle 里优先 drawImage 即可，
+   * 其余生成/碰撞/功能逻辑完全不用动。
+   */
+  const OB_STYLE = {
+    root:  { fill: '#3a2c1c', edge: 'rgba(150,110,70,0.55)', inner: 'rgba(120,90,55,0.35)', pattern: 'grain', lw: 2.5 },
+    stone: { fill: '#1d1e2e', edge: 'rgba(126,138,180,0.5)',  inner: 'rgba(126,138,180,0.16)', pattern: 'inner', lw: 2 },
+    bone:  { fill: '#241d15', edge: 'rgba(214,196,160,0.5)',  inner: 'rgba(226,210,180,0.22)', pattern: 'bone',  lw: 3 },
+    ice:   { fill: '#1a2a3a', edge: 'rgba(170,220,255,0.65)', inner: 'rgba(200,235,255,0.22)', pattern: 'facet', lw: 2 },
+    lava:  { fill: '#2d1610', edge: 'rgba(255,120,60,0.6)',   inner: 'rgba(255,140,60,0.3)',  pattern: 'crack', lw: 2 }
+  };
+
+  /** 统一纹理绘制：只按 pattern 画，不掺杂任何功能逻辑 */
+  function drawObstaclePattern(o, st) {
+    const r = o.r;
+    if (st.pattern === 'crack') {
+      ctx.strokeStyle = st.inner;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(o.x - r * 0.6, o.y - r * 0.2);
+      ctx.lineTo(o.x, o.y + r * 0.2);
+      ctx.lineTo(o.x + r * 0.5, o.y - r * 0.3);
+      ctx.stroke();
+    } else if (st.pattern === 'bone') {
+      ctx.strokeStyle = st.inner;
+      ctx.lineWidth = 3;
+      for (let k = -1; k <= 1; k++) {
+        ctx.beginPath();
+        ctx.moveTo(o.x - r, o.y + k * r * 0.35);
+        ctx.lineTo(o.x + r, o.y + k * r * 0.35 + 4);
+        ctx.stroke();
+      }
+    } else if (st.pattern === 'facet') {
+      ctx.fillStyle = st.inner;
+      ctx.beginPath();
+      ctx.moveTo(o.x, o.y - r);
+      ctx.lineTo(o.x + r * 0.5, o.y);
+      ctx.lineTo(o.x, o.y + r * 0.7);
+      ctx.closePath();
+      ctx.fill();
+    } else if (st.pattern === 'grain') {
+      ctx.strokeStyle = st.inner;
+      ctx.lineWidth = 2;
+      for (let k = -1; k <= 1; k++) {
+        ctx.beginPath();
+        ctx.moveTo(o.x - r * 0.8, o.y + k * r * 0.4);
+        ctx.quadraticCurveTo(o.x, o.y + k * r * 0.4 + 6, o.x + r * 0.8, o.y + k * r * 0.3);
+        ctx.stroke();
+      }
+    } else {
+      ctx.fillStyle = st.inner;
+      ctx.fillRect(o.x - r, o.y - r, r * 2, r * 2);
+    }
+  }
+
   function drawArena() {
     const V = CFG.viewport, W = CFG.world;
     const map = G.MAPS[state.mapIdx % G.MAPS.length];
@@ -93,188 +149,152 @@
       }
     }
 
-    // 动态障碍物：连绵不规则岩脉（按地图主题变形）
-    const theme = ['rock', 'bone', 'lava', 'crystal', 'mud'][state.mapIdx % 5];
-    state.obstacles.forEach(o => {
-      if (!o.pts) return;   // 兼容旧矩形（正常不会出现）
+    // 动态障碍物：统一绘制骨架。外观全部由 OB_STYLE 表驱动，
+    // 以后换成形象图时只需在表里给对应类型加 image 字段即可，绘制逻辑不用动。
+    for (const o of state.obstacles) {
+      if (!o.pts) continue;
+      const st = OB_STYLE[o.obType] || OB_STYLE.stone;
       ctx.beginPath();
       ctx.moveTo(o.pts[0].x, o.pts[0].y);
       for (let i = 1; i < o.pts.length; i++) ctx.lineTo(o.pts[i].x, o.pts[i].y);
       ctx.closePath();
-      ctx.fillStyle = map.ob;
+      ctx.fillStyle = st.fill;
       ctx.fill();
-      ctx.strokeStyle = map.obEdge;
-      ctx.lineWidth = theme === 'bone' ? 3 : 2;
+      ctx.strokeStyle = st.edge;
+      ctx.lineWidth = st.lw || 2;
       ctx.stroke();
 
-      // 内部纹理：按主题变化
+      // 统一内部纹理：按表里的 pattern 选择
       ctx.save();
       ctx.clip();
-      if (theme === 'lava') {
-        // 熔岩：发光裂缝
-        ctx.strokeStyle = 'rgba(251,146,60,0.55)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(o.x - o.r * 0.6, o.y - o.r * 0.2);
-        ctx.lineTo(o.x, o.y + o.r * 0.2);
-        ctx.lineTo(o.x + o.r * 0.5, o.y - o.r * 0.3);
-        ctx.stroke();
-      } else if (theme === 'bone') {
-        // 骨林：平行骨纹
-        ctx.strokeStyle = map.obInner;
-        ctx.lineWidth = 3;
-        for (let k = -1; k <= 1; k++) {
-          ctx.beginPath();
-          ctx.moveTo(o.x - o.r, o.y + k * o.r * 0.35);
-          ctx.lineTo(o.x + o.r, o.y + k * o.r * 0.35 + 4);
-          ctx.stroke();
-        }
-      } else if (theme === 'crystal') {
-        // 虚空：晶面高光
-        ctx.fillStyle = 'rgba(167,180,255,0.10)';
-        ctx.beginPath();
-        ctx.moveTo(o.x, o.y - o.r);
-        ctx.lineTo(o.x + o.r * 0.5, o.y);
-        ctx.lineTo(o.x, o.y + o.r * 0.7);
-        ctx.closePath();
-        ctx.fill();
-      } else if (theme === 'mud') {
-        // 沼泽：泥泡
-        ctx.fillStyle = 'rgba(134,230,170,0.12)';
-        for (let k = 0; k < 3; k++) {
-          ctx.beginPath();
-          ctx.arc(o.x + (k - 1) * o.r * 0.4, o.y + Math.sin(k) * o.r * 0.3, o.r * 0.12, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      } else {
-        // 深渊岩石：内圈阴影
-        ctx.fillStyle = map.obInner;
-        ctx.fillRect(o.x - o.r, o.y - o.r, o.r * 2, o.r * 2);
-      }
+      drawObstaclePattern(o, st);
       ctx.restore();
 
-      // 伪装陷阱触发瞬间：红色尖刺沿多边形边缘长出
-      if (o.trap && o.trap.trigT > 0) {
-        const k = clamp(o.trap.trigT / CFG.obstacles.trigT, 0, 1);
-        ctx.globalAlpha = k;
-        ctx.fillStyle = '#f87171';
-        ctx.strokeStyle = 'rgba(252,165,165,0.9)';
-        ctx.lineWidth = 1;
-        for (let i = 0; i < o.pts.length; i++) {
-          const a = o.pts[i], b = o.pts[(i + 1) % o.pts.length];
-          const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-          const nx = mx - o.x, ny = my - o.y;
-          const nl = Math.hypot(nx, ny) || 1;
-          const hgt = (12 + (i % 2) * 8) * k;
-          const ex = mx + (nx / nl) * hgt, ey = my + (ny / nl) * hgt;
-          ctx.beginPath();
-          ctx.moveTo(mx - 5, my); ctx.lineTo(ex, ey); ctx.lineTo(mx + 5, my);
-          ctx.closePath(); ctx.fill(); ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
+      // 功能状态叠加（不改变骨架）：熔岩靠近发红、冰柱受损裂纹、骨堆召唤脉冲
+      if (o.obType === 'lava' && (o.touchT || 0) >= (CFG.obstacles.lavaWarn || 1.4)) {
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, o.r * 1.15, 0, PI2);
+        ctx.strokeStyle = 'rgba(251,146,60,' + (0.35 + 0.25 * Math.sin(state.time * 6)) + ')';
+        ctx.lineWidth = 2; ctx.stroke();
       }
-    });
+      if (o.obType === 'ice' && o.hp < (CFG.obstacles.iceHp || 6)) {
+        const k = 1 - clamp(o.hp / (CFG.obstacles.iceHp || 6), 0, 1);
+        ctx.strokeStyle = 'rgba(226,246,255,' + (0.4 + k * 0.5) + ')';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(o.x - o.r * 0.6, o.y - o.r * 0.5);
+        ctx.lineTo(o.x + o.r * 0.2 * k, o.y + o.r * 0.1);
+        ctx.lineTo(o.x - o.r * 0.1, o.y + o.r * 0.6);
+        ctx.stroke();
+      }
+      if (o.obType === 'bone' && (o.spawnT || 0) > (CFG.obstacles.boneSpawnCd || 6) * 0.75) {
+        const k = (o.spawnT || 0) / (CFG.obstacles.boneSpawnCd || 6);
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, o.r * (0.6 + k * 0.7), 0, PI2);
+        ctx.strokeStyle = 'rgba(248,250,252,' + (0.25 * k) + ')';
+        ctx.lineWidth = 1.5; ctx.stroke();
+      }
+    }
   }
 
   /* =========================================================
-     地图陷阱：持久区域（泥潭/裂隙）+ 临时灾害（预警/爆发）
+     地图机制：毒池（持久区域）+ 岩浆（预警/爆发）
      ========================================================= */
   const PI2 = Math.PI * 2;
 
   function drawZones() {
     for (const z of state.zones) {
-      if (z.kind === 'swamp') {
-        // 减速泥潭：绿色半透明 + 虚线边 + 冒泡
-        ctx.beginPath();
-        ctx.arc(z.x, z.y, z.r, 0, PI2);
-        ctx.fillStyle = 'rgba(74,222,128,0.10)';
+      if (!z.pts) continue;
+      ctx.beginPath();
+      ctx.moveTo(z.pts[0].x, z.pts[0].y);
+      for (let i = 1; i < z.pts.length; i++) ctx.lineTo(z.pts[i].x, z.pts[i].y);
+      ctx.closePath();
+
+      if (z.kind === 'ice') {
+        // 冰面：不规则多边形 + 淡蓝半透明填充 + 内部裂纹高光 + 边缘微光
+        ctx.fillStyle = 'rgba(186,230,253,0.14)';
         ctx.fill();
-        ctx.strokeStyle = 'rgba(74,222,128,0.42)';
+        ctx.strokeStyle = 'rgba(224,242,254,0.42)';
         ctx.lineWidth = 2;
-        ctx.setLineDash([10, 6]);
         ctx.stroke();
-        ctx.setLineDash([]);
-        for (let i = 0; i < 3; i++) {
-          const ph = (state.time * 0.6 + i * 1.3) % 1;
-          const ba = i * 2.1 + z.x;
-          ctx.globalAlpha = 0.5 * (1 - ph);
+        ctx.save();
+        ctx.clip();
+        // 冰裂纹：按种子固定几条折线，模拟真实冰面的裂纹
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+        ctx.lineWidth = 1.2;
+        for (let k = 0; k < 5; k++) {
+          const a = k * 1.27 + z.seed * 6;
+          const r0 = z.r * (0.15 + 0.12 * k);
           ctx.beginPath();
-          ctx.arc(z.x + Math.cos(ba) * z.r * 0.5, z.y + Math.sin(ba) * z.r * 0.5, 3 + ph * 3, 0, PI2);
-          ctx.strokeStyle = 'rgba(134,239,172,0.8)';
-          ctx.lineWidth = 1.5;
+          ctx.moveTo(z.x, z.y);
+          ctx.lineTo(z.x + Math.cos(a) * r0, z.y + Math.sin(a) * r0);
+          ctx.lineTo(z.x + Math.cos(a + 0.35) * r0 * 1.7, z.y + Math.sin(a + 0.35) * r0 * 1.7);
           ctx.stroke();
         }
-        ctx.globalAlpha = 1;
-      } else if (z.kind === 'vortex') {
-        // 引力裂隙：紫色旋转虚线环 + 暗心
+        ctx.restore();
+        continue;
+      }
+
+      // 毒池：不规则多边形 + 毒绿填充 + 边缘冒泡
+      ctx.fillStyle = 'rgba(132,204,22,0.13)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(163,230,53,0.5)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([9, 7]);
+      ctx.lineDashOffset = -state.time * 12;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+      // 毒气泡泡：按池子种子固定分布，随时间上浮
+      for (let i = 0; i < 4; i++) {
+        const ph = (state.time * 0.45 + i * 0.27 + z.seed) % 1;
+        const ba = i * 1.9 + z.seed * 6;
+        const rr = z.r * (0.25 + 0.4 * ((i % 3) / 3));
+        ctx.globalAlpha = 0.55 * (1 - ph);
         ctx.beginPath();
-        ctx.arc(z.x, z.y, z.r, 0, PI2);
-        ctx.fillStyle = 'rgba(88,28,135,0.18)';
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(167,139,250,0.55)';
-        ctx.lineWidth = 2.5;
-        ctx.setLineDash([14, 9]);
-        ctx.lineDashOffset = -state.time * 30;
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.lineDashOffset = 0;
-        // 内圈漩涡
-        ctx.beginPath();
-        ctx.arc(z.x, z.y, z.r * 0.45, state.time * 2.2, state.time * 2.2 + PI2 * 0.6);
-        ctx.strokeStyle = 'rgba(196,181,253,0.5)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(z.x, z.y, 5 + Math.sin(state.time * 4) * 2, 0, PI2);
-        ctx.fillStyle = 'rgba(196,181,253,0.8)';
+        ctx.arc(z.x + Math.cos(ba) * rr, z.y + Math.sin(ba) * rr - ph * 12, 3 + ph * 5, 0, PI2);
+        ctx.fillStyle = '#a3e635';
         ctx.fill();
       }
+      ctx.globalAlpha = 1;
     }
   }
 
   function drawHazards() {
     for (const h of state.hazards) {
-      const isFire = h.kind === 'fire';
-      const cMain = isFire ? '#fb923c' : '#e7e5e4';
-      const cFill = isFire ? 'rgba(249,115,22,0.10)' : 'rgba(226,232,240,0.08)';
+      if (h.kind !== 'lava') continue;
       if (!h.hit) {
         const prog = clamp(h.t / h.warn, 0, 1);
-        // 预警圈：底色 + 虚线边
         ctx.beginPath();
         ctx.arc(h.x, h.y, h.r, 0, PI2);
-        ctx.fillStyle = cFill;
+        ctx.fillStyle = 'rgba(249,115,22,0.10)';
         ctx.fill();
-        ctx.strokeStyle = cMain;
-        ctx.globalAlpha = 0.8;
+        ctx.strokeStyle = '#fb923c';
+        ctx.globalAlpha = 0.85;
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 5]);
         ctx.stroke();
         ctx.setLineDash([]);
-        // 施法进度环
         ctx.beginPath();
         ctx.arc(h.x, h.y, h.r * 0.55, -Math.PI / 2, -Math.PI / 2 + prog * PI2);
         ctx.lineWidth = 3;
-        ctx.strokeStyle = cMain;
+        ctx.strokeStyle = '#fb923c';
         ctx.stroke();
-        // 火球：从空中坠落（影子随进度逼近落点）
-        if (isFire) {
-          const sr = 4 + 11 * (1 - prog);
-          ctx.beginPath();
-          ctx.arc(h.x, h.y - 140 * (1 - prog), sr, 0, PI2);
-          ctx.fillStyle = '#f97316';
-          ctx.shadowColor = '#fb923c';
-          fxBlur(10);
-          ctx.fill();
-          fxBlur(0);
-        }
+        // 岩浆球从空中坠落
+        const sr = 5 + 13 * (1 - prog);
+        ctx.beginPath();
+        ctx.arc(h.x, h.y - 150 * (1 - prog), sr, 0, PI2);
+        ctx.fillStyle = '#f97316';
+        ctx.shadowColor = '#fb923c'; fxBlur(12);
+        ctx.fill();
+        fxBlur(0);
         ctx.globalAlpha = 1;
       } else {
-        // 爆发闪光
         const k = clamp(h.boomT / 0.35, 0, 1);
         ctx.globalAlpha = k;
         ctx.beginPath();
         ctx.arc(h.x, h.y, h.r * (1.15 - 0.3 * k), 0, PI2);
-        ctx.fillStyle = isFire ? 'rgba(251,146,60,0.55)' : 'rgba(231,229,228,0.5)';
+        ctx.fillStyle = 'rgba(251,146,60,0.55)';
         ctx.fill();
         ctx.globalAlpha = 1;
       }
@@ -894,7 +914,31 @@
     (state.skillFx || []).forEach(fx => {
       if (fx.delay > 0) return;
       const k = clamp(fx.t / fx.dur, 0, 1);
-      if (fx.kind === 'fireballBoom') {
+      if (fx.kind === 'iceShatter') {
+        // 冰柱碎裂：冰蓝冲击环向外扩张 + 放射冰屑
+        ctx.save();
+        const a = 1 - k;
+        const r = fx.r * (0.35 + k * 0.75);
+        ctx.beginPath(); ctx.arc(fx.x, fx.y, r, 0, PI2);
+        ctx.fillStyle = 'rgba(186,230,253,' + (0.22 * a) + ')'; ctx.fill();
+        ctx.strokeStyle = 'rgba(224,242,254,' + a + ')';
+        ctx.lineWidth = 4 * a + 1;
+        ctx.shadowColor = '#bae6fd'; fxBlur(14);
+        ctx.stroke();
+        fxBlur(0);
+        const shards = 10;
+        for (let i = 0; i < shards; i++) {
+          const ang = (i / shards) * PI2 + fx.r;
+          const rr = r * (0.8 + 0.35 * ((i % 3) / 3));
+          const sx = fx.x + Math.cos(ang) * rr, sy = fx.y + Math.sin(ang) * rr;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sx + Math.cos(ang) * (6 * a + 2), sy + Math.sin(ang) * (6 * a + 2));
+          ctx.strokeStyle = 'rgba(255,255,255,' + (0.85 * a) + ')';
+          ctx.lineWidth = 2; ctx.stroke();
+        }
+        ctx.restore();
+      } else if (fx.kind === 'fireballBoom') {
         ctx.save();
         if (fx.ult) {
           // 终极·陨火焚天：前半段坍缩聚光，后半段炸开双层火环 + 放射火星

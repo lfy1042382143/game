@@ -108,24 +108,48 @@
       searchHealPct: 0.4       // 歧路搜寻物资：回复 40% 生命
     },
 
-    // 动态障碍物：随主角移动随机生成/移除；部分伪装成普通掩体的尖刺陷阱
+    // 动态障碍物：随主角移动随机生成/移除；形状按地图主题（forest/root/stone/bone/ice/lava）
     obstacles: {
       cap: 8, spawnEvery: 4,
-      trapChance: 0.22,              // 新生成的障碍物是尖刺陷阱的概率
-      trapDmg0: 6, trapDmgK: 3,      // 陷阱伤害 = dmg0 + dmgK×(分钟-1)，固定值不受防御
-      trigT: 0.8,                    // 触发后尖刺现形的展示时长（秒）
       minDist: 350, maxDist: 720, cullDist: 1150,
-      sizeMin: 46, sizeMax: 88
+      screenMargin: 60,     // 新障碍物至少生成在视口对角线之外（+余量），避免屏幕内凭空出现
+      sizeMin: 46, sizeMax: 88,
+      iceHp: 6,             // 冰柱：被攻击 6 次后碎裂
+      iceShatterR: 96,      // 冰柱碎裂：对周围敌人的范围半径
+      iceShatterDmg0: 22, iceShatterDmgK: 8,  // 碎裂伤害 = dmg0 + dmgK×(分钟-1)
+      lavaWarn: 1.4,        // 熔岩块：靠近累计 1.4 秒后开始灼烧
+      lavaDps: 6,           // 熔岩块灼烧每秒伤害（固定值）
+      boneSpawnCd: 6,       // 骨堆：每 6 秒在附近召唤 1 只骷髅
+      boneSpawnRange: 130   // 骨堆召唤判定范围
     },
 
-    // 地图陷阱：初始地图（深渊洞窟）无陷阱，其余地图各有特色灾害
+    // 地图特色机制：每张地图一种，初始森林无陷阱
     hazards: {
-      swamp:  { count: 5, r: 92, slowMul: 0.5 },                       // 腐雾沼泽：减速泥潭
-      vortex: { count: 4, r: 110, pull: 95 },                          // 虚空回廊：引力裂隙
-      spikes: { every: 3.2, warn: 0.8, r: 70, dmg0: 7, dmgK: 3.5,
-                anchors: 10 },                                          // 荒芜骨林：骨刺突起（10 个固定锚点）
-      fire:   { every: 2.8, warn: 1.1, r: 64, dmg0: 9, dmgK: 4.5,
-                anchors: 12 }                                           // 熔岩裂隙：坠落火球（12 个固定锚点）
+      // 沼泽：不规则毒池，进入获得中毒 debuff（每秒扣血）
+      poison: {
+        cellChance: 0.5, r0: 70, r1: 130,       // 毒池半径随机范围
+        dps: 4, dpsK: 0.8,                      // 每秒伤害 = dps + dpsK×(分钟-1)
+        tick: 0.5,                              // 扣血结算间隔
+        slowMul: 0.82                           // 毒池内轻微减速
+      },
+      // 白骨森林：频繁生成骷髅（无经验、血少、量大）
+      skeleton: {
+        every: 3.2, batch: 3, batchK: 1,        // 每 3.2 秒生成一批，随分钟增加
+        cap: 40,                                // 场上骷髅上限
+        hpMul: 0.35, atkMul: 0.6, speedMul: 1.1,
+        xp: 0                                   // 击杀无经验
+      },
+      // 冰川：不规则冰面区域内惯性滑行（模拟真实冰面很滑）
+      ice: {
+        cellChance: 0.58, r0: 130, r1: 210,    // 冰面区域生成概率与半径范围（不规则多边形）
+        glideTime: 0.62,                        // 松键后滑行时间（秒）——越大越滑
+        steer: 0.32                             // 冰面上转向响应系数（越低越滑、越难急停）
+      },
+      // 火山：天降岩浆
+      lava: {
+        every: 3.0, warn: 0.9, r: 66,
+        dmg0: 10, dmgK: 4                       // 伤害 = dmg0 + dmgK×(分钟-1)
+      }
     },
 
     // 怪物成长曲线：两分钟一档，档内恒定；血量/攻击按档位指数增长（后期与玩家同步变强）
@@ -174,6 +198,9 @@
     // 宝箱怪：血薄攻高的刺客型突袭者
     mimic: { tele: 0.75, dashSpd: 440, dashDur: 0.42, cd: 1.9, crawl: 30, triggerDist: 330, hpMul: 0.8, atkMul: 1.5 },
 
+    // 骷髅兵（白骨森林）：血少量大、无经验，由骨堆与周期机制生成
+    skeleton: { r: 12, speed: 86, atkCd: 1.5, reach: 3, atkMul: 0.6, hpMul: 0.35, defMul: 0.5 },
+
     // BOSS：技能轮换（扇形弹幕 → 全向环射 → 预警冲撞 → 召唤援军），半血进入狂暴
     boss: {
       r: 24, speed: 74, atkMul: 1.3, defMul: 2.5,
@@ -196,21 +223,34 @@
     affixes: { firstAt: 3, every: 2 }
   };
 
-  /* ---------- 地图主题：按等级里程碑解锁（hazard = 特色陷阱，初始地图无） ---------- */
+  /* ---------- 地图主题：按等级里程碑解锁 ----------
+     obType: 障碍物形状（root/stone/bone/ice/lava/null）
+     hazard: 特色机制（poison/skeleton/ice/lava/null）
+  --------------------------------------------------- */
   const MAPS = [
-    { name: '深渊洞窟', floor: '#12121c', grid: 'rgba(255,255,255,0.035)', wall: 'rgba(126,138,180,0.55)', ob: '#1d1e2e', obEdge: 'rgba(126,138,180,0.4)', obInner: 'rgba(126,138,180,0.12)' },
-    { name: '荒芜骨林', hazard: 'spikes', floor: '#16120e', grid: 'rgba(255,235,205,0.04)',  wall: 'rgba(196,164,120,0.5)',  ob: '#241d15', obEdge: 'rgba(196,164,120,0.4)', obInner: 'rgba(196,164,120,0.1)' },
-    { name: '熔岩裂隙', hazard: 'fire',   floor: '#190e0c', grid: 'rgba(255,150,100,0.045)', wall: 'rgba(240,120,90,0.5)',   ob: '#2a1612', obEdge: 'rgba(240,120,90,0.4)',  obInner: 'rgba(240,120,90,0.1)' },
-    { name: '虚空回廊', hazard: 'vortex', floor: '#0d1018', grid: 'rgba(140,160,255,0.04)',  wall: 'rgba(140,160,255,0.45)', ob: '#161a28', obEdge: 'rgba(140,160,255,0.35)', obInner: 'rgba(140,160,255,0.08)' },
-    { name: '腐雾沼泽', hazard: 'swamp',  floor: '#0f1712', grid: 'rgba(140,230,170,0.04)',  wall: 'rgba(120,220,160,0.45)', ob: '#16241b', obEdge: 'rgba(120,220,160,0.35)', obInner: 'rgba(120,220,160,0.08)' }
+    { name: '幽暗森林', theme: 'forest', obType: ['root', 'stone'],
+      floor: '#0e1712', grid: 'rgba(140,200,150,0.035)', wall: 'rgba(110,160,120,0.5)',
+      ob: '#1b2a20', obEdge: 'rgba(110,160,120,0.4)', obInner: 'rgba(110,160,120,0.12)' },
+    { name: '腐毒沼泽', theme: 'swamp', obType: null, hazard: 'poison',
+      floor: '#101a12', grid: 'rgba(160,220,140,0.04)', wall: 'rgba(150,210,130,0.45)',
+      ob: '#18251a', obEdge: 'rgba(150,210,130,0.35)', obInner: 'rgba(150,210,130,0.1)' },
+    { name: '白骨森林', theme: 'bone', obType: ['bone'], hazard: 'skeleton',
+      floor: '#17140f', grid: 'rgba(255,235,205,0.04)', wall: 'rgba(196,164,120,0.5)',
+      ob: '#262019', obEdge: 'rgba(196,164,120,0.4)', obInner: 'rgba(196,164,120,0.1)' },
+    { name: '冰川裂隙', theme: 'ice', obType: ['ice'], hazard: 'ice',
+      floor: '#0e1620', grid: 'rgba(160,210,255,0.045)', wall: 'rgba(150,200,240,0.5)',
+      ob: '#1a2a3a', obEdge: 'rgba(150,210,255,0.45)', obInner: 'rgba(190,230,255,0.14)' },
+    { name: '熔岩火山', theme: 'lava', obType: ['lava'], hazard: 'lava',
+      floor: '#1b0e0b', grid: 'rgba(255,150,100,0.045)', wall: 'rgba(240,120,90,0.5)',
+      ob: '#2d1610', obEdge: 'rgba(240,120,90,0.45)', obInner: 'rgba(255,140,60,0.16)' }
   ];
 
-  /* ---------- 地图陷阱说明（横幅提示用） ---------- */
+  /* ---------- 地图机制说明（横幅提示用） ---------- */
   const HAZ_INFO = {
-    spikes: { name: '骨刺突起', icon: '🦴', desc: '地面不时弹出骨刺，留意白色预警圈' },
-    fire:   { name: '天降火球', icon: '☄️', desc: '火球不定时坠落，及时离开橙色预警圈' },
-    vortex: { name: '引力裂隙', icon: '🌀', desc: '虚空裂隙会把人往中心吸' },
-    swamp:  { name: '减速泥潭', icon: '🫧', desc: '绿色泥潭会拖慢玩家与敌人的脚步' }
+    poison:   { name: '毒沼泽', icon: '☠️', desc: '不规则毒池会使你中毒，持续流失生命' },
+    skeleton: { name: '亡者苏醒', icon: '💀', desc: '骨堆会召唤骷髅，骷髅虽多但击杀无经验' },
+    ice:      { name: '冰面滑行', icon: '❄️', desc: '冰面区域很滑，松键仍会滑行；击碎冰柱会炸伤周围敌人' },
+    lava:     { name: '熔岩地带', icon: '🌋', desc: '熔岩块靠近会灼烧，天上不时有岩浆坠落' }
   };
 
   const RARITY = [

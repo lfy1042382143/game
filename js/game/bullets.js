@@ -24,9 +24,38 @@
   /* =========================================================
      更新
      ========================================================= */
+  /** 冰柱碎裂：对周围敌人造成一次范围伤害 + 冰屑特效 */
+  function shatterIce(o) {
+    const C = CFG.obstacles;
+    const R = C.iceShatterR || 96;
+    const dmg = Math.max(1, Math.round((C.iceShatterDmg0 || 22) + (state.wave - 1) * (C.iceShatterDmgK || 8)));
+    let hit = 0;
+    for (const f of state.foes) {
+      if (f.dead) continue;
+      if (G.dist(o.x, o.y, f.x, f.y) < R + f.r) {
+        dealDamage(state.player, f, dmg, { flat: true, noThorn: true, tag: 'ice' });
+        hit++;
+      }
+    }
+    if (state.skillFx) {
+      state.skillFx.push({ kind: 'iceShatter', x: o.x, y: o.y, r: R, t: 0, dur: 0.42, ult: false });
+    }
+    return hit;
+  }
+
   function hitObstacle(b) {
     for (const o of state.obstacles) {
-      if (circlePoly(b.x, b.y, b.r, o)) return true;
+      if (!circlePoly(b.x, b.y, b.r, o)) continue;
+      // 冰柱：被玩家弹幕击中累积伤害，达到次数后碎裂（移除）+ 炸伤周围敌人
+      if (o.obType === 'ice' && b.side === 'p' && o.hp > 0) {
+        o.hp--;
+        if (o.hp <= 0) {
+          shatterIce(o);
+          const idx = state.obstacles.indexOf(o);
+          if (idx >= 0) state.obstacles.splice(idx, 1);
+        }
+      }
+      return true;
     }
     return false;
   }
@@ -166,5 +195,5 @@
     }
   }
 
-  Object.assign(G, { fireEnemyBullet, updateBullets });
+  Object.assign(G, { fireEnemyBullet, updateBullets, shatterIce });
 })(window.ABYSS = window.ABYSS || {});

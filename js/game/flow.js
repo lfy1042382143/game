@@ -90,12 +90,42 @@
      动态障碍物：随玩家移动周期生成/移除
      ========================================================= */
   function updateObstacles(dt) {
-    // 陷阱现形展示计时衰减
-    for (const o of state.obstacles) {
-      if (o.trap && o.trap.trigT > 0) o.trap.trigT -= dt;
+    const C = CFG.obstacles;
+    const p = state.player;
+    for (let i = state.obstacles.length - 1; i >= 0; i--) {
+      const o = state.obstacles[i];
+      // 冰柱击碎后移除
+      if (o.obType === 'ice' && o.hp <= 0) { state.obstacles.splice(i, 1); continue; }
+      if (!p) continue;
+      const d = G.dist(p.x, p.y, o.x, o.y);
+      // 熔岩块：靠近累计时间后持续灼烧玩家（累积到整数才结算，避免每帧 round 成 1）
+      if (o.obType === 'lava') {
+        if (d < o.r + p.r + 18) {
+          o.touchT = (o.touchT || 0) + dt;
+          if (o.touchT >= C.lavaWarn) {
+            o.burnAcc = (o.burnAcc || 0) + C.lavaDps * dt;
+            if (o.burnAcc >= 1) {
+              const n = Math.floor(o.burnAcc);
+              o.burnAcc -= n;
+              G.dealDamage(null, p, n, { flat: true, noThorn: true });
+            }
+          }
+        } else {
+          o.touchT = Math.max(0, (o.touchT || 0) - dt * 0.5);
+          o.burnAcc = 0;
+        }
+      }
+      // 骨堆：定期在附近召唤骷髅
+      if (o.obType === 'bone') {
+        o.spawnT = (o.spawnT || 0) + dt;
+        if (o.spawnT >= C.boneSpawnCd && d < CFG.terrain.activeRadius) {
+          o.spawnT = 0;
+          if (G.spawnSkeleton) G.spawnSkeleton(o.x, o.y, C.boneSpawnRange);
+        }
+      }
     }
     state.obsT += dt;
-    if (state.obsT >= CFG.obstacles.spawnEvery) {
+    if (state.obsT >= C.spawnEvery) {
       state.obsT = 0;
       G.spawnObstacleNearPlayer();
       G.cullObstacles();

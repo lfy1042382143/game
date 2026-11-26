@@ -19,16 +19,39 @@
     /* ---------- 移动（键盘全速；触屏摇杆支持模拟量缓速走位） ---------- */
     const mv = G.engine.moveVec();
     const mag = Math.hypot(mv.dx, mv.dy);
-    if (mag > 0.01) {
-      const n = G.norm(mv.dx, mv.dy);
-      // 减速泥潭（沼泽地图陷阱）：在泥潭中移动变慢
-      const zslow = G.zoneSlowMul ? G.zoneSlowMul(p.x, p.y) : 1;
-      // 幅度钳制到 1：键盘对角=全速（与旧版一致），摇杆小幅度=按比例缓速
-      // 移速只来自构筑被动
-      const moveBuff = 1 + (p.pasMoveSpeed || 0);
-      const spd = p.speed * Math.min(1, mag) * moveBuff * zslow;
-      p.x += n.x * spd * dt;
-      p.y += n.y * spd * dt;
+    // 毒池减速（沼泽地图）
+    const zslow = G.zoneSlowMul ? G.zoneSlowMul(p.x, p.y) : 1;
+    // 幅度钳制到 1：键盘对角=全速，摇杆小幅度=按比例缓速
+    const moveBuff = 1 + (p.pasMoveSpeed || 0);
+    const spd = p.speed * Math.min(1, mag) * moveBuff * zslow;
+
+    // 冰川：只有站在不规则冰面区域内才有惯性。模拟真实冰面——转向迟钝、松键继续滑。
+    // 离开冰面立刻恢复灵敏操控；仍带一小段残余速度自然衰减，避免"啪"一下停住。
+    const icy = G.onIce && G.onIce(p.x, p.y);
+    if (icy) {
+      const C = CFG.hazards.ice;
+      if (!p.iceVX) p.iceVX = 0;
+      if (!p.iceVY) p.iceVY = 0;
+      const n = mag > 0.01 ? G.norm(mv.dx, mv.dy) : { x: 0, y: 0 };
+      const tvx = n.x * spd, tvy = n.y * spd;
+      const k = mag > 0.01 ? (C.steer || 0.32) : Math.max(0, 1 - dt / (C.glideTime || 0.62));
+      p.iceVX += (tvx - p.iceVX) * k;
+      p.iceVY += (tvy - p.iceVY) * k;
+      p.x += p.iceVX * dt;
+      p.y += p.iceVY * dt;
+    } else {
+      // 非冰面：残余速度快速衰减（约 0.1 秒），保证出冰面后操控恢复跟手
+      const decay = Math.max(0, 1 - dt / 0.1);
+      p.iceVX = (p.iceVX || 0) * decay;
+      p.iceVY = (p.iceVY || 0) * decay;
+      if (mag > 0.01) {
+        const n = G.norm(mv.dx, mv.dy);
+        p.x += n.x * spd * dt + p.iceVX * dt;
+        p.y += n.y * spd * dt + p.iceVY * dt;
+      } else {
+        p.x += p.iceVX * dt;
+        p.y += p.iceVY * dt;
+      }
     }
 
     // 世界边界
@@ -37,19 +60,6 @@
 
     // 障碍物碰撞
     for (const o of state.obstacles) pushOutOfPoly(p, o);
-
-    // 伪装陷阱障碍：靠近时尖刺弹出（伤害固定值、现形后失效）
-    for (const o of state.obstacles) {
-      const t = o.trap;
-      if (!t || !t.armed) continue;
-      if (G.circlePoly(p.x, p.y, p.r + 6, o)) {
-        t.armed = false;
-        t.trigT = CFG.obstacles.trigT;
-        const dmg = Math.round(CFG.obstacles.trapDmg0 + (state.wave - 1) * CFG.obstacles.trapDmgK);
-        G.dealDamage(null, p, dmg, { flat: true, noThorn: true });
-        G.floatText(p, '陷阱!', '#f87171', true);
-      }
-    }
 
     /* ---------- 无敌帧 ---------- */
     if (p.iframes > 0) p.iframes -= dt;

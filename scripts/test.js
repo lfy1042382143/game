@@ -376,7 +376,7 @@ function featureTests() {
   G.gainXp(G.xpNeed(3));
   assert(G.state.player.level === 4, 'T17 升到 4 级', G.state.player.level);
   assert(G.state.mapIdx === 1, 'T17 4 级即解锁第二张地图（降档修复）', G.state.mapIdx);
-  assert(G.MAPS[G.state.mapIdx].name === '荒芜骨林', 'T17 新地图主题生效', G.MAPS[G.state.mapIdx].name);
+  assert(G.MAPS[G.state.mapIdx].name === '腐毒沼泽', 'T17 新地图主题生效', G.MAPS[G.state.mapIdx].name);
 
   // T18 动态障碍物：随移动生成与移除
   reset();
@@ -870,71 +870,95 @@ function featureTests() {
   G.gainXp(10);
   assert(pXp.xp === 14, 'T23c 击杀经验按倍率放大', pXp.xp);
 
-  // T15 地图陷阱系统
-  // T15a 初始地图无陷阱
+  // T15 五张地图机制（全新场景系统）
+  // T15a 初始森林：无机制 + 树根/石头障碍
   reset();
-  assert(G.state.zones.length === 0 && G.state.hazards.length === 0 && G.hazardKind() === null,
-    'T15a 初始地图（深渊洞窟）无陷阱', { zones: G.state.zones.length, kind: G.hazardKind() });
-  // T15a2 岩脉掩体数量（4 条初始，最多 cap=8 条，每脉 3~5 块）
-  assert(G.state.obstacles.length <= 4 * 5 && G.CFG.obstacles.cap === 8,
-    'T15a2 初始岩脉数量受控', { blocks: G.state.obstacles.length, veins: new Set(G.state.obstacles.map(o => o.veinId)).size });
+  assert(G.hazardKind() === null && G.state.zones.length === 0 && G.state.hazards.length === 0,
+    'T15a 初始森林无地图机制', { kind: G.hazardKind() });
+  assert(G.state.obstacles.length > 0 && G.state.obstacles.every(o => ['root','stone'].includes(o.obType)),
+    'T15a 森林障碍物为树根与石头',
+    [...new Set(G.state.obstacles.map(o => o.obType))].join(','));
+  assert(G.MAPS[0].name === '幽暗森林' && G.MAPS[0].obType && G.MAPS[0].obType.length === 2,
+    'T15a 地图配置：森林两种障碍');
 
-  // T15b 熔岩裂隙：火球预警 → 爆发伤害
-  reset();
-  G.switchMap(2);
-  G.ensureTerrainAroundPlayer();      // 无边界地图：陷阱按地块按需生成
-  assert(G.hazardKind() === 'fire', 'T15b 熔岩裂隙陷阱种类为 fire');
-  assert(G.state.hazAnchors.length > 0, 'T15b 玩家附近已生成火球固定锚点', G.state.hazAnchors.length);
-  const f15 = G.makeEnemy(1, 0);
-  G.state.foes.push(f15);
-  const hp15 = f15.hp;
-  G.spawnBurst('fire', 1);
-  const hz = G.state.hazards[0];
-  hz.x = f15.x; hz.y = f15.y; hz.t = hz.warn - 0.05;   // 即将爆发
-  run(0.3);
-  assert(hz.hit && (f15.hp < hp15 || f15.dead), 'T15b 火球爆发命中范围内敌人', { hp15, hp2: f15.hp, hit: hz.hit });
-
-  // T15c 腐雾沼泽：减速泥潭同时影响玩家与敌人
-  reset();
-  G.switchMap(4);
-  G.ensureTerrainAroundPlayer();
-  assert(G.hazardKind() === 'swamp', 'T15c 腐雾沼泽陷阱种类为 swamp');
-  assert(G.state.zones.length > 0, 'T15c 泥潭区域已布置', G.state.zones.length);
-  const psw = G.state.player;
-  G.state.zones = [{ kind: 'swamp', x: psw.x, y: psw.y, r: 92 }];   // 单一泥潭，排除随机相邻区域干扰
-  assert(G.zoneSlowMul(psw.x, psw.y) === G.CFG.hazards.swamp.slowMul, 'T15c 泥潭中的单位被减速');
-  assert(G.zoneSlowMul(psw.x + 500, psw.y) === 1, 'T15c 泥潭外不受影响');
-
-  // T15d 虚空回廊：引力裂隙拉拽单位
-  reset();
-  G.switchMap(3);
-  assert(G.hazardKind() === 'vortex', 'T15d 虚空回廊陷阱种类为 vortex');
-  G.state.zones = [{ kind: 'vortex', x: G.state.player.x, y: G.state.player.y, r: 200 }];
-  const vf = G.makeEnemy(1, 0);
-  vf.type = 'melee';
-  vf.speed = 0;          // 静止敌人：排除追击 AI 干扰，只验证引力
-  vf.x = G.state.player.x + 80; vf.y = G.state.player.y;
-  G.state.foes = [vf];
-  const dv0 = G.dist(vf.x, vf.y, G.state.player.x, G.state.player.y);
-  run(0.5);
-  const dv1 = G.dist(vf.x, vf.y, G.state.player.x, G.state.player.y);
-  assert(dv1 < dv0 - 20, 'T15d 裂隙把敌人拉向中心', { d0: dv0.toFixed(1), d1: dv1.toFixed(1) });
-  // 玩家同样被拉拽
-  const pvx = G.state.player;
-  G.state.foes = [];
-  pvx.x = G.state.player.x + 80; pvx.y = G.state.player.y;
-  const dp0 = G.dist(pvx.x, pvx.y, G.state.zones[0].x, G.state.zones[0].y);
-  run(0.5);
-  const dp1 = G.dist(pvx.x, pvx.y, G.state.zones[0].x, G.state.zones[0].y);
-  assert(dp1 < dp0 - 20, 'T15d 裂隙把玩家拉向中心', { d0: dp0.toFixed(1), d1: dp1.toFixed(1) });
-
-  // T15e 荒芜骨林：骨刺周期生成
+  // T15b 沼泽：无障碍 + 不规则毒池 + 中毒扣血
   reset();
   G.switchMap(1);
-  assert(G.hazardKind() === 'spikes', 'T15e 荒芜骨林陷阱种类为 spikes');
-  G.state.hazT = G.CFG.hazards.spikes.every - 0.01;
+  G.ensureTerrainAroundPlayer();
+  assert(G.hazardKind() === 'poison', 'T15b 沼泽机制为 poison');
+  assert(G.state.obstacles.length === 0, 'T15b 沼泽无障碍物', G.state.obstacles.length);
+  assert(G.state.zones.length > 0 && G.state.zones.every(z => z.pts && z.pts.length >= 6),
+    'T15b 毒池为不规则多边形', G.state.zones.length);
+  // 玩家置于毒池中心，验证中毒扣血
+  const pz = G.state.player;
+  G.state.zones = [{ kind: 'poison', x: pz.x, y: pz.y, r: 90,
+    pts: Array.from({length:8}, (_,i) => ({x:pz.x+Math.cos(i/8*Math.PI*2)*90, y:pz.y+Math.sin(i/8*Math.PI*2)*90})), seed:0.3 }];
+  pz.iframes = 0;
+  const hpz = pz.hp;
+  run(1.2);
+  assert(pz.hp < hpz, 'T15b 毒池内玩家持续掉血', { hp0: hpz, hp1: pz.hp });
+  assert(G.zoneSlowMul(pz.x, pz.y) === G.CFG.hazards.poison.slowMul, 'T15b 毒池内减速');
+  assert(G.zoneSlowMul(pz.x + 600, pz.y) === 1, 'T15b 毒池外无影响');
+
+  // T15c 白骨森林：骨堆障碍 + 骷髅无经验低血 + 频繁生成
+  reset();
+  G.switchMap(2);
+  assert(G.hazardKind() === 'skeleton' && G.state.obstacles.every(o => o.obType === 'bone'),
+    'T15c 白骨森林机制与骨堆障碍');
+  const sk = G.spawnSkeleton(G.state.player.x + 100, G.state.player.y, 130);
+  assert(sk && sk.type === 'skeleton' && sk.xp === 0 && sk.maxHp < G.makeEnemy(1,0).maxHp,
+    'T15c 骷髅无经验且血量低', sk && { hp: sk.maxHp, xp: sk.xp });
+  const skHp0 = sk.hp;
+  G.state.skelT = G.CFG.hazards.skeleton.every - 0.01;
   run(0.2);
-  assert(G.state.hazards.length > 0, 'T15e 骨刺预警圈按周期出现', G.state.hazards.length);
+  assert(G.state.foes.filter(f => f.type === 'skeleton' && !f.dead).length > 1,
+    'T15c 按周期频繁生成骷髅');
+
+  // T15d 冰川：不规则冰面区域（仅区域内惯性）+ 冰柱可击碎 + 碎裂炸伤周围
+  reset();
+  G.switchMap(3);
+  G.ensureTerrainAroundPlayer();
+  assert(G.hazardKind() === 'ice' && G.state.obstacles.every(o => o.obType === 'ice' && o.hp > 0),
+    'T15d 冰川机制与冰柱障碍');
+  const ice = G.state.obstacles[0];
+  const iceHp = ice.hp;
+  assert(iceHp === G.CFG.obstacles.iceHp && iceHp > 1, 'T15d 冰柱有耐久值', iceHp);
+  assert(G.CFG.hazards.ice.glideTime >= 0.5 && G.CFG.hazards.ice.steer <= 0.4,
+    'T15d 冰川惯性足够滑（松键滑行久、转向迟钝）',
+    { glide: G.CFG.hazards.ice.glideTime, steer: G.CFG.hazards.ice.steer });
+  // 不规则冰面：生成的多边形区域，区域内 onIce 为真，区域外为假
+  assert(G.state.zones.length > 0 && G.state.zones.every(z => z.kind === 'ice' && z.pts.length >= 6),
+    'T15d 冰面为不规则多边形区域', G.state.zones.length);
+  const iz = G.state.zones[0];
+  assert(G.onIce(iz.x, iz.y) === true, 'T15d 冰面区域内 onIce 为真');
+  assert(G.onIce(iz.x + 5000, iz.y + 5000) === false, 'T15d 远离冰面 onIce 为假');
+  // 冰柱碎裂：对周围敌人造成伤害
+  reset();
+  G.switchMap(3);
+  const iceOb = G.state.obstacles[0];
+  const nearFoe = G.makeEnemy(1, 0);
+  nearFoe.x = iceOb.x + 10; nearFoe.y = iceOb.y; G.state.foes.push(nearFoe);
+  const foeHpBefore = nearFoe.hp;
+  const hits15d = G.shatterIce(iceOb);
+  assert(hits15d >= 1 && nearFoe.hp < foeHpBefore, 'T15d 冰柱碎裂炸伤周围敌人',
+    { hits: hits15d, hp0: foeHpBefore, hp1: nearFoe.hp });
+
+  // T15e 火山：熔岩块障碍 + 天降岩浆
+  reset();
+  G.switchMap(4);
+  assert(G.hazardKind() === 'lava' && G.state.obstacles.every(o => o.obType === 'lava'),
+    'T15e 火山机制与熔岩块障碍');
+  G.state.hazT = G.CFG.hazards.lava.every - 0.01;
+  run(0.2);
+  assert(G.state.hazards.length > 0 && G.state.hazards.every(h => h.kind === 'lava'),
+    'T15e 岩浆按周期坠落', G.state.hazards.length);
+  const lavaFx = G.state.hazards[0];
+  lavaFx.x = G.state.player.x; lavaFx.y = G.state.player.y;
+  lavaFx.t = lavaFx.warn - 0.05;
+  const hpl = G.state.player.hp;
+  G.state.player.iframes = 0;
+  run(0.3);
+  assert(lavaFx.hit && G.state.player.hp < hpl, 'T15e 岩浆爆发造成伤害', { hp0: hpl, hp1: G.state.player.hp });
 
   // T16 升级卡池混合化：属性/攻击方式/幸运/升级效率每级一同随机出现
   const M16 = G.ATTR_META;
@@ -962,18 +986,40 @@ function featureTests() {
     assert(!xpShown, 'T16a 升级效率满级后不再出现', xpShown);
   }
 
-  // T17 障碍伪装陷阱
+  // T17 障碍物统一骨架：外观表驱动，功能按 obType 独立分支
   reset();
   const p17 = G.state.player;
   p17.iframes = 0;
-  G.state.obstacles = [{ x: p17.x - 20, y: p17.y - 20, w: 40, h: 40, trap: { armed: true, trigT: 0 } }];
+  // 熔岩块靠近灼烧
+  const lavaOb = { x: p17.x, y: p17.y, r: 30, w: 0, h: 0, obType: 'lava', touchT: 99 };
+  G.state.obstacles = [lavaOb];
   const hp17 = p17.hp;
+  run(1.2);
+  assert(p17.hp < hp17, 'T17 熔岩块靠近持续灼烧玩家', { hp0: hp17, hp1: p17.hp });
+  // 骨堆召唤
+  reset();
+  const boneOb = { x: G.state.player.x + 60, y: G.state.player.y, r: 30, w: 0, h: 0, obType: 'bone', spawnT: 99 };
+  G.state.obstacles = [boneOb];
   run(0.2);
-  const t17 = G.state.obstacles[0].trap;
-  assert(!t17.armed && t17.trigT > 0, 'T17 陷阱靠近后触发并现形', t17);
-  assert(p17.hp < hp17, 'T17 陷阱对玩家造成固定伤害', { hp17, hp2: p17.hp });
-  run(1);
-  assert(G.state.obstacles[0].trap.trigT <= 0, 'T17 尖刺现形动画按时结束');
+  assert(G.state.foes.some(f => f.type === 'skeleton'), 'T17 骨堆召唤骷髅');
+  // 屏幕外生成：最小距离 ≥ 视口边缘 + 岩块半径 + 余量（四方向均成立）
+  const soV = G.CFG.viewport;
+  [0, Math.PI / 2, Math.PI, Math.PI * 1.5].forEach(ang => {
+    const need = Math.min((soV.w / 2) / Math.max(1e-6, Math.abs(Math.cos(ang))),
+                          (soV.h / 2) / Math.max(1e-6, Math.abs(Math.sin(ang))))
+                 + G.CFG.obstacles.sizeMax + G.CFG.obstacles.screenMargin;
+    assert(G.screenOutsideDist(ang) >= need - 1e-6,
+      'T17 屏幕外生成距离（角度 ' + Math.round(ang * 180 / Math.PI) + '°）', G.screenOutsideDist(ang));
+  });
+  // 动态生成的岩脉整体落在视口矩形之外
+  reset();
+  const p17b = G.state.player;
+  for (let k = 0; k < 30; k++) G.spawnObstacleNearPlayer();
+  const inView = G.state.obstacles.filter(o => {
+    const dx = Math.abs(o.x - p17b.x), dy = Math.abs(o.y - p17b.y);
+    return dx < soV.w / 2 - o.r && dy < soV.h / 2 - o.r;   // 整块完全在视口内才算违规
+  });
+  assert(inView.length === 0, 'T17 新生成障碍物不在玩家屏幕内', inView.map(o => [Math.round(o.x - p17b.x), Math.round(o.y - p17b.y)]));
 
   // T18 宝箱怪
   reset();
@@ -1060,33 +1106,20 @@ function featureTests() {
   assert(fanned[2].dashing, 'T24b BOSS 第 3 技能：进入冲撞预警', fanned[2]);
   assert(fanned[3].foes >= G.CFG.boss.summonCount, 'T24b BOSS 第 4 技能：召唤援军', fanned[3]);
 
-  // T24c 固定陷阱：地块哈希确定性（同一世界坐标每次生成位置一致）
+  // T24c 地图机制：地块哈希确定性（同一世界坐标每次生成位置一致）
   reset();
-  G.state.mapIdx = 4;                    // 沼泽（zones）
+  G.state.mapIdx = 1;                    // 沼泽（毒池 zones）
   G.setupHazards(); G.ensureTerrainAroundPlayer();
-  const swampZones1 = JSON.stringify(G.state.zones.map(z => [Math.round(z.x), Math.round(z.y), Math.round(z.r)]));
+  const zones1 = JSON.stringify(G.state.zones.map(z => [Math.round(z.x), Math.round(z.y), Math.round(z.r)]));
   G.setupHazards(); G.ensureTerrainAroundPlayer();
-  const swampZones2 = JSON.stringify(G.state.zones.map(z => [Math.round(z.x), Math.round(z.y), Math.round(z.r)]));
-  assert(swampZones1 === swampZones2 && G.state.zones.length > 0, 'T24c 泥潭位置按地块确定性生成', G.state.zones.length);
-  G.state.mapIdx = 2;                    // 熔岩（锚点）
-  G.setupHazards(); G.ensureTerrainAroundPlayer();
-  const anchors1 = JSON.stringify(G.state.hazAnchors.map(a => [Math.round(a.x), Math.round(a.y)]));
-  G.setupHazards(); G.ensureTerrainAroundPlayer();
-  const anchors2 = JSON.stringify(G.state.hazAnchors.map(a => [Math.round(a.x), Math.round(a.y)]));
-  assert(anchors1 === anchors2 && G.state.hazAnchors.length > 0, 'T24c 火球落点锚点按地块确定性生成', G.state.hazAnchors.length);
-  // 无边界地形换入换出：玩家远行后生成全新地块的锚点
+  const zones2 = JSON.stringify(G.state.zones.map(z => [Math.round(z.x), Math.round(z.y), Math.round(z.r)]));
+  assert(zones1 === zones2 && G.state.zones.length > 0, 'T24c 毒池位置按地块确定性生成', G.state.zones.length);
+  // 无边界地形换入换出：玩家远行后生成全新地块
   const px24c = G.state.player.x;
   G.state.player.x += 5000;
-  G.ensureTerrainAroundPlayer();
-  const anchorsFar = JSON.stringify(G.state.hazAnchors.map(a => [Math.round(a.x), Math.round(a.y)]));
-  assert(anchorsFar !== anchors2 && G.state.hazAnchors.length > 0, 'T24c 玩家远行后地形按地块换入换出', G.state.hazAnchors.length);
-  // 爆发按玩家附近锚点顺序轮换
-  const nearAnchors = G.state.hazAnchors.filter(a => G.dist(a.x, a.y, G.state.player.x, G.state.player.y) < G.CFG.terrain.activeRadius);
-  G.state.hazards = [];
-  G.spawnBurst('fire', 1); G.spawnBurst('fire', 1);
-  const firstBurst = [G.state.hazards[0], G.state.hazards[1]];
-  assert(firstBurst[0].x === nearAnchors[0].x && firstBurst[1].x === nearAnchors[1].x,
-    'T24c 爆发落点按附近锚点顺序轮换', { got: firstBurst.map(h => h.x), want: nearAnchors.slice(0, 2).map(a => a.x) });
+  G.setupHazards(); G.ensureTerrainAroundPlayer();
+  const zonesFar = JSON.stringify(G.state.zones.map(z => [Math.round(z.x), Math.round(z.y), Math.round(z.r)]));
+  assert(zonesFar !== zones2 && G.state.zones.length > 0, 'T24c 玩家远行后地形按地块换入换出', G.state.zones.length);
   G.state.player.x = px24c;
 
   // T24d 敌人不与玩家重叠
@@ -1252,7 +1285,7 @@ function featureTests() {
   // T29c 不规则岩脉
   reset();
   const rocks = G.state.obstacles;
-  assert(rocks.length > 0 && rocks.every(o => Array.isArray(o.pts) && o.pts.length >= 5),
+  assert(rocks.length > 0 && rocks.every(o => Array.isArray(o.pts) && o.pts.length >= 4),
     'T29c 障碍物为不规则多边形', rocks.length);
   assert(new Set(rocks.map(o => o.veinId)).size >= 1 && rocks.some(o => o.veinId),
     'T29c 多边形组成岩脉', [...new Set(rocks.map(o => o.veinId))].length);
@@ -1324,12 +1357,12 @@ function featureTests() {
   const t32 = i => G.makeEnemy(1, i).type;
   assert(t32(0) === 'melee' && t32(3) === 'brute' && t32(4) === 'flyer'
     && t32(6) === 'ranged' && t32(8) === 'melee' && t32(9) === 'mage',
-    'T32 敌人分布（近战/重甲/飞行近战/远程5%/法师；轰炸者已删除）',
+    'T32 敌人分布（近战/重甲/飞行近战/远程10%/法师；轰炸者已删除）',
     [0, 3, 4, 6, 8, 9].map(t32).join(','));
-  // 远程占比 5%（idx%20===6，每 20 只 1 只）；轰炸者不再出现
+  // 远程占比 10%（idx%10===6，每 10 只 1 只）；轰炸者不再出现
   const dist200 = Array.from({ length: 200 }, (_, i) => G.makeEnemy(1, i).type);
-  assert(dist200.filter(t => t === 'ranged').length === 10 && dist200.every(t => t !== 'bomber'),
-    'T32 远程怪占比 5% 且无轰炸者',
+  assert(dist200.filter(t => t === 'ranged').length === 20 && dist200.every(t => t !== 'bomber'),
+    'T32 远程怪占比 10% 且无轰炸者',
     { ranged: dist200.filter(t => t === 'ranged').length, bomber: dist200.filter(t => t === 'bomber').length });
   const p32 = G.state.player;
   const mk32 = t => {
@@ -1681,14 +1714,14 @@ function featureTests() {
     p34g.sk.chain.ultNoDecay === true && p34g.sk.shock.ultNoFalloff === true,
     'T34g 作弊码可叠加多把终极（互不覆盖）');
 
-  // ===== T36 远程怪占比 5% + 飞刃终极三层反向刀阵 + 多段伤害 =====
-  // T36a 类型分布：远程 idx%20===6（5%），idx7/8 改刷近战，轰炸者已删除
+  // ===== T36 远程怪占比 10% + 飞刃终极三层反向刀阵 + 多段伤害 =====
+  // T36a 类型分布：远程 idx%10===6（10%），idx7/8 改刷近战，轰炸者已删除
   const dist36 = Array.from({ length: 10 }, (_, i) => G.makeEnemy(1, i).type);
   assert(dist36[6] === 'ranged' && dist36[7] === 'melee' && dist36[8] === 'melee',
-    'T36a idx6远程(idx%20===6)/idx7、idx8近战', dist36.join(','));
+    'T36a idx6远程(idx%10===6)/idx7、idx8近战', dist36.join(','));
   const dist100 = Array.from({ length: 100 }, (_, i) => G.makeEnemy(1, i).type);
-  assert(dist100.filter(t => t === 'ranged').length === 5 && dist100.every(t => t !== 'bomber'),
-    'T36a 远程怪占比 5% 且无轰炸者',
+  assert(dist100.filter(t => t === 'ranged').length === 10 && dist100.every(t => t !== 'bomber'),
+    'T36a 远程怪占比 10% 且无轰炸者',
     { ranged: dist100.filter(t => t === 'ranged').length, bomber: dist100.filter(t => t === 'bomber').length });
 
   // T36b 飞刃终极三层结构：ring 0/1/2 三层，外/内环反向（dir=-1）、半径递增

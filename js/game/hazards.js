@@ -1,43 +1,42 @@
 /* ============================================================
-   游戏层 · hazards.js
-   地图特色陷阱（初始地图「深渊洞窟」无陷阱）：
-   - 荒芜骨林 spikes：骨刺突起，白色预警圈后扎出，伤害范围内的玩家与敌人
-   - 熔岩裂隙 fire  ：火球不定时坠落，橙色预警圈 + 下落影子，落地爆炸
-   - 虚空回廊 vortex：引力裂隙持续把玩家与敌人拉向中心
-   - 腐雾沼泽 swamp ：减速泥潭，玩家与敌人在其中移动变慢
-   灾害伤害为固定值（不受防御影响），尊重玩家无敌帧
+   游戏层 · hazards.js（地图特色机制）
+   - 森林：无机制
+   - 沼泽 poison：不规则毒池，进入中毒（每秒扣血 + 轻微减速）
+   - 白骨森林 skeleton：骨堆召唤 + 频繁刷骷髅（无经验、血少、量大）
+   - 冰川 ice：不规则冰面区域内惯性滑行（速度由 player 读取，区域仅区域内生效）
+   - 火山 lava：天降岩浆（预警 → 爆发）
+   灾害伤害为固定值（不受防御影响），尊重玩家无敌帧。
+   无边界地图：地块哈希 → 位置在世界中固定，随玩家移动换入换出。
    ============================================================ */
 (function (G) {
   'use strict';
 
   const { state, CFG, clamp } = G;
 
-  /** 当前地图的陷阱种类（无则返回 null） */
+  /** 当前地图的机制种类（无则返回 null） */
   function hazardKind() {
     const map = G.MAPS[state.mapIdx % G.MAPS.length];
-    return map.hazard || null;
+    return map && map.hazard ? map.hazard : null;
   }
 
-  /** 地块哈希：同一世界坐标恒定 → 陷阱位置在世界中固定，随玩家移动换入换出 */
+  /** 地块哈希：同一世界坐标恒定 */
   function cellHash(cx, cy, seed) {
     let h = (Math.imul(cx, 374761393) + Math.imul(cy, 668265263) + Math.imul(seed | 0, 2246822519)) >>> 0;
     h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
     return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
   }
 
-  /* =========================================================
-     进入地图 / 开局：重置地块缓存（陷阱由玩家附近按需生成）
-     ========================================================= */
   function setupHazards() {
-    state.hazards = [];     // 临时灾害实例（火球 / 骨刺：预警 → 爆发）
-    state.zones = [];       // 持久区域（泥潭 / 裂隙）
-    state.hazAnchors = [];  // 固定灾害锚点（骨刺 / 火球落点）
-    state.hazCells = {};    // 已生成的地块（key = "cx,cy"，位置在世界坐标中固定）
-    state.hazAnchorIdx = 0;
+    state.hazards = [];     // 临时灾害（岩浆：预警 → 爆发）
+    state.zones = [];       // 持久区域（毒池）
+    state.hazAnchors = [];  // 灾害锚点（供事件/任务选址；由地图机制与障碍同步）
+    state.hazCells = {};    // 已生成地块
     state.hazT = 0;
+    state.skelT = 0;
+    state.hazAnchorIdx = 0;
   }
 
-  /** 按玩家所在位置生成附近地块（无边界地图：远近地块换入换出，位置恒定） */
+  /** 按玩家所在位置生成附近地块（无边界地图：换入换出，位置恒定） */
   function ensureTerrainAroundPlayer() {
     const p = state.player;
     const kind = hazardKind();
@@ -64,60 +63,115 @@
         const x = gx * cell + 0.15 * cell + jx * 0.7 * cell;
         const y = gy * cell + 0.15 * cell + jy * 0.7 * cell;
 
-        if (kind === 'swamp' || kind === 'vortex') {
-          if (chance < 0.62) {
-            state.zones.push({ kind, x, y, r: H.r * (0.8 + jr * 0.4) });
-          }
-        } else if (kind === 'spikes' || kind === 'fire') {
-          if (chance < 0.75) state.hazAnchors.push({ x, y });
-          if (chance < 0.28) {
-            const x2 = gx * cell + 0.2 * cell + jr * 0.6 * cell;
-            const y2 = gy * cell + 0.8 * cell - jx * 0.6 * cell;
-            state.hazAnchors.push({ x: x2, y: y2 });
+        if (kind === 'poison' || kind === 'ice') {
+          if (chance < (H.cellChance || 0.5)) {
+            const r = H.r0 + jr * (H.r1 - H.r0);
+            // 不规则：用 6~9 个扰动半径的顶点构成多边形，边缘带毛刺
+            const n = 6 + Math.floor(jr * 4);
+            const pts = [];
+            for (let i = 0; i < n; i++) {
+              const a = (i / n) * Math.PI * 2 + jx * 0.5;
+              const rr = r * (0.78 + cellHash(gx * 31 + i, gy * 17, mapSeed + 404) * 0.42);
+              pts.push({ x: x + Math.cos(a) * rr, y: y + Math.sin(a) * rr });
+            }
+            state.zones.push({ kind, x, y, r, pts, seed: jr });
           }
         }
+        // skeleton / lava 的机制不需要地块区域：骷髅靠计时生成，岩浆落点直接取玩家附近随机位置。
+        // ice 的不规则冰面区域已按地块哈希生成，惯性仅在这些区域内生效。
       }
     }
 
-    // 远离玩家的区域回收（保持内存与数量稳定）
+    // 远离玩家回收
     const cull2 = T.cullRadius * T.cullRadius;
-    const keep = (a) => (a.x - p.x) * (a.x - p.x) + (a.y - p.y) * (a.y - p.y) < cull2;
+    const keep = (z) => (z.x - p.x) * (z.x - p.x) + (z.y - p.y) * (z.y - p.y) < cull2;
     state.zones = state.zones.filter(keep);
-    state.hazAnchors = state.hazAnchors.filter(keep);
+
+    // 同步灾害锚点：毒池/冰面中心 + 特色障碍物（骨堆/冰柱/熔岩块），供事件与任务选址
+    state.hazAnchors = state.zones.filter(z => z.kind === 'poison' || z.kind === 'ice').map(z => ({ x: z.x, y: z.y }))
+      .concat((state.obstacles || []).filter(o => o.obType && o.obType !== 'root' && o.obType !== 'stone')
+        .map(o => ({ x: o.x, y: o.y })));
   }
 
-  /* =========================================================
-     减速查询：单位是否在减速泥潭中（供玩家与敌人移动调用）
-     ========================================================= */
-  function zoneSlowMul(x, y) {
-    for (const z of state.zones) {
-      if (z.kind === 'swamp' && G.dist(x, y, z.x, z.y) < z.r) {
-        return CFG.hazards.swamp.slowMul;
-      }
+  /** 点是否在多边形内（射线法） */
+  function inPoly(px, py, pts) {
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+      if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
     }
-    return 1;
+    return inside;
   }
 
-  /* =========================================================
-     周期灾害：只在玩家附近的固定锚点轮换生成（远处锚点不触发）
-     ========================================================= */
-  function spawnBurst(kind, minute) {
-    const H = CFG.hazards[kind];
+  /** 查询某点所在的指定类型区域（毒池/冰面） */
+  function zoneAt(x, y, kind) {
+    for (const z of state.zones) {
+      if (z.kind !== kind) continue;
+      if (inPoly(x, y, z.pts)) return z;
+    }
+    return null;
+  }
+
+  /** 查询某点所在的毒池（供移动减速与中毒结算共用） */
+  function poisonZoneAt(x, y) {
+    return zoneAt(x, y, 'poison');
+  }
+
+  /** 查询某点是否在冰面区域内（供玩家移动惯性判定） */
+  function onIce(x, y) {
+    return !!zoneAt(x, y, 'ice');
+  }
+
+  /** 毒池减速：在毒池内轻微减速（玩家与敌人都生效） */
+  function zoneSlowMul(x, y) {
+    const z = poisonZoneAt(x, y);
+    return z ? (CFG.hazards.poison.slowMul || 1) : 1;
+  }
+
+  /** 生成一只骷髅（无经验、血少、量大） */
+  function spawnSkeleton(x, y, range) {
+    const H = CFG.hazards.skeleton;
     const p = state.player;
-    if (!state.hazAnchors.length || !p) return;
-    const near = state.hazAnchors.filter(a => G.dist(a.x, a.y, p.x, p.y) < CFG.terrain.activeRadius);
-    if (!near.length) return;
-    const a = near[state.hazAnchorIdx % near.length];
-    state.hazAnchorIdx++;
+    if (!p || !H) return null;
+    // 场上骷髅上限
+    const alive = state.foes.filter(f => !f.dead && f.type === 'skeleton').length;
+    if (alive >= H.cap) return null;
+    const a = Math.random() * Math.PI * 2;
+    const d = 60 + Math.random() * (range || 130);
+    const minute = state.wave;
+    const boost = 1 + CFG.mon.mapBoost * state.mapIdx;
+    const u = G.makeEnemy(minute, 0, 'skeleton', a);
+    u.x = x + Math.cos(a) * d;
+    u.y = y + Math.sin(a) * d;
+    // 骷髅-specific 数值：血少、攻低、略快、无经验
+    u.maxHp = Math.max(6, Math.round(u.maxHp * H.hpMul * boost));
+    u.hp = u.maxHp;
+    u.atk = Math.max(1, Math.round(u.atk * H.atkMul));
+    u.speed = (u.speed || CFG.melee.speed) * (H.speedMul || 1);
+    u.xp = H.xp || 0;
+    u.name = '骷髅';
+    u.emoji = '💀';
+    state.foes.push(u);
+    return u;
+  }
+
+  /** 天降岩浆：在玩家附近随机落点，预警 → 爆发 */
+  function spawnLava(minute) {
+    const H = CFG.hazards.lava;
+    const p = state.player;
+    if (!p) return;
+    const a = Math.random() * Math.PI * 2;
+    const d = 80 + Math.random() * 260;
     state.hazards.push({
-      kind, x: a.x, y: a.y, r: H.r,
-      t: 0, warn: H.warn, hit: false, boomT: 0,
+      kind: 'lava',
+      x: p.x + Math.cos(a) * d, y: p.y + Math.sin(a) * d,
+      r: H.r, t: 0, warn: H.warn, hit: false, boomT: 0,
       dmg: Math.round(H.dmg0 + (minute - 1) * H.dmgK)
     });
   }
 
   /* =========================================================
-     主更新（由 flow.update 每帧调用）
+     主更新（flow.update 每帧调用）
      ========================================================= */
   function updateHazards(dt) {
     const p = state.player;
@@ -127,39 +181,46 @@
     const H = CFG.hazards;
     const minute = state.wave;
 
-    /* ---- 持久区域：引力裂隙拉拽玩家与敌人 ---- */
-    for (const z of state.zones) {
-      if (z.kind !== 'vortex') continue;
-      const pull = H.vortex.pull;
-      const dx = z.x - p.x, dy = z.y - p.y;
-      const d = Math.sqrt(dx * dx + dy * dy);
-      if (d < z.r && d > 6) {
-        p.x += (dx / d) * pull * dt;
-        p.y += (dy / d) * pull * dt;
-      }
-      for (const f of state.foes) {
-        if (f.dead) continue;
-        const fx = z.x - f.x, fy = z.y - f.y;
-        const fd = Math.sqrt(fx * fx + fy * fy);
-        if (fd < z.r && fd > 6) {
-          f.x += (fx / fd) * pull * dt;
-          f.y += (fy / fd) * pull * dt;
+    /* ---- 毒池：玩家与敌人中毒扣血（按 tick 结算） ---- */
+    if (kind === 'poison') {
+      state.hazT += dt;
+      if (state.hazT >= H.poison.tick) {
+        const dmg = Math.round(H.poison.dps + (minute - 1) * H.poison.dpsK);
+        state.hazT = 0;
+        if (poisonZoneAt(p.x, p.y)) {
+          G.dealDamage(null, p, dmg, { flat: true, noThorn: true });
+          G.floatText(p, '中毒 -' + dmg, '#a3e635');
+        }
+        for (const f of state.foes) {
+          if (f.dead) continue;
+          if (poisonZoneAt(f.x, f.y)) {
+            G.dealDamage(null, f, dmg, { flat: true, noThorn: true });
+            if (f.dead) f.hazardKilled = true;
+          }
         }
       }
     }
 
-    /* ---- 周期灾害生成（骨刺 / 火球）：随分钟逐渐加密 ---- */
-    if (kind === 'spikes' || kind === 'fire') {
-      state.hazT += dt;
-      const conf = H[kind];
-      if (state.hazT >= conf.every) {
-        state.hazT = 0;
-        const n = Math.min(3, 1 + Math.floor((minute - 1) / 3));
-        for (let i = 0; i < n; i++) spawnBurst(kind, minute);
+    /* ---- 白骨森林：频繁刷骷髅 ---- */
+    if (kind === 'skeleton') {
+      state.skelT += dt;
+      if (state.skelT >= H.skeleton.every) {
+        state.skelT = 0;
+        const n = Math.min(4, H.skeleton.batch + Math.floor((minute - 1) / H.skeleton.batchK));
+        for (let i = 0; i < n; i++) spawnSkeleton(p.x, p.y, 340);
       }
     }
 
-    /* ---- 预警 → 爆发结算：命中范围内所有单位 ---- */
+    /* ---- 火山：天降岩浆 ---- */
+    if (kind === 'lava') {
+      state.hazT += dt;
+      if (state.hazT >= H.lava.every) {
+        state.hazT = 0;
+        spawnLava(minute);
+      }
+    }
+
+    /* ---- 预警 → 爆发结算（岩浆） ---- */
     for (let i = state.hazards.length - 1; i >= 0; i--) {
       const h = state.hazards[i];
       h.t += dt;
@@ -173,7 +234,6 @@
           if (f.dead) continue;
           if (G.dist(f.x, f.y, h.x, h.y) < h.r + f.r) {
             G.dealDamage(null, f, h.dmg, { flat: true, noThorn: true });
-            // 地形击杀计入任务清怪进度（守卫/水晶只看 dead 标记），并留标记供展示与测试
             if (f.dead) f.hazardKilled = true;
           }
         }
@@ -185,5 +245,8 @@
     }
   }
 
-  Object.assign(G, { cellHash, hazardKind, setupHazards, ensureTerrainAroundPlayer, zoneSlowMul, updateHazards, spawnBurst });
+  Object.assign(G, {
+    cellHash, hazardKind, setupHazards, ensureTerrainAroundPlayer,
+    zoneSlowMul, poisonZoneAt, zoneAt, onIce, inPoly, spawnSkeleton, spawnLava, updateHazards
+  });
 })(window.ABYSS = window.ABYSS || {});

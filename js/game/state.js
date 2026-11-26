@@ -152,23 +152,42 @@
     return { x: cx, y: cy, pts, r, w: b.w, h: b.h };
   }
 
-  /** 生成一条连绵岩脉：沿随机折线排布 3~5 枚相互重叠的岩块 */
+  /** 当前地图的障碍物类型列表；返回 null 表示该地图无障碍物（沼泽） */
+  function currentObTypes() {
+    const map = G.MAPS[state.mapIdx % G.MAPS.length];
+    return map && map.obType ? map.obType : null;
+  }
+
+  /**
+   * 生成一条障碍脉：沿随机折线排布若干块。
+   * 形状按地图主题变化：森林=树根/石头混合，白骨=骨堆，冰川=冰柱，火山=熔岩块。
+   * 每块带 obType；冰柱额外带 hp（可击碎）。
+   */
   function makeVein(cx, cy) {
     const C = CFG.obstacles;
-    const count = 3 + Math.floor(Math.random() * 3);
+    const types = currentObTypes();
+    if (!types || !types.length) return [];   // 沼泽无障碍物
+    const type = types[Math.floor(Math.random() * types.length)];
+    const isRoot = type === 'root';
+    const count = isRoot ? (2 + Math.floor(Math.random() * 2)) : (1 + Math.floor(Math.random() * 2));
     const baseR = C.sizeMin * 0.55 + Math.random() * (C.sizeMax - C.sizeMin) * 0.3;
     const dir = Math.random() * Math.PI * 2;
-    const curve = (Math.random() - 0.5) * 1.2;
+    const curve = (Math.random() - 0.5) * (isRoot ? 1.6 : 0.6);
     const veinId = 'v' + (state.veinSeq = (state.veinSeq || 0) + 1);
     const out = [];
     let x = cx, y = cy, a = dir;
     for (let i = 0; i < count; i++) {
       const r = baseR * (0.8 + Math.random() * 0.5);
-      const poly = makePoly(x, y, r, 5 + Math.floor(Math.random() * 3));
+      const n = type === 'ice' ? 6 : (type === 'root' ? 4 + Math.floor(Math.random() * 3) : 5 + Math.floor(Math.random() * 3));
+      const poly = makePoly(x, y, r, n);
+      poly.obType = type;
       poly.veinId = veinId;
+      if (type === 'ice') poly.hp = C.iceHp;
+      if (type === 'lava') poly.touchT = 0;
+      if (type === 'bone') poly.spawnT = Math.random() * C.boneSpawnCd;
       out.push(poly);
       a += curve + (Math.random() - 0.5) * 0.5;
-      const step = r * 1.15;   // 略微重叠，形成连绵感
+      const step = r * (isRoot ? 1.35 : 1.6);
       x += Math.cos(a) * step;
       y += Math.sin(a) * step;
     }
@@ -193,30 +212,41 @@
     return state.obstacles.some(o => rectsOverlap(rect, o, 40));
   }
 
-  /** 新岩脉按概率携带尖刺陷阱（外观与普通岩块完全一致，靠近才触发） */
-  function maybeTrap(poly) {
-    const C = CFG.obstacles;
-    if (Math.random() < (C.trapChance || 0)) {
-      poly.trap = { armed: true, trigT: 0 };
-    }
+  /**
+   * 沿方向 a 到视口边缘的距离 + 岩块半径 + 余量。
+   * 玩家恒定位于视口中心，故射线与视口矩形的交点即为屏幕边界；
+   * 生成点取此距离之外，障碍物就不会在屏幕内凭空出现。
+   */
+  function screenOutsideDist(a) {
+    const C = CFG.obstacles, V = CFG.viewport;
+    const hx = V.w / 2, hy = V.h / 2;
+    const ca = Math.abs(Math.cos(a)), sa = Math.abs(Math.sin(a));
+    const tx = ca < 1e-6 ? Infinity : hx / ca;
+    const ty = sa < 1e-6 ? Infinity : hy / sa;
+    return Math.min(tx, ty) + (C.sizeMax || 88) + (C.screenMargin || 60);
   }
 
-  /** 在玩家附近生成 n 条岩脉（无边界地图：不再按世界尺寸满图撒点） */
+  /** 在玩家附近生成 n 条岩脉（无边界地图；生成点一律在视口之外） */
   function spawnObstaclesRandom(n) {
     const W = CFG.world;
     const p = state.player;
     const cx = p ? p.x : W.w / 2;
     const cy = p ? p.y : W.h / 2;
+    const C = CFG.obstacles;
     let made = 0, tries = 0;
-    while (made < n && tries++ < 200) {
+    if (!currentObTypes()) return 0;   // 沼泽等无障碍物地图
+    while (made < n && tries++ < 240) {
       const a = Math.random() * Math.PI * 2;
-      const d = CFG.obstacles.minDist + Math.random() * (CFG.obstacles.maxDist - CFG.obstacles.minDist);
+      const dMin = screenOutsideDist(a);
+      const d = dMin + Math.random() * Math.max(60, C.maxDist - dMin);
       const vx = Math.max(120, Math.min(W.w - 120, cx + Math.cos(a) * d));
       const vy = Math.max(120, Math.min(W.h - 120, cy + Math.sin(a) * d));
+      // 世界边缘 clamp 把生成点拉回屏幕内则放弃本次
+      if (G.dist(cx, cy, vx, vy) < dMin - 1) continue;
       const vein = makeVein(vx, vy);
-      if (p && G.circlePoly(p.x, p.y, 250, vein[0])) continue;
+      if (!vein.length) continue;
       if (polyConflict(vein[0], 40)) continue;
-      vein.forEach(poly => { maybeTrap(poly); state.obstacles.push(poly); });
+      vein.forEach(poly => state.obstacles.push(poly));
       made++;
     }
     return made;
@@ -228,17 +258,21 @@
     const C = CFG.obstacles;
     const p = state.player;
     if (!p || state.obstacles.length >= C.cap * 4) return false;
+    if (!currentObTypes()) return false;   // 无障碍物地图
 
-    for (let tries = 0; tries < 12; tries++) {
+    for (let tries = 0; tries < 16; tries++) {
       const a = Math.random() * Math.PI * 2;
-      const d = C.minDist + Math.random() * (C.maxDist - C.minDist);
+      const dMin = screenOutsideDist(a);
+      const d = dMin + Math.random() * Math.max(60, C.maxDist - dMin);
       const vx = Math.max(120, Math.min(W.w - 120, p.x + Math.cos(a) * d));
       const vy = Math.max(120, Math.min(W.h - 120, p.y + Math.sin(a) * d));
+      // 世界边缘 clamp 把生成点拉回屏幕内则放弃本次
+      if (G.dist(p.x, p.y, vx, vy) < dMin - 1) continue;
       const vein = makeVein(vx, vy);
-      if (G.circlePoly(p.x, p.y, C.minDist * 0.7, vein[0])) continue;
+      if (!vein.length) continue;
       if (state.foes.some(f => !f.dead && G.circlePoly(f.x, f.y, f.r + 50, vein[0]))) continue;
       if (polyConflict(vein[0], 40)) continue;
-      vein.forEach(poly => { maybeTrap(poly); state.obstacles.push(poly); });
+      vein.forEach(poly => state.obstacles.push(poly));
       return true;
     }
     return false;
@@ -258,7 +292,7 @@
 
   Object.assign(G, {
     state, saveBest, makeUnit, makePlayer,
-    spawnObstaclesRandom, spawnObstacleNearPlayer, cullObstacles, rectsOverlap, maybeTrap,
-    makePoly, makeVein, polyConflict
+    spawnObstaclesRandom, spawnObstacleNearPlayer, cullObstacles, rectsOverlap,
+    makePoly, makeVein, polyConflict, screenOutsideDist
   });
 })(window.ABYSS = window.ABYSS || {});

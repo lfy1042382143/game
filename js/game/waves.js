@@ -108,17 +108,17 @@
     const boost = 1 + CFG.mon.mapBoost * state.mapIdx;   // 每张新地图敌人更强
     const riskAtk = eventAtkMul();
 
-    // 类型分布（每 100 只）：近战 45% / 重甲 10% / 飞行近战 20% / 法师 10% / 远程 5%
-    // 远程射手占 5%（idx%20===6，每 20 只 1 只，间隔均匀）；飞行轰炸者已删除
-    // 近战档覆盖 idx 0/1/2/6/7/8（其中 idx%20===6 改刷远程）
+    // 类型分布（每 100 只）：近战 50% / 重甲 10% / 飞行近战 20% / 法师 10% / 远程 10%
+    // 远程射手占 10%（idx%10===6，每 10 只 1 只，间隔均匀）；飞行轰炸者已删除
+    // 近战档覆盖 idx 0/1/2/7/8（其中 idx%10===6 改刷远程）
     // （forceType 用于法师超上限时改刷其他类型）
     const roll = idx % 10;
     const type = forceType || (
-      idx % 20 === 6 ? 'ranged' :
+      idx % 10 === 6 ? 'ranged' :
       roll < 3 ? 'melee' :
       roll < 4 ? 'brute' :
       roll < 6 ? 'flyer' :
-      roll < 9 ? 'melee' :     // 原 ranged(idx6)/bomber(idx8) 档 → 近战
+      roll < 9 ? 'melee' :     // idx7/8 近战（原 bomber 档）
       'mage'
     );
     const cfgT = CFG[type];
