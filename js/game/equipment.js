@@ -1,123 +1,24 @@
 /* ============================================================
-   游戏层 · equipment.js
-   装备实例构建、属性聚合、生命/攻击/防御重算、词条描述
-   （从回合制版本移植，逻辑不变）
+   游戏层 · equipment.js（装备系统已移除 · 精简兼容层）
+   - 装备实例、装备聚合属性(agg.*)、战利品均已删除
+   - 仅保留三维重算：生命/攻击/防御来自基础值 + 构筑被动
+   - 保留 recalc/refresh/startShield/rarOf 等空壳兼容旧调用，避免遗漏处崩溃
    ============================================================ */
 (function (G) {
   'use strict';
 
-  const { CFG, RARITY, SLOTS, ITEM_DEFS, clamp } = G;
+  const { RARITY, clamp } = G;
 
-  function rarOf(idx) { return RARITY[clamp(idx, 0, 4)]; }
+  function rarOf(idx) { return RARITY[clamp(idx, 0, RARITY.length - 1)]; }
 
-  function buildItem(slotKey, defIdx, rarIdx, level) {
-    const def = ITEM_DEFS[slotKey][defIdx];
-    const slot = SLOTS.find(s => s.key === slotKey);
-    const L0 = level - 1;
-    const item = {
-      slot: slotKey,
-      slotName: slot.name,
-      def: def,
-      key: def.k,
-      name: def.name,
-      icon: def.icon,
-      rarity: clamp(rarIdx, 0, 4),
-      level: level,
-      statK: def.stat ? (def.statK || slot.statK) : null,
-      statV: def.stat ? Math.round(def.stat[clamp(rarIdx, 0, 4)] + (def.step || 0) * L0) : 0,
-      eff: def.mk(clamp(rarIdx, 0, 4), L0)
-    };
-    item.c = rarOf(item.rarity).c;
-    return item;
-  }
-
-  function randomItem(slotKey, rarIdx, level) {
-    return buildItem(slotKey, Math.floor(Math.random() * ITEM_DEFS[slotKey].length), rarIdx, level || 1);
-  }
-
-  /** 复制一件装备为独立实例（掉落时用，避免与怪物共享引用） */
-  function cloneItem(it) {
-    return buildItem(it.slot, ITEM_DEFS[it.slot].indexOf(it.def), it.rarity, it.level);
-  }
-
-  /** 现有装备的进阶方向：先强化等级，满级后升华稀有度 */
-  function upgradePath(it) {
-    const defIdx = ITEM_DEFS[it.slot].indexOf(it.def);
-    if (it.level < CFG.forge.maxLevel) {
-      return { kind: 'upgrade', item: buildItem(it.slot, defIdx, it.rarity, it.level + 1) };
-    }
-    if (it.rarity < RARITY.length - 1) {
-      return { kind: 'ascend', item: buildItem(it.slot, defIdx, it.rarity + 1, 1) };
-    }
-    return { kind: 'max', item: it };
-  }
-
-  function itemDesc(item) {
-    const d = item.def.desc(item.eff, item);
-    const statLine = item.statV > 0
-      ? '<em>+' + item.statV + ' ' + { atk: '攻击', def: '防御', hp: '生命' }[item.statK] + '</em>'
-      : '';
-    return statLine ? statLine + '<br>' + d : d;
-  }
-
-  function itemDescText(item) {
-    return itemDesc(item).replace(/<br>/g, '，').replace(/<\/?em>/g, '');
-  }
-
-  function aggregate(items) {
-    const A = {
-      atkFlat: 0, defFlat: 0, hpFlat: 0,
-      bleed: null, crit: 0, critMult: 1.6, frost: 0, thorn: 0,
-      guard: 0, bulwark: 0, haste: 0, hasteDur: 3, regen: 0, swiftstep: 0, pierce: 0,
-      execute: 0, splash: 0, splashR: 90, rend: 0,
-      dodge: 0, shock: 0, shockR: 100, charger: 0,
-      eagle: 0, tough: 0, clarity: 0,
-      hastestone: 0, resonance: 0, greed: 0
-    };
-    items.forEach(it => {
-      if (it.statK === 'atk') A.atkFlat += it.statV;
-      else if (it.statK === 'def') A.defFlat += it.statV;
-      else if (it.statK === 'hp') A.hpFlat += it.statV;
-
-      const e = it.eff;
-      switch (it.key) {
-        case 'bleed':
-          if (!A.bleed || e.dmg > A.bleed.dmg) A.bleed = { dmg: e.dmg, turns: e.turns };
-          break;
-        case 'crit':
-          A.crit = A.crit ? Math.min(A.crit, e.every) : e.every;
-          A.critMult = Math.max(A.critMult, e.mult);
-          break;
-        case 'frost': A.frost = Math.max(A.frost, e.slow); break;
-        case 'thorn': A.thorn += e.dmg; break;
-        case 'guard': A.guard += e.shield; break;
-        case 'bulwark': A.bulwark += e.pct; break;
-        case 'haste': A.haste = Math.max(A.haste, e.pct); A.hasteDur = e.dur; break;
-        case 'regen': A.regen += e.val; break;
-        case 'swiftstep': A.swiftstep += e.pct; break;
-        case 'pierce': A.pierce += e.pct; break;
-        case 'hastestone': A.hastestone = Math.max(A.hastestone, e.pct); break;
-        case 'resonance': A.resonance = Math.max(A.resonance, e.pct); break;
-        case 'greed': A.greed = Math.max(A.greed, e.rar); break;
-        case 'execute': A.execute = Math.max(A.execute, e.pct); break;
-        case 'rend': A.rend = Math.max(A.rend, e.pct); break;
-        case 'splash': A.splash = Math.max(A.splash, e.pct); A.splashR = e.radius; break;
-        case 'dodge': A.dodge = Math.max(A.dodge, e.pct); break;
-        case 'shock': A.shock = Math.max(A.shock, e.dmg); A.shockR = e.radius; break;
-        case 'charger': A.charger = Math.max(A.charger, e.val); break;
-        case 'eagle': A.eagle = Math.max(A.eagle, e.pct); break;
-        case 'tough': A.tough = Math.max(A.tough, e.pct); break;
-        case 'clarity': A.clarity = Math.max(A.clarity, e.pct); break;
-      }
-    });
-    return A;
-  }
-
+  /** 三维重算：只按基础值 + 构筑被动（力量/活力）；防御恒为基础值 */
   function recalc(u) {
     const oldMax = u.maxHp || 0;
-    u.atk = u.baseAtk + u.agg.atkFlat;
-    u.def = u.baseDef + u.agg.defFlat;
-    u.maxHp = u.baseHp + u.agg.hpFlat;
+    const atkMul = u.pasAtkMul || 1;
+    const hpAdd = u.pasHp || 0;
+    u.atk = Math.round(u.baseAtk * atkMul);
+    u.def = u.baseDef;
+    u.maxHp = u.baseHp + hpAdd;
     if (oldMax > 0) {
       if (u.maxHp > oldMax) u.hp += (u.maxHp - oldMax);
       u.hp = Math.min(u.hp, u.maxHp);
@@ -126,20 +27,28 @@
     }
   }
 
+  /** 构筑/属性卡变更后重算（agg 恒为空对象，保留字段兼容） */
   function refresh(u) {
-    u.agg = aggregate(u.items);
+    u.agg = u.agg || {};
     recalc(u);
   }
 
-  function itemAt(u, slotKey) {
-    return u.items.find(i => i.slot === slotKey) || null;
-  }
+  /** 装备护盾已移除：恒返回 0 */
+  function startShield(u) { return 0; }
 
-  /** 开局护盾（壁垒甲）：每波开始时施加 */
-  function startShield(u) {
-    if (!u || !u.agg) return 0;
-    return Math.max(0, Math.round(u.agg.guard));
-  }
+  // 空壳兼容：残留调用不会再抛异常
+  function aggregate() { return {}; }
+  function buildItem() { return null; }
+  function randomItem() { return null; }
+  function cloneItem() { return null; }
+  function upgradePath(it) { return { kind: 'max', item: it }; }
+  function itemDesc() { return ''; }
+  function itemDescText() { return ''; }
+  function itemAt() { return null; }
 
-  Object.assign(G, { rarOf, buildItem, randomItem, cloneItem, upgradePath, itemDesc, itemDescText, aggregate, recalc, refresh, itemAt, startShield });
+  Object.assign(G, {
+    rarOf, recalc, refresh, startShield,
+    aggregate, buildItem, randomItem, cloneItem, upgradePath,
+    itemDesc, itemDescText, itemAt
+  });
 })(window.ABYSS = window.ABYSS || {});

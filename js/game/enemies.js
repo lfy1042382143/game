@@ -51,7 +51,7 @@
 
   /* =========================================================
      类型抗性/弱点乘区：按玩家攻击方式 tag 匹配（arrow/chain/shock/orbit/drone/mine）
-     - 0 = 免疫（飞行系悬空：免疫震荡波与地雷）
+     - 0 = 免疫（飞行系悬空：仍免疫地雷；震荡波对飞行单位改为 ×0.5 半伤）
      - 未列出的 tag 默认 ×1
      ========================================================= */
   const ENEMY_RES = {
@@ -59,8 +59,7 @@
     brute:  { arrow: 0.55, drone: 0.6,  chain: 0.9,  shock: 1.5,  orbit: 1.4,  mine: 1.7 },
     ranged: { arrow: 1.1,  drone: 1.0,  chain: 1.1,  shock: 0.65, orbit: 0.7,  mine: 0.7 },
     mage:   { arrow: 1.0,  drone: 1.0,  chain: 1.3,  shock: 0.85, orbit: 0.75, mine: 0.85 },
-    flyer:  { arrow: 1.15, drone: 1.0,  chain: 1.0,  shock: 0,    orbit: 1.0,  mine: 0 },
-    bomber: { arrow: 0.8,  drone: 1.0,  chain: 1.25, shock: 0,    orbit: 1.0,  mine: 0 }
+    flyer:  { arrow: 1.15, drone: 1.0,  chain: 1.0,  shock: 0.5,  orbit: 1.0,  mine: 0 }
   };
 
   /* =========================================================
@@ -174,11 +173,13 @@
   function tryMeleeHit(e, dt, reach, cd, tgt) {
     tgt = tgt || state.player;
     e.atkCd -= dt;
-    if (!tgt || tgt.dead) return;
+    if (!tgt || tgt.dead) return false;
     if (G.dist(e.x, e.y, tgt.x, tgt.y) < e.r + tgt.r + reach && e.atkCd <= 0) {
       dealDamage(e, tgt, e.atk * G.frenzyMul(e));
       e.atkCd = cd || CFG.melee.atkCd;
+      return true;   // 命中成功（飞行单位据此切换为脱离状态）
     }
+    return false;
   }
 
   /* =========================================================
@@ -196,43 +197,35 @@
     tryMeleeHit(e, dt, T.reach, T.atkCd, p);
   }
 
-  /** 飞行掠袭者：直线俯冲 + 正弦蛇形绕行（难被弹幕命中），近身接触攻击 */
+  /** 飞行掠袭者：俯冲骚扰——贴近打一下，命中后立即全速飞远，到安全距离再俯冲 */
   function updateFlyerMelee(e, dt) {
     const p = G.taskFocus ? G.taskFocus(e) : state.player;
     if (!p) return;
+    const C = CFG.flyer;
     const AD = G.affixDataOf(e);
     const mul = AD && AD.speedMul ? AD.speedMul : 1;
-    const n = G.norm(p.x - e.x, p.y - e.y);
+    const d = G.dist(e.x, e.y, p.x, p.y);
     e.bob = (e.bob || 0) + dt * 4;
+
+    if (e.diveState === 'retreat') {
+      // 脱离：全速远离玩家，蛇形幅度减小以便快速拉开；到安全距离转回逼近
+      const away = G.norm(e.x - p.x, e.y - p.y);
+      const weave = Math.sin(e.bob) * 0.18;
+      moveFlyer(e, G.norm(away.x - away.y * weave, away.y + away.x * weave), dt, mul * C.retreatSpd);
+      if (d >= C.retreatDist) e.diveState = 'approach';
+      // 脱离期间也在走攻击冷却（tryMeleeHit 内部会减 atkCd），确保回来能立刻再打
+      e.atkCd -= dt;
+      return;
+    }
+
+    // 逼近：俯冲 + 正弦蛇形绕行，近身接触攻击；一旦命中切到脱离
+    const n = G.norm(p.x - e.x, p.y - e.y);
     const weave = Math.sin(e.bob) * 0.55;
     moveFlyer(e, G.norm(n.x - n.y * weave, n.y + n.x * weave), dt, mul);
-    tryMeleeHit(e, dt, CFG.flyer.reach, CFG.flyer.atkCd, p);
+    if (tryMeleeHit(e, dt, C.reach, C.atkCd, p)) e.diveState = 'retreat';
   }
 
-  /** 飞行轰炸者：保持距离带环绕，每次射出双弹 */
-  function updateFlyerRanged(e, dt) {
-    const p = G.taskFocus ? G.taskFocus(e) : state.player;
-    if (!p) return;
-    const C = CFG.bomber;
-    const d = G.dist(e.x, e.y, p.x, p.y);
-    const AD = G.affixDataOf(e);
-    let mul = AD && AD.speedMul ? AD.speedMul : 1;
-    let n;
-    if (d > C.keepMax) n = G.norm(p.x - e.x, p.y - e.y);
-    else if (d < C.keepMin) n = G.norm(e.x - p.x, e.y - p.y);
-    else {
-      const perp = { x: (p.y - e.y) * e.strafeDir, y: (e.x - p.x) * e.strafeDir };
-      n = G.norm(perp.x, perp.y);
-      mul *= 0.6;
-    }
-    moveFlyer(e, n, dt, mul);
-
-    e.atkCd -= dt;
-    if (e.atkCd <= 0) {
-      fireSpread(e, p.x, p.y, C.bulletSpeed, 2, 0.3);
-      e.atkCd = C.shootCd;
-    }
-  }
+  /** （飞行轰炸者 bomber 已删除：投弹骚扰型整体移出游戏） */
 
   function updateRanged(e, dt) {
     const p = G.taskFocus ? G.taskFocus(e) : state.player;
@@ -249,15 +242,8 @@
     } else if (d > C.keepMax) {
       n = G.norm(p.x - e.x, p.y - e.y);          // 距离带外：加速靠近
       moveEnemy(e, n, dt, mul * 1.7);
-    } else if (d < C.keepMin) {
-      // 太近：后撤——速度必须明显低于玩家，否则玩家靠近时会感觉敌人"加速暴涨"逃走
-      n = G.norm(e.x - p.x, e.y - p.y);
-      // 后撤速度 = 自身速度 × 0.8，且硬上限为玩家速度的 0.7（迅捷词缀也不豁免）
-      const fleeCap = CFG.player.speed * 0.7;
-      const fleeSpd = Math.min(e.speed * 0.8, fleeCap);
-      moveEnemy(e, n, dt, fleeSpd / e.speed);
     } else {
-      // 距离带内：侧向环绕
+      // 距离带内或过近：一律侧向环绕，不再因玩家贴近而直线后撤（避免"急速后退"观感）
       const perp = { x: (p.y - e.y) * e.strafeDir, y: (e.x - p.x) * e.strafeDir };
       n = G.norm(perp.x, perp.y);
       moveEnemy(e, n, dt, mul * 0.55);
@@ -352,7 +338,7 @@
       a.t += dt;
       if (a.t < a.warn) continue;
 
-      // 爆发：命中玩家；护送任务期间使者处于圈内同样受创
+      // 爆发：命中玩家；解救任务期间囚徒处于圈内同样受创（增加解救紧迫感）
       const p = state.player;
       if (p && !p.dead && G.dist(a.x, a.y, p.x, p.y) < a.r) {
         dealDamage(a.owner, p, a.dmg);
@@ -562,7 +548,6 @@
       if (e.type === 'melee' || e.type === 'brute') updateMelee(e, dt);
       else if (e.type === 'ranged') updateRanged(e, dt);
       else if (e.type === 'flyer') updateFlyerMelee(e, dt);
-      else if (e.type === 'bomber') updateFlyerRanged(e, dt);
       else if (e.type === 'mage') updateMage(e, dt);
       else if (e.type === 'mimic') updateMimic(e, dt);
       else if (e.type === 'boss') updateBoss(e, dt);

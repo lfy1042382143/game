@@ -5,7 +5,7 @@
 (function (G) {
   'use strict';
 
-  const { state, CFG, clamp, circlePoly, dealDamage, applyBleed } = G;
+  const { state, CFG, clamp, circlePoly, dealDamage } = G;
 
   /* =========================================================
      发射
@@ -70,24 +70,6 @@
     return false;
   }
 
-  /** 分裂弹幕：箭矢命中后分裂出更小、更弱的弹幕（不再继续分裂/穿透） */
-  function spawnSplits(p, b) {
-    const n = (p && p.splitN) || 0;
-    if (n <= 0) return;
-    const base = Math.atan2(b.vy, b.vx);
-    const spd = Math.hypot(b.vx, b.vy) || CFG.player.bulletSpeed;
-    for (let i = 0; i < n; i++) {
-      const a = base + (i - (n - 1) / 2) * 0.55 + (Math.random() * 0.2 - 0.1);
-      state.bullets.push({
-        x: b.x, y: b.y,
-        vx: Math.cos(a) * spd * 0.85, vy: Math.sin(a) * spd * 0.85,
-        r: 3, dmg: Math.max(1, Math.round(b.dmg * 0.4)),
-        side: 'p', life: 0.55, owner: p, hit: [],
-        pierceLeft: 0, noSplit: true, color: '#a5f3fc'
-      });
-    }
-  }
-
   function updateBullets(dt) {
     const p = state.player;
     const W = CFG.world;
@@ -129,22 +111,13 @@
         for (const f of state.foes) {
           if (f.dead || b.hit.indexOf(f) >= 0) continue;
           if (G.dist(b.x, b.y, f.x, f.y) < b.r + f.r) {
-            b.hitFoe = true;   // 标记命中过敌人（死亡时触发分裂弹幕）
-            // 贯穿衰减：每次穿透后伤害 ×0.7（首目标全额，后续逐层递减）
-            const falloff = Math.pow(0.7, b.pierceHits || 0);
-            // 输出统计归集：浮游炮子弹 / 玩家箭矢（分裂弹随箭矢）
+            // 贯穿衰减：每次穿透后伤害 ×0.7（首目标全额，后续逐层递减）；终极·贯穿诸天不衰减
+            const falloff = b.ultPierceNoDecay ? 1 : Math.pow(0.7, b.pierceHits || 0);
+            // 输出统计归集：浮游炮子弹 / 玩家箭矢
             const tag = b.skill === 'drone' ? 'drone' : 'arrow';
-            const dealt = dealDamage(p, f, Math.max(1, Math.round(b.dmg * falloff)), { crit: b.crit, tag });
-            // 血刃：命中附加流血（多件只取最强，聚合时已处理）
-            if (dealt > 0 && p.agg.bleed) applyBleed(f, p.agg.bleed);
-            // 霜刃：命中使敌人减速（装备词条，自动生效）
-            const frost = p.agg && p.agg.frost;
-            if (dealt > 0 && frost) {
-              f.slowT = 1.6;
-              f.slowMul = 1 - frost / 100;
-            }
-            // 减速箭（技能卡，可叠加在装备霜刃上，取更强者）
-            if (dealt > 0 && p.cardSlow > 0) {
+            dealDamage(p, f, Math.max(1, Math.round(b.dmg * falloff)), { crit: b.crit, tag });
+            // 减速箭（技能卡）
+            if (p.cardSlow > 0) {
               f.slowT = 1.6;
               const cardMul = 1 - p.cardSlow * 0.18;
               f.slowMul = Math.min(f.slowMul === undefined ? 1 : f.slowMul, cardMul);
@@ -188,9 +161,6 @@
           dead = true;
         }
       }
-
-      // 箭矢命中敌人后消散 → 分裂出小弹幕（分裂弹/浮游炮弹不再分裂）
-      if (dead && b.side === 'p' && b.hitFoe && !b.noSplit) spawnSplits(p, b);
 
       if (dead) state.bullets.splice(i, 1);
     }

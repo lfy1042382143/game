@@ -2,17 +2,21 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d0a16">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>深渊试炼 · Abyss Trial</title>
-<meta name="description" content="实时 2D 俯视角 Roguelike：WASD 走位躲避弹幕，在源源不断的敌人中生存，击杀精英获取装备宝箱。">
+<meta name="description" content="实时 2D 俯视角 Roguelike：WASD 走位躲避弹幕，在源源不断的敌人中生存，击杀精英获取强化宝箱。">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
 
 <!-- 基础与弹窗（复用） -->
-<link rel="stylesheet" href="css/base.css?v=927">
-<link rel="stylesheet" href="css/overlay.css?v=927">
+<link rel="stylesheet" href="css/base.css?v=961">
+<link rel="stylesheet" href="css/overlay.css?v=961">
 <!-- 竞技场与顶栏（新版实时战斗） -->
-<link rel="stylesheet" href="css/arena.css?v=927">
+<link rel="stylesheet" href="css/arena.css?v=961">
 </head>
 <body>
 
@@ -40,6 +44,7 @@
 
     <div class="top-right">
       <span class="record" id="recordBox">最佳 <b id="recordNum">0</b></span>
+      <button class="icon-btn" id="buildBtn" title="构筑总览（移动端入口）">🧩</button>
       <button class="icon-btn" id="soundBtn" title="音效开关">🔊</button>
       <button class="icon-btn" id="restartBtn" title="重新开始（R）">↻</button>
     </div>
@@ -48,7 +53,7 @@
   <div id="stage">
     <canvas id="canvas" width="960" height="600"></canvas>
 
-    <div class="hint" id="hintBar">WASD 移动 · 鼠标瞄准自动射击 · 🦇🦅 飞行免疫震荡波/地雷 · 🗿 重甲怕爆炸弹幕难穿 · 近战怕地雷震荡波 · 远程怕贴脸 · 法师站桩咏唱留意紫色预警圈 · 宝箱怪会直线跳扑 · 每分钟精英掉落强化宝箱 · 小心伪装的障碍物</div>
+    <div class="hint" id="hintBar">WASD 移动 · 鼠标瞄准自动射击 · 🦇 飞行免疫震荡波/地雷 · 🗿 重甲怕爆炸弹幕难穿 · 近战怕地雷震荡波 · 远程怕贴脸 · 法师站桩咏唱留意紫色预警圈 · 宝箱怪会直线跳扑 · 每分钟精英掉落强化宝箱 · 小心伪装的障碍物</div>
   </div>
   </div><!-- /.main-col -->
 
@@ -58,6 +63,21 @@
 
 <div class="banner" id="banner"></div>
 
+<!-- 竖屏提示（仅竖屏窄屏显示，纯 CSS） -->
+<div class="rotate-hint">↻ 横屏体验更佳</div>
+
+<!-- 开局选武器弹窗 -->
+<div class="overlay start-overlay show" id="startOverlay">
+  <div class="panel start-panel">
+    <div class="up-head">
+      <div class="up-kicker">Choose Your Weapon</div>
+      <h1 class="up-title">选择初始武器</h1>
+      <div class="up-sub">任选一种攻击方式开局 · 其余可在升级中解锁 · 点击卡片开始</div>
+    </div>
+    <div class="start-cards" id="startCards"></div>
+  </div>
+</div>
+
 <!-- 升级弹窗（战利品 + 三选一） -->
 <div class="overlay" id="upgradeOverlay">
   <div class="panel">
@@ -66,7 +86,6 @@
       <h1 class="up-title">选择一项强化</h1>
       <div class="up-sub" id="upSub">升级成功 · 提升一项属性</div>
     </div>
-    <div class="loot" id="lootBox"></div>
     <div class="cards" id="cards"></div>
     <div class="cur-stats">
       <span class="cur-item"><i>❤</i> 生命 <b id="curHp">120</b></span>
@@ -87,7 +106,6 @@
       <span class="over-chip">生命<b id="overHp">120</b></span>
       <span class="over-chip">攻击<b id="overAtk">14</b></span>
       <span class="over-chip">防御<b id="overDef">4</b></span>
-      <span class="over-chip">装备<b id="overEq">0</b></span>
     </div>
     <div class="over-kills" id="overKills">击败 0 个敌人</div>
     <div class="over-best" id="overBest">最佳纪录：存活 0 分钟</div>
@@ -109,29 +127,44 @@
   </div>
 </div>
 
+<!-- 构筑总览弹窗（移动端侧栏替代入口） -->
+<div class="overlay" id="buildOverlay">
+  <div class="panel build-panel">
+    <div class="up-head">
+      <div class="up-kicker">Build</div>
+      <h1 class="up-title">构筑总览</h1>
+      <div class="up-sub" id="buildSub">武器 0/5 · 被动 0/5</div>
+    </div>
+    <div class="build-list" id="buildList"></div>
+    <button class="btn btn-again" id="buildClose">继续战斗</button>
+  </div>
+</div>
+
 <!-- ========== 脚本：按依赖顺序加载（经典脚本，file:// 直接可跑） ========== -->
-<script src="js/core/config.js?v=927"></script>
-<script src="js/core/utils.js?v=927"></script>
-<script src="js/core/audio.js?v=927"></script>
-<script src="js/core/engine.js?v=927"></script>
+<script src="js/core/config.js?v=961"></script>
+<script src="js/core/utils.js?v=961"></script>
+<script src="js/core/audio.js?v=961"></script>
+<script src="js/core/engine.js?v=961"></script>
+<script src="js/core/touch.js?v=961"></script>
 
-<script src="js/game/equipment.js?v=927"></script>
-<script src="js/game/skills.js?v=927"></script>
-<script src="js/game/state.js?v=927"></script>
-<script src="js/game/combat.js?v=927"></script>
-<script src="js/game/bullets.js?v=927"></script>
-<script src="js/game/player.js?v=927"></script>
-<script src="js/game/enemies.js?v=927"></script>
-<script src="js/game/waves.js?v=927"></script>
-<script src="js/game/loot.js?v=927"></script>
-<script src="js/game/cards.js?v=927"></script>
-<script src="js/game/events.js?v=927"></script>
-<script src="js/game/hazards.js?v=927"></script>
-<script src="js/game/tasks.js?v=927"></script>
-<script src="js/game/flow.js?v=927"></script>
+<script src="js/game/equipment.js?v=961"></script>
+<script src="js/game/skills.js?v=961"></script>
+<script src="js/game/build.js?v=961"></script>
+<script src="js/game/state.js?v=961"></script>
+<script src="js/game/combat.js?v=961"></script>
+<script src="js/game/bullets.js?v=961"></script>
+<script src="js/game/player.js?v=961"></script>
+<script src="js/game/enemies.js?v=961"></script>
+<script src="js/game/waves.js?v=961"></script>
+<script src="js/game/loot.js?v=961"></script>
+<script src="js/game/cards.js?v=961"></script>
+<script src="js/game/events.js?v=961"></script>
+<script src="js/game/hazards.js?v=961"></script>
+<script src="js/game/tasks.js?v=961"></script>
+<script src="js/game/flow.js?v=961"></script>
 
-<script src="js/ui/ui.js?v=927"></script>
-<script src="js/render/render.js?v=927"></script>
-<script src="js/main.js?v=927"></script>
+<script src="js/ui/ui.js?v=961"></script>
+<script src="js/render/render.js?v=961"></script>
+<script src="js/main.js?v=961"></script>
 </body>
 </html>

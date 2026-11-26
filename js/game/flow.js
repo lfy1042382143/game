@@ -13,7 +13,7 @@
   /* =========================================================
      开局
      ========================================================= */
-  function startRun() {
+  function startRun(startLine) {
     state.wave = 1;
     state.phase = 'play';
     state.paused = false;
@@ -23,23 +23,24 @@
     state.lootSlots = [];
     state.pendingLevelUps = 0;
     state.pendingChestUps = 0;    // 宝箱强化（免费升级选项）待处理数
-    state.pendingRage = false;
-    state.trapFoeHpMul = 1;
-    state.trapFoeAtkMul = 1;
-    state.trapUntil = 0;
+    state.eventFoeAtkMul = 1;
+    state.eventFoeUntil = 0;
+    state.eventPick = false;
     state.floaters = [];
     state.bullets = [];
     state.chests = [];
     state.sites = [];
     state.siteT = 0;
-    state.siteSeq = 0;
+    state.lastEventKey = null;
     state.activeSite = null;
     state.spawnT = 0;
     state.eliteT = 0;
     state.mageAoes = [];
     state.skillFx = [];
     state.mines = [];
-    state.dmgStats = { arrow: 0, chain: 0, shock: 0, orbit: 0, drone: 0, mine: 0 };  // 输出统计
+    state.fireballs = [];
+    state.boomerangs = [];
+    state.dmgStats = { arrow: 0, chain: 0, shock: 0, orbit: 0, drone: 0, mine: 0, fireball: 0, boomerang: 0 };  // 输出统计
     state.task = null;            // 活动任务
     state.taskT = 100;            // 首个任务出现倒计时（秒）
     state.companion = null;       // 护送任务奖励：同伴
@@ -47,7 +48,7 @@
     state.enemyRageT = 0;         // 敌人增伤剩余时间（水晶任务失败惩罚）
     state.mapIdx = 0;
     state.obsT = 0;
-    state.player = G.makePlayer();
+    state.player = G.makePlayer(startLine);
     state.obstacles = [];
     state.foes = [];
     G.spawnObstaclesRandom(4);     // 初始障碍布局
@@ -122,9 +123,8 @@
     const minute = state.wave;
     const enemyIdx = state.kills;   // 词缀轮换用
 
-    // 普通敌人：存活数低于上限时按间隔刷新（缺口大时一次补 2~3 只，快速填场）
-    // 法师是站桩炮台，不计入存活上限（否则会挤占近战/远程的刷新名额），
-    // 但有独立的场上数量上限 mageCap，防止不清理时无限堆积
+    // 普通敌人：对标 VS 成群波次——按当前阶段的批量一次刷一小群，从四周方向涌来
+    // 法师是站桩炮台，不计入存活上限，但有独立 mageCap 防止无限堆积
     const alive = state.foes.filter(f => !f.dead && f.type !== 'mage').length;
     const aliveMages = state.foes.filter(f => !f.dead && f.type === 'mage').length;
     state.spawnT += dt;
@@ -132,13 +132,18 @@
       state.spawnT = 0;
       const deficit = G.aliveCap(minute) - alive;
       if (deficit > 0) {
-        const batch = deficit >= 8 ? 3 : deficit >= 3 ? 2 : 1;
-        for (let i = 0; i < batch && i < deficit; i++) {
+        const [bMin, bMax] = G.spawnBatch(minute);
+        const wanted = bMin + Math.floor(Math.random() * (bMax - bMin + 1));
+        const batch = Math.min(wanted, deficit);
+        const baseAngle = Math.random() * Math.PI * 2;   // 本波的基准方向
+        for (let i = 0; i < batch; i++) {
           const idx = enemyIdx + i;
           const roll = idx % 10;
-          const wouldBeMage = roll >= 8;
+          const wouldBeMage = roll >= 9;   // 法师仅 idx9 档（轰炸者已删除）
           const forceType = wouldBeMage && aliveMages >= CFG.spawn.mageCap ? 'melee' : undefined;
-          state.foes.push(G.makeEnemy(minute, idx, forceType));
+          // 群内每只错开方向，整体分布在玩家四周约 240° 弧段
+          const angle = baseAngle + (i / Math.max(1, batch)) * Math.PI * 1.6;
+          state.foes.push(G.makeEnemy(minute, idx, forceType, angle));
         }
       }
     }
@@ -152,7 +157,7 @@
       state.foes.push(e);
       state.banner = {
         text: boss ? '⚠ 首领来袭' : '⚠ 精英来袭',
-        sub: e.name + ' · 击杀掉落装备宝箱',
+        sub: e.name + ' · 击杀掉落强化宝箱',
         t: 2
       };
       G.sfxBoss();

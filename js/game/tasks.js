@@ -1,7 +1,7 @@
 /* ============================================================
    游戏层 · tasks.js
    定期任务系统（战斗不暂停，每 2.5~3.5 分钟自动开启一个）：
-   - escort  🛡 护送使者：全场普通敌人转攻使者，存活→转为同伴跟随射击；死亡→玩家受罚
+   - escort  ⛓ 解救俘虏：囚徒被 6 守卫围困，清光守卫→囚徒转为同伴；囚徒遇害/超时→玩家受罚
    - defense 💀 怪潮防守：刷怪速度大幅提升，存活到时限→攻击成长
    - crystal 🔮 摧毁水晶：限时摧毁全部召唤水晶→全局冷却强化；失败→敌人短暂增伤
    - stars   ✦ 流星采集：限时收集流星（无惩罚）
@@ -59,6 +59,23 @@
     return { x: p.x + minD, y: p.y };
   }
 
+  /** 解救俘虏：有地形时优先落在灾害锚点附近，鼓励把守卫引进火球/骨刺 */
+  function spotForEscort() {
+    const p = state.player;
+    const A = CFG.world;
+    const anchors = (state.hazAnchors || []).concat((state.zones || []).map(z => ({ x: z.x, y: z.y })))
+      .filter(a => {
+        const d = G.dist(a.x, a.y, p.x, p.y);
+        return d > 130 && d < 420 && a.x > 60 && a.x < A.w - 60 && a.y > 60 && a.y < A.h - 60;
+      });
+    if (anchors.length && Math.random() < 0.7) {
+      const a = anchors[Math.floor(Math.random() * anchors.length)];
+      return { x: a.x, y: a.y, nearHazard: true };
+    }
+    const s = spotNearPlayer(120, 200);
+    return { x: s.x, y: s.y, nearHazard: false };
+  }
+
   /* =========================================================
      任务开启
      ========================================================= */
@@ -67,17 +84,39 @@
     if (!p || state.task) return;
 
     if (kind === 'escort') {
-      const spot = spotNearPlayer(120, 200);
+      // 解救俘虏：囚徒被 6 名守卫围困，杀光守卫即解救成功（清怪解救，无读条）
+      const spot = spotForEscort();
       const npc = G.makeUnit({
-        hp: Math.round(G.curveHp(state.wave) * 14),
+        hp: Math.round(G.curveHp(state.wave) * 12),
         atk: 0, def: 5,
         x: spot.x, y: spot.y, r: 14,
-        type: 'npc', name: '使者', emoji: '🧝'
+        type: 'npc', name: '囚徒', emoji: '🧝'
       });
       npc.noKill = true;              // 死亡不计入击杀/经验
-      npc.npcMul = 0.25;              // 被围攻时伤害减免，保证任务可完成
-      state.task = { kind, npc, time: ESCORT_TIME, total: ESCORT_TIME };
-      state.banner = { text: '🛡 护送任务', sub: '敌人正在扑向使者 · 保护他 ' + ESCORT_TIME + ' 秒！', t: 2.6 };
+      npc.npcMul = 0.35;              // 被守卫攻击时伤害减免，保证任务可完成
+      npc.captive = true;             // 被囚禁：不移动，等待解救
+      // 6 名守卫环绕囚徒（近战为主，保证玩家能快速清场）
+      const guards = [];
+      const A = CFG.world;
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + Math.random() * 0.3;
+        const d = 78 + Math.random() * 26;
+        const g = G.makeEnemy(state.wave, i, i % 3 === 2 ? 'brute' : 'melee');
+        g.x = Math.max(40, Math.min(A.w - 40, spot.x + Math.cos(a) * d));
+        g.y = Math.max(40, Math.min(A.h - 40, spot.y + Math.sin(a) * d));
+        g.guard = true;               // 标记为守卫，玩家击杀后计入解救进度
+        g.guardOf = npc;
+        guards.push(g);
+        state.foes.push(g);
+      }
+      state.task = { kind, npc, guards, nearHazard: spot.nearHazard, time: ESCORT_TIME, total: ESCORT_TIME };
+      state.banner = {
+        text: '⛓ 解救俘虏',
+        sub: spot.nearHazard
+          ? '击杀守卫救出囚徒 · 把守卫引进地形陷阱里更快'
+          : '击杀守卫救出囚徒 · 救出后成为同伴（' + ESCORT_TIME + ' 秒内）',
+        t: 2.6
+      };
       G.sfxBoss();
     } else if (kind === 'defense') {
       state.task = { kind, time: DEFENSE_TIME, total: DEFENSE_TIME };
@@ -116,18 +155,20 @@
      ========================================================= */
   function updateActiveTask(t, dt) {
     if (t.kind === 'escort') {
-      // 使者死亡 → 失败惩罚
-      if (!t.npc || t.npc.dead) { failTask('使者倒下了'); return; }
-      if (t.time <= 0) {
-        // 成功：使者转为同伴跟随玩家
+      // 解救俘虏：囚徒死亡 → 失败；守卫全灭 → 解救成功转同伴；超时 → 失败
+      if (!t.npc || t.npc.dead) { failTask('囚徒遇害了'); return; }
+      const guardsLeft = (t.guards || []).filter(g => !g.dead).length;
+      if (guardsLeft === 0) {
         state.companion = {
           x: t.npc.x, y: t.npc.y, r: 12,
           hp: t.npc.hp, maxHp: t.npc.maxHp,
           type: 'companion', name: '同伴', emoji: '🧝',
-          flashT: 0, iframes: 0, shield: 0, def: 0, agg: null, dead: false, noKill: true, npcMul: 0.5,
+          flashT: 0, iframes: 0, shield: 0, def: 0, agg: {}, dead: false, noKill: true, npcMul: 0.5,
           atkCd: 0
         };
-        succeedTask('使者安全抵达 · 转为同伴并肩作战！');
+        succeedTask('囚徒已解救 · 转为同伴并肩作战！');
+      } else if (t.time <= 0) {
+        failTask('未能在时限内救出囚徒');
       }
     } else if (t.kind === 'defense') {
       if (t.time <= 0) {
@@ -207,15 +248,11 @@
   }
 
   /* =========================================================
-     敌人索敌焦点：护送期间普通敌人转攻使者
-     （精英/BOSS/宝箱怪/水晶仍追玩家）
+     敌人索敌焦点：解救俘虏任务中守卫追玩家（玩家须清怪救人）
+     —— 囚徒站桩被囚禁，不再让敌人转攻它；守卫全部扑向玩家
      ========================================================= */
   function taskFocus(e) {
-    const t = state.task;
-    if (t && t.kind === 'escort' && t.npc && !t.npc.dead && e && !e.elite &&
-        e.type !== 'boss' && e.type !== 'mimic' && e.type !== 'crystal') {
-      return t.npc;
-    }
+    // 解救任务：所有敌人（含守卫）均追玩家，玩家清光守卫即解救成功
     return state.player;
   }
 

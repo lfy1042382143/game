@@ -8,8 +8,7 @@
   const { state, CFG, clamp, pushOutOfPoly } = G;
 
   function effAtkCd(p) {
-    const haste = (p.agg && p.agg.hastestone) || 0;   // 迅捷符：射击间隔缩短
-    return Math.max(0.18, CFG.player.atkCd * p.atkCdMul * (1 - haste / 100));
+    return Math.max(0.18, CFG.player.atkCd * p.atkCdMul);
   }
 
   function updatePlayer(dt) {
@@ -17,14 +16,17 @@
     if (!p || p.dead) return;
     const W = CFG.world;
 
-    /* ---------- 移动 ---------- */
+    /* ---------- 移动（键盘全速；触屏摇杆支持模拟量缓速走位） ---------- */
     const mv = G.engine.moveVec();
-    if (mv.dx || mv.dy) {
+    const mag = Math.hypot(mv.dx, mv.dy);
+    if (mag > 0.01) {
       const n = G.norm(mv.dx, mv.dy);
       // 减速泥潭（沼泽地图陷阱）：在泥潭中移动变慢
       const zslow = G.zoneSlowMul ? G.zoneSlowMul(p.x, p.y) : 1;
-      const haste = p.hasteT > 0 ? (1 + clamp(p.agg && p.agg.haste ? p.agg.haste : 0, 0, 100) / 100) : 1;
-      const spd = p.speed * (1 + clamp(p.agg.swiftstep, 0, 40) / 100) * haste * zslow;
+      // 幅度钳制到 1：键盘对角=全速（与旧版一致），摇杆小幅度=按比例缓速
+      // 移速只来自构筑被动
+      const moveBuff = 1 + (p.pasMoveSpeed || 0);
+      const spd = p.speed * Math.min(1, mag) * moveBuff * zslow;
       p.x += n.x * spd * dt;
       p.y += n.y * spd * dt;
     }
@@ -51,24 +53,6 @@
 
     /* ---------- 无敌帧 ---------- */
     if (p.iframes > 0) p.iframes -= dt;
-    if (p.hasteT > 0) p.hasteT -= dt;   // 回响头盔受击加速剩余时间
-
-    /* ---------- 蓄能甲：脱战 3 秒后回盾（上限 60） ---------- */
-    if (p.agg && p.agg.charger > 0) {
-      if (p.hurtT > 0) p.hurtT -= dt;
-      else if (p.shield < 60) p.shield = Math.min(60, p.shield + p.agg.charger * dt);
-    }
-
-    /* ---------- 再生头环：每秒回复固定生命 ---------- */
-    if (p.agg && p.agg.regen > 0 && p.hp < p.maxHp) {
-      const before = p.hp;
-      p.hp = Math.min(p.maxHp, p.hp + p.agg.regen * dt);
-      p.regenAcc = (p.regenAcc || 0) + (p.hp - before);
-      if (p.regenAcc >= 5) {   // 每 5 点显示一次提示，避免刷屏
-        G.floatText(p, '+' + Math.round(p.regenAcc), '#86efac');
-        p.regenAcc = 0;
-      }
-    }
 
     /* ---------- 护盾生成（护盾生成卡）：每 shieldEvery 秒获得护盾 ---------- */
     if (p.shieldEvery > 0) {
@@ -82,12 +66,14 @@
       }
     }
 
-    /* ---------- 持续射击 ---------- */
-    p.atkT -= dt;
-    if (p.atkT <= 0) {
-      // 无论是否有敌人都在攻击间隔到点时持续开火（朝鼠标方向；无鼠标时兜底最近敌人）
-      fireVolley(p);
-      p.atkT = effAtkCd(p);
+    /* ---------- 持续射击（仅箭矢线解锁后） ---------- */
+    if (p.skills && p.skills.arrow) {
+      p.atkT -= dt;
+      if (p.atkT <= 0) {
+        // 无论是否有敌人都在攻击间隔到点时持续开火（朝鼠标方向；无鼠标时兜底最近敌人）
+        fireVolley(p);
+        p.atkT = effAtkCd(p);
+      }
     }
 
     /* ---------- 环绕飞刃 ---------- */
@@ -121,19 +107,10 @@
     p.strikes++;
     let crit = false;
     let mult = 1;
-    // 装备暴击节拍（裂风刃）
-    if (p.agg.crit > 0 && p.strikes % p.agg.crit === 0) {
-      crit = true;
-      mult = p.agg.critMult;
-    }
-    // 卡片暴击节拍（暴击节奏）：与装备节拍独立判定，倍率取更高
+    // 卡片暴击节拍（暴击节奏）
     if (p.critEvery > 0 && p.strikes % p.critEvery === 0) {
       crit = true;
       mult = Math.max(mult, p.critMult);
-    }
-    // 鹰眼盔：暴击伤害加成
-    if (crit && p.agg && p.agg.eagle > 0) {
-      mult *= 1 + p.agg.eagle / 100;
     }
 
     const bSpd = CFG.player.bulletSpeed * p.bulletSpeedMul;
@@ -141,7 +118,8 @@
     const baseA = Math.atan2(aim.y - p.y, aim.x - p.x);
 
     const n = p.shots;
-    const life = p.range / bSpd;   // 箭矢飞满射程即消失
+    // 箭矢飞满射程即消失；终极·贯穿诸天用专属乘数放大攻击范围，不影响全局 p.range
+    const life = p.range * (p.arrowRangeMul || 1) / bSpd;
     for (let i = 0; i < n; i++) {
       const a = baseA + (i - (n - 1) / 2) * 0.16;
       const v = { x: Math.cos(a), y: Math.sin(a) };
@@ -151,6 +129,7 @@
         r: 5, dmg: p.atk * mult * p.shotDmgMul, crit,
         side: 'p', life, owner: p,
         pierceLeft: p.pierce,
+        ultPierceNoDecay: !!p.ultPierceNoDecay,   // 终极·贯穿诸天：穿透不衰减
         hit: []
       });
     }
@@ -162,18 +141,47 @@
      ========================================================= */
   const ORBIT_CD = 0.45;
 
+  /**
+   * 飞刃对某敌人的命中判定半径。
+   * 飞行单位（flyer）体型小(r≈11)、移速快且做蛇形机动，贴身骚扰时飞刃外圈很难扫到，
+   * 因此对飞行单位额外放大判定——让飞刃真正起到「保护玩家不被贴身怪骚扰」的作用。
+   */
+  function orbitHitRadiusFor(p, f) {
+    let r = (p.orbitHitRadius || 14) + f.r;
+    if (f.fly) r += (p.orbitHitRadius || 14) * 0.8 + 10;   // 飞行单位：判定半径约翻倍再 +10
+    return r;
+  }
+
   function updateOrbitBlades(p, dt) {
     if (!p.orbits) return;
     const blades = orbitPositions(p);
+    const triple = !!p.orbitTriple;
 
     for (const f of state.foes) {
       if (f.dead) continue;
-      if (f.orbitCd > 0) { f.orbitCd -= dt; continue; }
+      const reach = orbitHitRadiusFor(p, f);
+      if (!triple) {
+        // 普通飞刃：单环，每个敌人一个命中冷却
+        if (f.orbitCd > 0) { f.orbitCd -= dt; continue; }
+        for (const b of blades) {
+          if (G.dist(b.x, b.y, f.x, f.y) < reach) {
+            G.dealDamage(p, f, p.atk * p.orbitDmgMul, { tag: 'orbit' });
+            f.orbitCd = ORBIT_CD;
+            break;
+          }
+        }
+        continue;
+      }
+      // 终极三层刀阵：每层独立冷却，同一敌人每 0.45s 最多吃三段（每层各一段）
+      if (!f.orbitRingCd || f.orbitRingCd.length < 3) f.orbitRingCd = [0, 0, 0];
+      for (let r = 0; r < 3; r++) if (f.orbitRingCd[r] > 0) f.orbitRingCd[r] -= dt;
       for (const b of blades) {
-        if (G.dist(b.x, b.y, f.x, f.y) < 14 + f.r) {
+        const ring = b.ring || 0;
+        if (f.orbitRingCd[ring] > 0) continue;
+        if (G.dist(b.x, b.y, f.x, f.y) < reach) {
           G.dealDamage(p, f, p.atk * p.orbitDmgMul, { tag: 'orbit' });
-          f.orbitCd = ORBIT_CD;
-          break;
+          f.orbitRingCd[ring] = ORBIT_CD;
+          // 不 break：三层可在同一帧各命中一次，形成多段
         }
       }
     }
@@ -181,27 +189,38 @@
 
   function orbitPositions(p) {
     const out = [];
-    const n = p.orbits;
     const R = p.orbitR || 64;
     const spd = p.orbitSpd || 2.6;
-    if (p.orbitDual) {
-      // 双层：外圈 + 内圈各 6 枚
-      for (let i = 0; i < n; i++) {
-        const outer = i < n / 2;
-        const idx = outer ? i : i - n / 2;
-        const cnt = n / 2;
-        const rr = outer ? R : R * 0.55;
-        const a = state.time * spd * (outer ? 1 : -1.35) + (idx / cnt) * Math.PI * 2;
-        out.push({ x: p.x + Math.cos(a) * rr, y: p.y + Math.sin(a) * rr });
+    if (p.orbitTriple) {
+      // 终极·无尽刃环：三层反向刀阵
+      // 主环(ring0) 约半数刀刃正转；外环(ring1)/内环(ring2) 数量较少、反向旋转
+      // 17 枚 → 主 9 / 外 4 / 内 4；每层带 ring 与 dir 供命中冷却与渲染使用
+      const n = p.orbits;
+      const nMain = Math.round(n * 0.5), nOuter = Math.round(n * 0.25);
+      const layers = [
+        { ring: 0, cnt: nMain,                 rr: R,          dir:  1, mul: 1.0  },
+        { ring: 1, cnt: nOuter,                rr: R * 1.32,   dir: -1, mul: 0.72 },
+        { ring: 2, cnt: n - nMain - nOuter,    rr: R * 0.5,    dir: -1, mul: 1.45 }
+      ];
+      for (const L of layers) {
+        if (L.cnt <= 0) continue;
+        for (let i = 0; i < L.cnt; i++) {
+          const a = state.time * spd * L.mul * L.dir + (i / L.cnt) * Math.PI * 2;
+          out.push({
+            x: p.x + Math.cos(a) * L.rr, y: p.y + Math.sin(a) * L.rr,
+            ring: L.ring, dir: L.dir
+          });
+        }
       }
       return out;
     }
+    const n = p.orbits;
     for (let i = 0; i < n; i++) {
       const a = state.time * spd + (i / n) * Math.PI * 2;
-      out.push({ x: p.x + Math.cos(a) * R, y: p.y + Math.sin(a) * R });
+      out.push({ x: p.x + Math.cos(a) * R, y: p.y + Math.sin(a) * R, ring: 0, dir: 1 });
     }
     return out;
   }
 
-  Object.assign(G, { updatePlayer, nearestFoe, fireVolley, orbitPositions, effAtkCd });
+  Object.assign(G, { updatePlayer, nearestFoe, fireVolley, orbitPositions, updateOrbitBlades, orbitHitRadiusFor, effAtkCd });
 })(window.ABYSS = window.ABYSS || {});

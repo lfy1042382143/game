@@ -15,8 +15,12 @@ body {
   background: #08060c;
   color: #e9e6f2;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;      /* iOS 长按不弹系统菜单 */
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
+  touch-action: manipulation;       /* 双击不缩放；摇杆区域另行关闭手势 */
+  overscroll-behavior: none;        /* 顶部/底部不橡皮筋 */
 }
 
 /* ---------- 背景 ---------- */

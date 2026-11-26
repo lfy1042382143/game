@@ -12,11 +12,13 @@
 
   function initDom() {
     [
-      'canvas', 'waveNum', 'lvNum', 'xpFill', 'mapName', 'recordNum', 'soundBtn', 'restartBtn',
-      'statHp', 'statAtk', 'statDef', 'eqRow', 'hintBar', 'eqSide', 'dmgSide',
-      'upgradeOverlay', 'upSub', 'lootBox', 'cards', 'curHp', 'curAtk', 'curDef', 'eqPanel',
+      'canvas', 'waveNum', 'lvNum', 'xpFill', 'mapName', 'recordNum', 'soundBtn', 'restartBtn', 'buildBtn',
+      'statHp', 'statAtk', 'statDef', 'hintBar', 'eqSide', 'dmgSide',
+      'startOverlay', 'startCards',
+      'upgradeOverlay', 'upSub', 'cards', 'curHp', 'curAtk', 'curDef',
       'eventOverlay', 'eventIcon', 'eventTitle', 'eventText', 'eventOpts',
-      'overOverlay', 'overWave', 'overKiller', 'overHp', 'overAtk', 'overDef', 'overEq', 'overKills', 'overBest', 'againBtn', 'overDmg'
+      'buildOverlay', 'buildSub', 'buildList', 'buildClose',
+      'overOverlay', 'overWave', 'overKiller', 'overHp', 'overAtk', 'overDef', 'overKills', 'overBest', 'againBtn', 'overDmg'
     ].forEach(id => { el[id] = G.$(id); });
 
     G.el = el;
@@ -33,7 +35,7 @@
     const need = G.xpNeed(p.level);
     const snap = [
       state.wave, Math.round(p.hp), Math.round(p.maxHp),
-      Math.round(p.atk), Math.round(p.def), p.items.length,
+      Math.round(p.atk), Math.round(p.def),
       p.level, Math.round(p.xp), state.mapIdx
     ].join('|');
     if (snap === lastSnap) return;
@@ -63,16 +65,22 @@
   /** 每条线的实时参数摘要（一行小字，随维度变化） */
   function lineSummary(k, p) {
     const s = p.sk;
+    const isUlt = !!(p.evolved && p.evolved[k]);
+    const ultTag = (isUlt && G.ULT && G.ULT[k])
+      ? ' <b style="color:#fbbf24">★' + G.ULT[k].name + '</b>' : '';
+    let txt = '';
     switch (k) {
-      case 'arrow': return p.shots + ' 支/轮 · ' + (G.CFG.player.atkCd * p.atkCdMul).toFixed(2) + 's/发' +
-        (p.pierce ? ' · 穿透' + p.pierce : '') + (p.bounce ? ' · 弹射' + p.bounce : '') + (p.splitN ? ' · 分裂×' + p.splitN : '');
-      case 'chain': return s.chain.mult.toFixed(2) + '× 伤害 · ' + s.chain.cd.toFixed(1) + 's · ' + s.chain.jumps + ' 跳 · ' + s.chain.bolts + ' 道';
-      case 'shock': return s.shock.mult.toFixed(2) + '× · 半径 ' + Math.round(s.shock.r) + ' · ' + s.shock.cd.toFixed(1) + 's' + (s.shock.echo ? ' · 次级×' + s.shock.echo : '');
-      case 'orbit': return s.orbit.count + ' 枚 · 每 ' + s.orbit.interval.toFixed(1) + 's 展开 ' + s.orbit.dur.toFixed(1) + 's · 半径 ' + Math.round(s.orbit.r);
-      case 'drone': return s.drone.count + ' 座 · ' + s.drone.mult.toFixed(2) + '× · 存活 ' + s.drone.life.toFixed(1) + 's · 每 ' + s.drone.interval.toFixed(1) + 's 部署';
-      case 'mine': return s.mine.count + ' 枚 · ' + s.mine.mult.toFixed(2) + '× · 每 ' + s.mine.cd.toFixed(1) + 's · 半径 ' + Math.round(s.mine.r);
+      case 'arrow': txt = p.shots + ' 支/轮 · ' + (G.CFG.player.atkCd * p.atkCdMul).toFixed(2) + 's/发' +
+        (p.pierce ? ' · 穿透' + p.pierce : '') + (p.bounce ? ' · 弹射' + p.bounce : ''); break;
+      case 'chain': txt = s.chain.mult.toFixed(2) + '× 伤害 · ' + s.chain.cd.toFixed(1) + 's · ' + s.chain.jumps + ' 跳 · ' + s.chain.bolts + ' 道'; break;
+      case 'shock': txt = s.shock.mult.toFixed(2) + '× · 半径 ' + Math.round(s.shock.r) + ' · ' + s.shock.cd.toFixed(1) + 's' + (s.shock.echo ? ' · 次级×' + s.shock.echo : ''); break;
+      case 'orbit': txt = s.orbit.count + ' 枚 · ' + (s.orbit.ultPersistent ? '<b style="color:#fbbf24">常驻</b>' : '每 ' + s.orbit.interval.toFixed(1) + 's 展开 ' + s.orbit.dur.toFixed(1) + 's') + ' · 半径 ' + Math.round(s.orbit.r); break;
+      case 'drone': txt = s.drone.count + ' 座 · ' + s.drone.mult.toFixed(2) + '× · ' + (s.drone.ultPersistent ? '<b style="color:#fbbf24">常驻</b>' : '存活 ' + s.drone.life.toFixed(1) + 's · 每 ' + s.drone.interval.toFixed(1) + 's 部署'); break;
+      case 'mine': txt = s.mine.count + ' 枚 · ' + s.mine.mult.toFixed(2) + '× · 每 ' + s.mine.cd.toFixed(1) + 's · 半径 ' + Math.round(s.mine.r); break;
+      case 'fireball': txt = s.fireball.count + ' 颗 · ' + s.fireball.mult.toFixed(2) + '× · 半径 ' + Math.round(s.fireball.r) + ' · 每 ' + s.fireball.cd.toFixed(1) + 's'; break;
+      case 'boomerang': txt = s.boomerang.count + ' 把 · ' + s.boomerang.mult.toFixed(2) + '× · 穿透' + s.boomerang.pierce + ' · ' + s.boomerang.legs + ' 段'; break;
     }
-    return '';
+    return txt + ultTag;
   }
 
   function syncEqPanel() {
@@ -80,32 +88,66 @@
     const box = el.eqSide;
     if (!box || !p) return;
 
-    // 变化签名：技能解锁/维度/全局冷却（命中即重建，否则跳过写 DOM）
-    const skSig = p.skills ? Object.keys(p.skills).map(k => k + (p.skills[k] ? 1 : 0)).join('') + '|' +
-      (p.sd ? JSON.stringify(p.sd) : '') + '|' + (p.cdr || 0) : '';
+    const B = G.BUILD || {};
+    const hasBuild = !!(p.weapons && p.passives);
+    // 变化签名：构筑等级（命中即重建，否则跳过写 DOM）
+    const evoSig = p.evolved ? Object.keys(p.evolved).filter(k => p.evolved[k]).sort().join(',') : '';
+    const skSig = hasBuild
+      ? 'B|' + JSON.stringify(p.weapons) + '|' + JSON.stringify(p.passives) + '|' + evoSig
+      : (p.sd ? JSON.stringify(p.sd) : '') + '|' + (p.cdr || 0) + '|' + evoSig;
     if (skSig === lastEqSig) return;
     lastEqSig = skSig;
 
-    let html =
-      '<div class="eq-side-head">🗡️ 攻击方式<small>LV.' + p.level + '</small></div>' +
-      '<div class="skill-blocks">';
-    const lineMeta = { arrow: ['🏹', '箭矢'], chain: ['⚡', '连锁闪电'], shock: ['💥', '震荡波'], orbit: ['🌀', '环绕飞刃'], drone: ['🔮', '浮游炮'], mine: ['🧨', '感应地雷'] };
-    G.LINE_KEYS.forEach(k => {
-      if (!p.skills[k]) return;
-      const sd = (p.sd && p.sd[k]) || {};
-      const totalLv = G.LINES[k].dims.reduce((n, d) => n + (sd[d.key] || 0), 0);
-      html += '<div class="skill-block">' +
-        '<div class="sk-head">' + lineMeta[k][0] + ' ' + lineMeta[k][1] + '<small>Lv.' + totalLv + '</small></div>' +
-        '<div class="sk-sum">' + lineSummary(k, p) + '</div>' +
-        '<div class="sk-dims">' +
-        G.LINES[k].dims.map(d =>
-          '<span class="sk-dim' + (sd[d.key] ? ' on' : '') + '" title="' + d.eff(sd[d.key] || 0) + '">' +
-          d.name + '<b>' + (sd[d.key] || 0) + '</b></span>'
-        ).join('') +
-        '</div></div>';
-    });
-    if (p.cdr || p.taskCdr) html += '<div class="sk-cdr">⏱️ 全局冷却：所有攻击间隔 −' + ((p.cdr || 0) + (p.taskCdr || 0)) * 10 + '%</div>';
-    html += '</div>';
+    let html = '';
+    if (hasBuild) {
+      // VS 构筑展示：武器槽（含等级/进化配方）+ 被动槽
+      const lineMeta = { arrow: ['🏹', '箭矢'], chain: ['⚡', '连锁闪电'], shock: ['💥', '震荡波'], orbit: ['🌀', '环绕飞刃'], drone: ['🔮', '浮游炮'], mine: ['🧨', '感应地雷'], fireball: ['🔥', '火球'], boomerang: ['🪃', '回旋镖'] };
+      html += '<div class="eq-side-head">⚔ 武器构筑<small>LV.' + p.level + '</small></div>';
+      html += '<div class="eq-section-title">武器 ' + G.weaponCount(p) + '/' + B.WEAPON_SLOTS + '</div>' +
+        '<div class="skill-blocks">';
+      G.LINE_KEYS.forEach(k => {
+        const lv = G.weaponLevel(p, k);
+        if (lv <= 0) return;
+        const isUlt = !!(p.evolved && p.evolved[k]);
+        const recipe = (B.EVOLVE_RECIPE || {})[k];
+        const rP = recipe && B.PASSIVES[recipe];
+        const canEvolve = lv >= B.WEAPON_MAX && rP && G.passiveLevel(p, recipe) >= B.PASSIVE_MAX;
+        html += '<div class="skill-block' + (isUlt ? ' ultimate' : '') + '">' +
+          '<div class="sk-head">' + lineMeta[k][0] + ' ' + lineMeta[k][1] + (isUlt ? ' <b style="color:#fbbf24">★超级</b>' : '') +
+          '<small>Lv.' + lv + '/' + B.WEAPON_MAX + '</small></div>' +
+          '<div class="sk-sum">' + lineSummary(k, p) + '</div>' +
+          '<div class="sk-evo">' + (isUlt ? '★ ' + (G.ULT[k] ? G.ULT[k].name : '超级武器')
+            : rP ? '配方：' + rP.name + ' 满级 → 进化' + (canEvolve ? '（就绪）' : '') : '') + '</div>' +
+          '</div>';
+      });
+      html += '</div>';
+      html += '<div class="eq-section-title">被动道具 ' + G.passiveCount(p) + '/' + B.PASSIVE_SLOTS + '</div>' +
+        '<div class="skill-blocks">';
+      (B.PASSIVE_IDS || []).forEach(id => {
+        const lv = G.passiveLevel(p, id);
+        if (lv <= 0) return;
+        const P = B.PASSIVES[id];
+        html += '<div class="skill-block passive-block">' +
+          '<div class="sk-head">' + P.icon + ' ' + P.name + '<small>Lv.' + lv + '/' + B.PASSIVE_MAX + '</small></div>' +
+          '<div class="sk-sum">' + P.desc + '</div></div>';
+      });
+      html += '</div>';
+      if (p.cdr || p.taskCdr || p.pasCdr) html += '<div class="sk-cdr">⏱️ 全局冷却 −' + Math.round((1 - Math.pow(0.9, (p.cdr || 0) + (p.taskCdr || 0)) * Math.pow(0.95, p.pasCdr || 0)) * 100) + '%</div>';
+    } else {
+      // 兼容回退：旧维度展示
+      html = '<div class="eq-side-head">🗡️ 攻击方式<small>LV.' + p.level + '</small></div><div class="skill-blocks">';
+      const lineMeta = { arrow: ['🏹', '箭矢'], chain: ['⚡', '连锁闪电'], shock: ['💥', '震荡波'], orbit: ['🌀', '环绕飞刃'], drone: ['🔮', '浮游炮'], mine: ['🧨', '感应地雷'], fireball: ['🔥', '火球'], boomerang: ['🪃', '回旋镖'] };
+      G.LINE_KEYS.forEach(k => {
+        if (!p.skills[k]) return;
+        const sd = (p.sd && p.sd[k]) || {};
+        const totalLv = G.LINES[k].dims.reduce((n, d) => n + (sd[d.key] || 0), 0);
+        const isUlt = !!(p.evolved && p.evolved[k]);
+        html += '<div class="skill-block' + (isUlt ? ' ultimate' : '') + '">' +
+          '<div class="sk-head">' + lineMeta[k][0] + ' ' + lineMeta[k][1] + (isUlt ? ' <b style="color:#fbbf24">★</b>' : '') + '<small>Lv.' + totalLv + '</small></div>' +
+          '<div class="sk-sum">' + lineSummary(k, p) + '</div></div>';
+      });
+      html += '</div>';
+    }
 
     box.innerHTML = html;
   }
@@ -119,15 +161,11 @@
     const box = el.dmgSide;
     if (!box || !p || !stats) return;
 
-    const A = p.agg || { crit: 0, critMult: 1.6, frost: 0, thorn: 0, bulwark: 0, pierce: 0, swiftstep: 0, haste: 0, regen: 0, bleed: null, guard: 0 };
     const dmgSig = DMG_META.map(m => Math.round(stats[m[0]] || 0)).join(',');
     const sig = [
       Math.round(p.maxHp), Math.round(p.hp), Math.round(p.atk), Math.round(p.def),
       Math.round(p.range), p.luck, (p.xpMul || 1).toFixed(2), p.shield || 0,
-      A.crit, A.frost, A.thorn, A.bulwark, A.swiftstep, A.regen, A.guard,
-      A.execute, A.rend, A.splash, A.dodge, A.shock, A.charger, A.eagle, A.tough,
-      A.clarity, A.hastestone, A.resonance, A.greed, p.cardSlow, p.critEvery,
-      p.shieldEvery, dmgSig
+      p.cardSlow, p.critEvery, p.shieldEvery, dmgSig
     ].join('|');
     if (sig === lastDmgSig) return;
     lastDmgSig = sig;
@@ -146,30 +184,8 @@
     if (p.xpMul > 1) html += '<span class="eq-stat"><i>✨</i><b>+' + Math.round((p.xpMul - 1) * 100) + '%</b><small>经验</small></span>';
     if (p.shield > 0) html += '<span class="eq-stat"><i>🔵</i><b>' + Math.round(p.shield) + '</b><small>护盾</small></span>';
 
-    // —— 装备/卡片词条 ——
+    // —— 卡片词条（装备词条已移除）——
     const extras = [];
-    if (A.haste) extras.push(['💨', '受击加速', '+' + A.haste + '%']);
-    if (A.frost) extras.push(['❄️', '霜刃减速', A.frost + '%']);
-    if (A.thorn) extras.push(['🌵', '反伤', A.thorn]);
-    if (A.bulwark) extras.push(['🐉', '减伤', A.bulwark + '%']);
-    if (A.pierce) extras.push(['🔮', '破甲', A.pierce + '%']);
-    if (A.swiftstep) extras.push(['👟', '移速', '+' + A.swiftstep + '%']);
-    if (A.regen) extras.push(['🌿', '回复', A.regen + '/s']);
-    if (A.guard) extras.push(['🛡️', '护盾上限', A.guard]);
-    if (A.crit) extras.push(['💥', '暴击', '每' + A.crit + '发×' + A.critMult.toFixed(1)]);
-    if (A.bleed) extras.push(['🗡️', '流血', A.bleed.dmg + '×' + A.bleed.turns + 's']);
-    if (A.execute) extras.push(['🦴', '处决', '+' + A.execute + '%']);
-    if (A.rend) extras.push(['🔪', '裂甲', A.rend + '%']);
-    if (A.splash) extras.push(['🔊', '溅射', A.splash + '%']);
-    if (A.dodge) extras.push(['🌑', '闪避', A.dodge + '%']);
-    if (A.shock) extras.push(['⚡', '余震', A.shock]);
-    if (A.charger) extras.push(['🔋', '回盾', A.charger + '/s']);
-    if (A.eagle) extras.push(['🦅', '暴伤', '+' + A.eagle + '%']);
-    if (A.tough) extras.push(['🧱', '濒死减伤', A.tough + '%']);
-    if (A.clarity) extras.push(['🧠', '经验', '+' + A.clarity + '%']);
-    if (A.hastestone) extras.push(['⏩', '攻速符', '+' + A.hastestone + '%']);
-    if (A.resonance) extras.push(['🎼', '技能', '+' + A.resonance + '%']);
-    if (A.greed) extras.push(['💎', '稀有度', '+' + A.greed]);
     if (p.critEvery) extras.push(['💥', '节拍暴击', '每' + p.critEvery + '发×' + p.critMult.toFixed(1)]);
     if (p.cardSlow) extras.push(['🕸️', '减速箭', '−' + Math.round(p.cardSlow * 18) + '%']);
     if (p.shieldEvery) extras.push(['🔵', '护盾恢复', p.shieldVal + '/' + p.shieldEvery + 's']);
@@ -193,7 +209,8 @@
      ========================================================= */
   const DMG_META = [
     ['arrow', '🏹', '箭矢'], ['chain', '⚡', '连锁闪电'], ['shock', '💥', '震荡波'],
-    ['orbit', '🌀', '环绕飞刃'], ['drone', '🔮', '浮游炮'], ['mine', '🧨', '感应地雷']
+    ['orbit', '🌀', '环绕飞刃'], ['drone', '🔮', '浮游炮'], ['mine', '🧨', '感应地雷'],
+    ['fireball', '🔥', '火球'], ['boomerang', '🪃', '回旋镖']
   ];
 
   function dmgRowsHtml(dmg) {
@@ -221,7 +238,6 @@
     el.overHp.textContent = Math.round(p ? p.maxHp : 0);
     el.overAtk.textContent = Math.round(p ? p.atk : 0);
     el.overDef.textContent = Math.round(p ? p.def : 0);
-    el.overEq.textContent = p ? p.items.length : 0;
     el.overKills.textContent = '击败 ' + state.kills + ' 个敌人';
     el.overBest.textContent = '最佳纪录：存活 ' + state.best + ' 分钟';
     // 输出统计：各攻击方式伤害占比
@@ -230,5 +246,118 @@
     el.overOverlay.classList.add('show');
   }
 
-  Object.assign(G, { ui: { initDom, syncTopbar, syncEqPanel, syncDmgPanel, showGameOver, dmgRowsHtml } });
+  /* =========================================================
+     构筑总览面板（小屏侧栏隐藏时的替代入口，桌面也可用）
+     打开时暂停游戏，关闭后恢复；仅在 play 阶段可打开
+     ========================================================= */
+  let buildPaused = false;
+
+  function buildRowsHtml(p) {
+    const rows = [];
+    const evoKeys = p.evolved ? Object.keys(p.evolved).filter(k => p.evolved[k]) : [];
+    // 武器
+    rows.push('<div class="eq-section-title">武器 ' + G.weaponCount(p) + '/' + (G.BUILD.WEAPON_SLOTS || 4) +
+      (evoKeys.length ? ' · ★ 超级武器 ×' + evoKeys.length : '') + '</div>');
+    (G.LINE_KEYS || Object.keys(G.LINES || {})).forEach(k => {
+      const meta = G.LINES[k];
+      const lv = G.weaponLevel(p, k);
+      if (!lv) return;
+      const isUlt = !!(p.evolved && p.evolved[k]);
+      rows.push('<div class="build-row' + (isUlt ? ' build-ult' : '') + '">' +
+        '<span class="b-ic">' + meta.icon + '</span>' +
+        '<span class="b-nm">' + meta.name + (isUlt ? ' · 进化' : '') + '</span>' +
+        '<span class="b-lv">Lv.' + lv + '</span></div>');
+    });
+    // 被动
+    rows.push('<div class="eq-section-title">被动 ' + G.passiveCount(p) + '/' + (G.BUILD.PASSIVE_SLOTS || 4) + '</div>');
+    const P = (G.BUILD && G.BUILD.PASSIVES) || {};
+    Object.keys(P).forEach(id => {
+      const lv = G.passiveLevel(p, id);
+      if (!lv) return;
+      rows.push('<div class="build-row">' +
+        '<span class="b-ic">' + P[id].icon + '</span>' +
+        '<span class="b-nm">' + P[id].name + '</span>' +
+        '<span class="b-lv">Lv.' + lv + '</span></div>');
+    });
+    return rows.join('');
+  }
+
+  function showBuildPanel() {
+    const p = state.player;
+    if (!p || state.phase !== 'play' || state.paused) return;
+    if (el.buildSub) {
+      const evoKeys = p.evolved ? Object.keys(p.evolved).filter(k => p.evolved[k]) : [];
+      const evoNames = evoKeys.map(k => G.ULT[k] ? G.ULT[k].name : G.LINES[k].name).join(' · ');
+      el.buildSub.textContent = '武器 ' + G.weaponCount(p) + '/' + (G.BUILD.WEAPON_SLOTS || 4) +
+        ' · 被动 ' + G.passiveCount(p) + '/' + (G.BUILD.PASSIVE_SLOTS || 4) +
+        (evoKeys.length ? ' · ★ ' + evoNames : '');
+    }
+    if (el.buildList) el.buildList.innerHTML = buildRowsHtml(p);
+    el.buildOverlay.classList.add('show');
+    buildPaused = true;
+    state.paused = true;   // 面板打开时暂停战斗，防误触
+  }
+
+  function hideBuildPanel() {
+    if (!el.buildOverlay.classList.contains('show')) return;
+    el.buildOverlay.classList.remove('show');
+    if (buildPaused) { state.paused = false; buildPaused = false; }
+  }
+
+  /* =========================================================
+     开局选武器：全部攻击线任选其一（数量/内容全部数据驱动）
+     - 卡片、配色、定位、数值、进化路线均读武器定义与构筑表
+     - 新增武器只需在 LINES 加一条，这里无需改动
+     ========================================================= */
+  function showStartSelect() {
+    state.phase = 'select';
+    if (!el.startCards) return;
+    el.startCards.innerHTML = '';
+    const keys = G.LINE_KEYS || Object.keys(G.LINES || {});
+    const build = G.BUILD || {};
+    const recipes = build.EVOLVE_RECIPE || {};
+    const passives = build.PASSIVES || {};
+    const ults = G.ULT || {};
+    let picking = false;   // 点击反馈期间防止重复开局
+
+    keys.forEach((k, i) => {
+      const meta = (G.LINES || {})[k];
+      if (!meta) return;
+      const node = document.createElement('div');
+      node.className = 'start-card';
+      node.style.setProperty('--c', meta.color || '#f5c451');
+      node.style.animationDelay = (i * 0.045).toFixed(3) + 's';   // 入场节奏随卡片数量自适应
+
+      const stats = (meta.stats && meta.stats.length)
+        ? '<div class="sc-stats">' + meta.stats.map(v => '<span class="sc-stat">' + v + '</span>').join('') + '</div>'
+        : '';
+      const recipe = recipes[k];
+      const pas = recipe ? passives[recipe] : null;
+      const ult = ults[k];
+      const evo = (pas && ult)
+        ? '<div class="sc-evo"><span>满级 + ' + pas.name + '</span><b>→</b><span>' + ult.name + '</span></div>'
+        : '';
+      const fallback = String(meta.unlockDesc || '').replace(/^解锁[^：]*：/, '');
+
+      node.innerHTML =
+        '<div class="sc-top"><span class="sc-icon">' + meta.icon + '</span><span class="sc-name">' + meta.name + '</span></div>' +
+        '<div class="sc-role">' + (meta.tagline || fallback) + '</div>' +
+        stats + evo;
+
+      node.addEventListener('click', () => {
+        if (state.phase !== 'select' || picking) return;
+        picking = true;
+        node.classList.add('picked');
+        window.setTimeout(() => {
+          el.startOverlay.classList.remove('show');
+          G.startRun(k);
+          if (G.tone) G.tone({ freq: 720, type: 'sine', dur: 0.16, vol: 0.1 });
+        }, 110);
+      });
+      el.startCards.appendChild(node);
+    });
+    el.startOverlay.classList.add('show');
+  }
+
+  Object.assign(G, { ui: { initDom, syncTopbar, syncEqPanel, syncDmgPanel, showGameOver, dmgRowsHtml, showStartSelect, showBuildPanel, hideBuildPanel } });
 })(window.ABYSS = window.ABYSS || {});

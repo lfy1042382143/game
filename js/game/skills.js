@@ -21,6 +21,8 @@
   const LINES = {
     arrow: {
       name: '箭矢', icon: '🏹',
+      color: '#7dd3fc',
+      tagline: '持续单体 · 射速流', stats: ['100% 伤害', '1 支'],
       unlockDesc: '解锁箭矢：自动朝鼠标/最近敌人持续射击（初始 1 支，100% 攻击）',
       dims: [
         { key: 'count',  name: '箭矢数量', icon: '🏹', max: 4,
@@ -30,13 +32,13 @@
         { key: 'bounce', name: '弹射强化', icon: '🪃', max: 3,
           eff: lv => lv ? '箭矢碰墙/障碍物后反弹 ' + lv + ' 次，可再次命中' : '箭矢碰墙/障碍物即消失' },
         { key: 'pierce', name: '穿透强化', icon: '🎯', max: 3,
-          eff: lv => lv ? '箭矢可穿过 ' + lv + ' 名敌人继续飞行（每次穿透伤害 ×0.7）' : '命中第一个敌人后消失' },
-        { key: 'split',  name: '分裂弹幕', icon: '✴️', max: 3,
-          eff: lv => lv ? '箭矢命中后分裂出 ' + lv + ' 枚更小的弹幕（各 40% 伤害）' : '命中不分裂' }
+          eff: lv => lv ? '箭矢可穿过 ' + lv + ' 名敌人继续飞行（每次穿透伤害 ×0.7）' : '命中第一个敌人后消失' }
       ]
     },
     chain: {
       name: '连锁闪电', icon: '⚡',
+      color: '#a78bfa',
+      tagline: '弹射清场 · 高频', stats: ['30% 伤害', '2 跳'],
       unlockDesc: '解锁连锁闪电：每 3.0 秒劈向最近敌人并弹射 2 个目标（主目标 30% 攻击，每跳 ×0.8）',
       dims: [
         { key: 'jumps', name: '弹射数量', icon: '🔗', max: 4,
@@ -51,12 +53,14 @@
     },
     shock: {
       name: '震荡波', icon: '💥',
-      unlockDesc: '解锁震荡波：每 3.0 秒以自身为中心释放环形冲击（180% 攻击，半径 180，命中越多单发越低）',
+      color: '#38bdf8',
+      tagline: '环形冲击 · 贴身', stats: ['140% 伤害', '半径 180'],
+      unlockDesc: '解锁震荡波：每 3.0 秒以自身为中心释放环形冲击（140% 攻击，半径 180，越靠外伤害越低：中心满伤、边缘 40%）',
       dims: [
         { key: 'range', name: '范围扩大', icon: '🌐', max: 4,
           eff: lv => '冲击波半径 ' + (180 + 24 * lv) + ' 像素' },
         { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
-          eff: lv => '冲击波造成 ' + Math.round((1.8 + 0.4 * lv) * 100) + '% 攻击的伤害' },
+          eff: lv => '冲击波造成 ' + Math.round((1.4 + 0.4 * lv) * 100) + '% 攻击的伤害' },
         { key: 'rate',  name: '释放频率', icon: '⏱️', max: 4,
           eff: lv => '每 ' + (3.0 * Math.pow(0.88, lv)).toFixed(2) + ' 秒释放一次' },
         { key: 'echo',  name: '连锁震荡', icon: '〰️', max: 3,
@@ -65,20 +69,24 @@
     },
     orbit: {
       name: '环绕飞刃', icon: '🌀',
-      unlockDesc: '解锁环绕飞刃：每隔 5 秒展开 3 枚绕身旋转的飞刃，接触敌人造成 80% 攻击伤害',
+      color: '#67e8f9',
+      tagline: '绕身防守 · 持续', stats: ['110% 伤害', '3 枚'],
+      unlockDesc: '解锁环绕飞刃：每隔 3.5 秒展开 3 枚绕身旋转的飞刃，接触敌人造成 110% 攻击伤害（对飞行怪判定更大）',
       dims: [
         { key: 'count', name: '飞刃数量', icon: '🌀', max: 4,
           eff: lv => '每批 ' + (3 + 2 * lv) + ' 枚飞刃均匀环绕' },
         { key: 'rate',  name: '出现频率', icon: '⏱️', max: 4,
           eff: lv => '每 ' + (5 * Math.pow(0.88, lv)).toFixed(2) + ' 秒展开一批（持续约 ' + (5 * Math.pow(0.88, lv) * 0.62).toFixed(1) + ' 秒）' },
         { key: 'range', name: '范围扩大', icon: '🌐', max: 4,
-          eff: lv => '绕行半径 ' + (62 + 10 * lv) + ' 像素' },
+          eff: lv => '绕行半径 ' + (92 + 16 * lv) + ' 像素' },
         { key: 'speed', name: '转速提升', icon: '💨', max: 4,
           eff: lv => '旋转速度加快 ' + (lv * 22) + '%（更快触碰敌人）' }
       ]
     },
     drone: {
       name: '浮游炮', icon: '🔮',
+      color: '#c084fc',
+      tagline: '自动哨戒 · 拦截', stats: ['90% 伤害', '0.8s'],
       unlockDesc: '解锁浮游炮：停在玩家周围射击（90% 攻击 / 0.8s），可拦截敌方弹幕，存活 4 秒后收回',
       dims: [
         { key: 'count', name: '浮游炮数量', icon: '🔮', max: 3,
@@ -91,6 +99,8 @@
     },
     mine: {
       name: '感应地雷', icon: '🧨',
+      color: '#fbbf24',
+      tagline: '布设爆破 · 陷阱', stats: ['160% 伤害', '半径 80'],
       unlockDesc: '解锁感应地雷：每 3.0 秒在身边布设地雷（160% 攻击，半径 80），敌人靠近或 6 秒到期后自爆',
       dims: [
         { key: 'dmg',   name: '伤害提升', icon: '🗡️', max: 4,
@@ -102,16 +112,92 @@
         { key: 'range', name: '范围扩大', icon: '🌐', max: 4,
           eff: lv => '爆炸半径 ' + (80 + 20 * lv) + ' 像素' }
       ]
+    },
+    fireball: {
+      name: '火球', icon: '🔥',
+      color: '#fb923c',
+      tagline: '低频高伤 · 单发炮', stats: ['220% 伤害', '3.6s'],
+      unlockDesc: '解锁火球：每 3.6 秒朝最近敌人投出 1 颗火球，命中炸开范围伤害（220% 攻击，半径 70）——低频高伤的单发炮',
+      dims: [
+        { key: 'count',  name: '火球数量', icon: '🔥', max: 3,
+          eff: lv => '每次投出 ' + (1 + lv) + ' 颗火球' },
+        { key: 'radius', name: '爆炸半径', icon: '🌐', max: 4,
+          eff: lv => '爆炸半径 ' + (70 + 16 * lv) + ' 像素' },
+        { key: 'dmg',    name: '伤害提升', icon: '🗡️', max: 4,
+          eff: lv => '爆炸造成 ' + Math.round((2.2 + 0.5 * lv) * 100) + '% 攻击的伤害' },
+        { key: 'rate',   name: '投掷频率', icon: '⏱️', max: 4,
+          eff: lv => '每 ' + (3.6 * Math.pow(0.94, lv)).toFixed(2) + ' 秒投出一批' }
+      ]
+    },
+    boomerang: {
+      name: '回旋镖', icon: '🪃',
+      color: '#fca5a5',
+      tagline: '往返双段 · 穿透', stats: ['100% 伤害', '穿透 3'],
+      unlockDesc: '解锁回旋镖：每 3.0 秒将回旋镖逐把依次投出，飞出再返回，去回各命中一次（100% 攻击，穿透 3 敌）',
+      dims: [
+        { key: 'count',  name: '回旋镖数量', icon: '🪃', max: 3,
+          eff: lv => '每次投出 ' + (1 + lv) + ' 把回旋镖' },
+        { key: 'dist',   name: '飞行距离', icon: '🌐', max: 4,
+          eff: lv => '单程飞行距离 ' + (240 + 40 * lv) + ' 像素' },
+        { key: 'dmg',    name: '伤害提升', icon: '🗡️', max: 4,
+          eff: lv => '每段命中造成 ' + Math.round((1 + 0.25 * lv) * 100) + '% 攻击的伤害' },
+        { key: 'pierce', name: '穿透强化', icon: '🎯', max: 3,
+          eff: lv => '每段最多命中 ' + (3 + lv) + ' 名敌人' }
+      ]
     }
   };
 
   const LINE_KEYS = Object.keys(LINES);
 
   /* =========================================================
+     超级武器元数据：武器满级 + 配方被动满级自动进化（详见 build.js）
+     - 每局可拥有多把超级武器（p.evolved 记录所有已进化线 key）
+     - tier: 'extreme'（极致档）/ 'focused'（收敛档）
+     ========================================================= */
+  const ULT = {
+    arrow: { name: '贯穿诸天', icon: '🏹', tier: 'focused',
+      desc: '箭数翻倍 · 可穿 5 名敌人且穿透不再衰减 · 射速 +25% · 射程 ×1.55' },
+    chain: { name: '雷狱', icon: '⚡', tier: 'extreme',
+      desc: '每跳固定 100% 伤害不再递减 · 弹射目标 +4 · 闪电道数翻倍 · 麻痹延长' },
+    shock: { name: '湮灭冲击', icon: '💥', tier: 'extreme',
+      desc: '半径 ×1.8 · 无视距离衰减（全距离满伤）· 伤害 ×1.5' },
+    orbit: { name: '无尽刃环', icon: '🌀', tier: 'focused',
+      desc: '飞刃常驻不收起 · 数量 +6 · 命中半径 ×1.5 · 转速 ×1.4' },
+    drone: { name: '浮游炮阵', icon: '🔮', tier: 'focused',
+      desc: '炮台常驻 · 数量 +3 · 子弹穿透 3 人 · 射速 ×1.6' },
+    mine:  { name: '灭世雷区', icon: '🧨', tier: 'focused',
+      desc: '布雷数翻倍 · 半径 ×2 · 引爆连锁引爆范围内其他地雷' },
+    fireball: { name: '陨火焚天', icon: '🔥', tier: 'extreme',
+      desc: '数量翻倍 · 爆炸半径 ×1.5 · 火球穿透 2 名敌人才爆炸' },
+    boomerang: { name: '无尽回旋', icon: '🪃', tier: 'focused',
+      desc: '数量翻倍 · 往返 4 段命中 · 每段穿透 +3' }
+  };
+
+  /** 该线是否所有维度都满级 */
+  function isLineMaxed(p, k) {
+    if (!p || !p.sd || !p.sd[k]) return false;
+    return LINES[k].dims.every(d => (p.sd[k][d.key] || 0) >= d.max);
+  }
+
+  /** 作弊码：直接赋予某条线的超级武器（解锁 + 全维度拉满 + 标记进化 + 重算，可叠加多把） */
+  function grantUltimate(p, k) {
+    if (!p || !LINES[k]) return false;
+    p.skills[k] = 1;
+    if (!p.sd[k]) p.sd[k] = {};
+    LINES[k].dims.forEach(d => { p.sd[k][d.key] = d.max; });
+    p.evolved = p.evolved || {};
+    p.evolved[k] = true;
+    if (p.sk && p.sk[k]) p.sk[k].t = 0.5;   // 让技能很快出现第一批
+    applySkillBuild(p);
+    return true;
+  }
+
+  /* =========================================================
      运行态初始化（state.js makePlayer 时调用）
      p.skills = 解锁标记；p.sd = 各维度等级；p.cdr = 全局冷却层数
+     p.evolved = 已进化超级武器线集合（每局可多把，重开即清空）
      ========================================================= */
-  function initSkills(p) {
+  function initSkills(p, startLine) {
     p.skills = {};
     p.sd = {};
     LINE_KEYS.forEach(k => {
@@ -119,19 +205,28 @@
       p.sd[k] = {};
       LINES[k].dims.forEach(d => { p.sd[k][d.key] = 0; });
     });
-    p.skills.arrow = 1;                 // 初始解锁箭矢
+    // 开局选中的初始武器（默认箭矢，兼容无参调用/测试）；仅解锁该线，不含维度升级
+    const start = (startLine && LINES[startLine]) ? startLine : 'arrow';
+    p.startLine = start;
+    p.skills[start] = 1;
     p.cdr = p.cdr || 0;                 // 全局冷却卡层数
+    p.evolved = {};                     // 已进化超级武器线集合，重开即清空
+    p.orbitTriple = false;              // 飞刃终极三层刀阵标记，重开即清空
     p.sk = {
       chain: { t: 0 },
       shock: { t: 0 },
-      orbit: { t: 0.5, active: 0 },
+      orbit: { t: 0.3, active: 0 },   // 首次部署延迟 0.5→0.3，开局飞刃更快出现
       drone: { t: 0.5, active: 0, shootT: 0 },
-      mine: { t: 0 }
+      mine: { t: 0 },
+      fireball: { t: 0.6 },
+      boomerang: { t: 0.9, queue: 0, shootT: 0 }
     };
     p.orbits = 0;
     applySkillBuild(p);
     if (G.state && !G.state.mines) G.state.mines = [];
     if (G.state && !G.state.skillFx) G.state.skillFx = [];
+    if (G.state && !G.state.fireballs) G.state.fireballs = [];
+    if (G.state && !G.state.boomerangs) G.state.boomerangs = [];
   }
 
   /* =========================================================
@@ -141,7 +236,8 @@
     if (!p || !p.sk) return;
     const sd = p.sd || {};
     const g = k => sd[k] || {};
-    const D = Math.pow(0.9, (p.cdr || 0) + (p.taskCdr || 0));   // 全局冷却：冷却卡 + 任务奖励，每层全部间隔 −10%
+    const D = Math.pow(0.9, (p.cdr || 0) + (p.taskCdr || 0)) * Math.pow(0.95, p.pasCdr || 0);   // 全局冷却：冷却卡 + 任务奖励 + 急速被动
+    const isUlt = k => !!(p.evolved && p.evolved[k]);   // 本局已进化的超级武器线（可多把）
 
     /* 箭矢（基础远程弹幕；初始伤害 0.85×攻击，与其他攻击方式 DPS 对齐） */
     const a = g('arrow');
@@ -150,7 +246,14 @@
     p.atkCdMul = Math.pow(0.88, a.rate || 0);
     p.bounce = a.bounce || 0;
     p.pierce = a.pierce || 0;
-    p.splitN = a.split || 0;
+    // 终极·贯穿诸天（收敛档）：箭数翻倍、穿 5 且不衰减、射速 +25%、射程 ×1.55
+    if (isUlt('arrow')) {
+      p.shots *= 2;
+      p.pierce = Math.max(5, p.pierce);
+      p.atkCdMul *= 0.75;
+      p.ultPierceNoDecay = true;
+      p.arrowRangeMul = 1.55;         // 终极箭矢攻击范围（射程）放大，独立于全局 p.range
+    } else { p.ultPierceNoDecay = false; p.arrowRangeMul = 1; }
 
     /* 连锁闪电（远程爆发 AoE：1.8×攻 / 3s / 弹射 2 目标） */
     const c = g('chain'), ch = p.sk.chain;
@@ -158,24 +261,47 @@
     ch.jumps = 2 + (c.jumps || 0);
     ch.mult = 0.3 + 0.25 * (c.dmg || 0);
     ch.bolts = 1 + (c.bolts || 0);
+    // 终极·雷狱（极致档）：每跳固定 100%、弹射目标 +4、道数翻倍、麻痹延长
+    if (isUlt('chain')) {
+      ch.jumps += 4;
+      ch.bolts *= 2;
+      ch.ultNoDecay = true;
+      ch.ultStun = 0.8;
+    } else { ch.ultNoDecay = false; ch.ultStun = 0; }
 
-    /* 震荡波（近身 AoE：1.8×攻 / 3s / 半径 110） */
+    /* 震荡波（近身 AoE：1.4×攻 / 3s / 半径 180） */
     const s = g('shock'), so = p.sk.shock;
     so.cd = Math.max(1.5, 3.0 * Math.pow(0.88, s.rate || 0) * D);
     so.r = 180 + 24 * (s.range || 0);
-    so.mult = 1.8 + 0.4 * (s.dmg || 0);
+    so.mult = 1.4 + 0.4 * (s.dmg || 0);
     so.echo = s.echo || 0;
+    // 终极·湮灭冲击（极致档）：半径 ×1.8、无视距离衰减（全距离满伤）、伤害 ×1.5（撞墙反弹已取消）
+    if (isUlt('shock')) {
+      so.r *= 1.8;
+      so.mult *= 1.5;
+      so.ultNoFalloff = true;
+    } else so.ultNoFalloff = false;
 
     /* 环绕飞刃（近身持续：3 枚起，接触伤害 0.8×攻，触发间隔 0.45s） */
     const o = g('orbit'), ob = p.sk.orbit;
-    ob.interval = Math.max(2.0, 5 * Math.pow(0.88, o.rate || 0) * D);
+    ob.interval = Math.max(1.5, 3.5 * Math.pow(0.88, o.rate || 0) * D);   // 部署间隔 5→3.5，重新部署更快
     ob.dur = Math.max(2.6, ob.interval * 0.62);
     ob.count = 3 + 2 * (o.count || 0);
-    ob.r = 62 + 10 * (o.range || 0);
+    ob.r = 92 + 16 * (o.range || 0);   // 绕行半径上调：62~102 → 92~156，覆盖更远敌人
     ob.spd = 2.4 + 0.55 * (o.speed || 0);
     p.orbitR = ob.r;
     p.orbitSpd = ob.spd;
-    p.orbitDmgMul = 0.8;
+    p.orbitDmgMul = 1.1;   // 飞刃不易命中，单次伤害调高（0.8→1.1）
+    // 终极·无尽刃环（收敛档）：数量 +6、转速 ×1.4、命中半径 ×1.5、常驻不收起
+    // 三层反向刀阵：主环/外环/内环各自旋转，外环与内环反向
+    if (isUlt('orbit')) {
+      ob.count += 6;
+      ob.spd *= 1.4;
+      p.orbitSpd = ob.spd;
+      ob.ultPersistent = true;
+      p.orbitTriple = true;
+      p.orbitHitRadius = 14 * 1.5;
+    } else { ob.ultPersistent = false; p.orbitTriple = false; p.orbitHitRadius = 14; }
 
     /* 浮游炮（远程持续：0.9×攻 / 0.8s） */
     const d = g('drone'), dr = p.sk.drone;
@@ -184,6 +310,13 @@
     dr.mult = 0.9 + 0.15 * (d.dmg || 0);
     dr.life = 4 + 1.5 * (d.life || 0);
     dr.cd = 0.8;
+    // 终极·浮游炮阵（收敛档）：数量 +3、射速 ×1.6、子弹穿透 3、常驻
+    if (isUlt('drone')) {
+      dr.count += 3;
+      dr.cd = 0.8 / 1.6;
+      dr.ultPierce = 3;
+      dr.ultPersistent = true;
+    } else { dr.ultPierce = 0; dr.ultPersistent = false; }
 
     /* 感应地雷（近身陷阱：1.6×攻 / 3s / 半径 80） */
     const m = g('mine'), mi = p.sk.mine;
@@ -191,6 +324,44 @@
     mi.count = 1 + (m.count || 0);
     mi.r = 80 + 20 * (m.range || 0);
     mi.mult = 1.6 + 0.25 * (m.dmg || 0);
+    // 终极·灭世雷区（收敛档）：布雷数翻倍、半径 ×2、连锁引爆
+    if (isUlt('mine')) {
+      mi.count *= 2;
+      mi.r *= 2;
+      mi.ultChain = true;
+    } else mi.ultChain = false;
+
+    /* 火球（低频高伤的单发范围炮：2.2×攻 / 3.6s / 半径 70） */
+    const f = g('fireball'), fi = p.sk.fireball;
+    fi.cd = Math.max(1.8, 3.6 * Math.pow(0.94, f.rate || 0) * D);
+    fi.count = 1 + (f.count || 0);
+    fi.r = 70 + 16 * (f.radius || 0);
+    fi.mult = 2.2 + 0.5 * (f.dmg || 0);   // 单次高伤：满级 4.2×攻
+    fi.speed = 300;
+    // 终极·陨火焚天：数量翻倍、半径 ×1.5、穿透 2 敌才爆炸
+    fi.pierce = 0;
+    if (isUlt('fireball')) {
+      fi.count *= 2;
+      fi.r *= 1.5;
+      fi.pierce = 2;
+    }
+
+    /* 回旋镖（往返多段：1.0×攻 / 3s / 穿透 3；逐把依次发射） */
+    const bm = g('boomerang'), bo = p.sk.boomerang;
+    bo.cd = Math.max(1.5, 3.0 * D);
+    bo.count = 1 + (bm.count || 0);
+    bo.dist = 240 + 40 * (bm.dist || 0);
+    bo.mult = 1 + 0.25 * (bm.dmg || 0);
+    bo.pierce = 3 + (bm.pierce || 0);
+    bo.legs = 2;
+    bo.speed = 340;
+    bo.gap = 0.22;   // 逐把发射间隔（秒）：count 把依次飞出，不一次性全扔
+    // 终极·无尽回旋：数量翻倍、往返 4 段、每段穿透 +3
+    if (isUlt('boomerang')) {
+      bo.count *= 2;
+      bo.legs = 4;
+      bo.pierce += 3;
+    }
   }
 
   /* =========================================================
@@ -209,7 +380,7 @@
         desc: p => p.skills[k] ? L.name + '已解锁' : L.unlockDesc,
         apply(p) {
           p.skills[k] = 1;
-          if (k === 'orbit' || k === 'drone' || k === 'mine') p.sk[k].t = 0.5;  // 解锁后很快出现第一批
+          if (k === 'orbit' || k === 'drone' || k === 'mine') p.sk[k].t = k === 'orbit' ? 0.3 : 0.5;  // 解锁后出现第一批（飞刃更快）
           applySkillBuild(p);
         }
       });
@@ -238,11 +409,10 @@
   const SKILL_CARDS = makeAllSkillCards();
 
   /* =========================================================
-     技能伤害 = 攻击 × 倍率 ×（1 + 共鸣符）
+     技能伤害 = 攻击 × 倍率
      ========================================================= */
   function skillDamage(p, mult) {
-    const res = (p.agg && p.agg.resonance) || 0;
-    return Math.max(1, Math.round(p.atk * mult * (1 + res / 100)));
+    return Math.max(1, Math.round(p.atk * mult));
   }
 
   /* =========================================================
@@ -295,10 +465,10 @@
       hitSet.add(cur);
       pts.push({ x: cur.x, y: cur.y });
       hits.push(cur);
-      // 多目标伤害递减：主目标 100%，每多弹射 1 个目标 ×0.8
-      const decay = Math.pow(0.8, i);
+      // 多目标伤害递减：主目标 100%，每多弹射 1 个目标 ×0.8；终极·雷狱每跳固定 100%
+      const decay = cfg.ultNoDecay ? 1 : Math.pow(0.8, i);
       G.dealDamage(p, cur, skillDamage(p, cfg.mult * decay), { noThorn: true, noShock: true, noSplash: true, tag: 'chain' });
-      if (!cur.dead) cur.stunT = Math.max(cur.stunT || 0, 0.35);   // 短暂麻痹
+      if (!cur.dead) cur.stunT = Math.max(cur.stunT || 0, cfg.ultStun || 0.35);   // 短暂麻痹（终极延长）
       let next = null, nd = 240;
       for (const f of G.state.foes) {
         if (f.dead || hitSet.has(f)) continue;
@@ -307,35 +477,94 @@
       }
       cur = next;
     }
-    // 特效：锯齿电弧 + 每个命中点闪光（特效更明显）
-    G.state.skillFx.push({ kind: 'chain', pts: jaggedPath(pts), t: 0, dur: 0.32 });
-    hits.forEach(h => G.state.skillFx.push({ kind: 'zap', x: h.x, y: h.y, r: 26, t: 0, dur: 0.3 }));
+    // 特效：锯齿电弧 + 每个命中点闪光；终极·雷狱用更狂暴的雷电表现
+    const ult = !!cfg.ultNoDecay;
+    G.state.skillFx.push({ kind: 'chain', pts: jaggedPath(pts), t: 0, dur: ult ? 0.45 : 0.32, ult });
+    hits.forEach(h => G.state.skillFx.push({ kind: 'zap', x: h.x, y: h.y, r: ult ? 40 : 26, t: 0, dur: ult ? 0.42 : 0.3, ult }));
   }
 
   /* =========================================================
      震荡波：主波 + 次级震荡波（echo 维度）
      ========================================================= */
+  const SHOCK_WAVE_SPEED = 600;   // 波面扩散速度（像素/秒）：基础半径 180 约 0.3s 扫完，比原来瞬间结算慢
+  const SHOCK_WAVE_BAND = 18;     // 波面厚度（像素）：敌人落在波面带内即被命中
+
+  /** 发射一道扩散波：fx 同时承担渲染与逐帧命中 */
+  function spawnShockWave(p, x, y, maxR, mult) {
+    G.state.skillFx.push({
+      kind: 'shock', x, y, r: maxR, t: 0,
+      dur: maxR / SHOCK_WAVE_SPEED + 0.1,   // 波扫完再多留一点淡出时间
+      ult: !!p.sk.shock.ultNoFalloff,
+      wave: {
+        owner: p, maxR, mult,
+        r: 0, prevR: 0,
+        hit: new Set(),
+        allowEcho: true,
+        echoDone: false
+      }
+    });
+  }
+
+  /** 逐帧推进所有扩散波：波面扫过敌人时命中一次 */
+  function advanceShockWaves(dt) {
+    const fxArr = G.state.skillFx || [];
+    for (const fx of fxArr) {
+      if (fx.kind !== 'shock' || !fx.wave) continue;   // echo 次级波走旧的瞬间结算
+      const w = fx.wave;
+      w.prevR = w.r;
+      w.r = Math.min(w.maxR, w.r + SHOCK_WAVE_SPEED * dt);
+      // 波面带：[prevR - BAND, r + BAND]，只命中尚未命中过的敌人
+      const lo = Math.max(0, w.prevR - SHOCK_WAVE_BAND);
+      const hi = w.r + SHOCK_WAVE_BAND;
+      for (const f of G.state.foes) {
+        if (f.dead || w.hit.has(f)) continue;
+        const d = G.dist(fx.x, fx.y, f.x, f.y);
+        if (d >= lo && d <= hi) {
+          w.hit.add(f);
+          const survived = shockHitFoe(w.owner, f, fx.x, fx.y, w.maxR, w.mult);
+          if (survived) (w.survivors || (w.survivors = [])).push(survived);
+        }
+      }
+      // 波扫完边缘后触发一次连锁震荡（echo 维度）
+      if (!w.echoDone && w.r >= w.maxR) {
+        w.echoDone = true;
+        if (w.allowEcho) shockEchoFromFoes(w.owner, w.survivors || [], w.maxR, w.mult);
+      }
+    }
+  }
+
+  /** 震荡波对单个目标的伤害（距离衰减：中心 100% → 边缘 40%；终极无视衰减） */
+  function shockHitFoe(p, f, x, y, maxR, mult) {
+    const d = G.dist(x, y, f.x, f.y);
+    const noFalloff = !!p.sk.shock.ultNoFalloff;
+    const distFalloff = noFalloff ? 1 : Math.max(0.4, 1 - 0.6 * (d / maxR));
+    G.dealDamage(p, f, skillDamage(p, mult * distFalloff), { noThorn: true, noShock: true, noSplash: true, tag: 'shock' });
+    return f.dead ? null : f;
+  }
+
+  /** 连锁震荡（echo 维度）：在命中敌人处生成更小的次级波（50% 伤害，不再连锁） */
+  function shockEchoFromFoes(p, hitFoes, r, mult) {
+    const echoN = p.sk.shock.echo || 0;
+    if (echoN <= 0 || !hitFoes.length) return;
+    const picks = hitFoes.slice().sort(() => Math.random() - 0.5).slice(0, echoN);
+    picks.forEach((f, i) => {
+      G.state.skillFx.push({ kind: 'shockEcho', x: f.x, y: f.y, r: r * 0.45, t: 0, dur: 0.4, delay: 0.18 + i * 0.08, ult: !!p.sk.shock.ultNoFalloff });
+      setTimeout(() => {
+        if (!G.state.player || G.state.phase !== 'play') return;
+        shockBlast(p, f.x, f.y, r * 0.45, mult * 0.5, false);
+      }, 180 + i * 80);
+    });
+  }
+
   function shockBlast(p, x, y, r, mult, allowEcho) {
-    // 命中数越多单发伤害越低：×0.88^(n-1)，下限 50%
+    // 瞬间结算版（供 echo 次级波与测试用）；主波走逐帧扩散 advanceShockWave
     const inRange = G.state.foes.filter(f => !f.dead && G.dist(x, y, f.x, f.y) <= r);
-    const falloff = Math.max(0.5, Math.pow(0.88, Math.max(0, inRange.length - 1)));
     const hitFoes = [];
     for (const f of inRange) {
-      G.dealDamage(p, f, skillDamage(p, mult * falloff), { noThorn: true, noShock: true, noSplash: true, tag: 'shock' });
-      if (!f.dead) hitFoes.push(f);
+      const survived = shockHitFoe(p, f, x, y, r, mult);
+      if (survived) hitFoes.push(survived);
     }
-    const echoN = allowEcho ? (p.sk.shock.echo || 0) : 0;
-    if (echoN > 0 && hitFoes.length) {
-      // 随机挑选命中的敌人位置产生次级震荡波（更小、50% 伤害，不再继续连锁）
-      const picks = hitFoes.slice().sort(() => Math.random() - 0.5).slice(0, echoN);
-      picks.forEach((f, i) => {
-        G.state.skillFx.push({ kind: 'shockEcho', x: f.x, y: f.y, r: r * 0.45, t: 0, dur: 0.4, delay: 0.18 + i * 0.08 });
-        setTimeout(() => {
-          if (!G.state.player || G.state.phase !== 'play') return;
-          shockBlast(p, f.x, f.y, r * 0.45, mult * 0.5, false);
-        }, 180 + i * 80);
-      });
-    }
+    if (allowEcho) shockEchoFromFoes(p, hitFoes, r, mult);
   }
 
   /* =========================================================
@@ -360,7 +589,9 @@
         x: pos.x, y: pos.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
         r: 4, dmg: skillDamage(p, d.mult), side: 'p', life: p.range / spd,
         owner: p, hit: [], skill: 'drone', color: '#c084fc',   // 紫色弹幕，与玩家箭矢区分
-        noSplit: true
+        noSplit: true,
+        ult: !!d.ultPersistent,        // 终极·浮游炮阵：专属金色外观
+        pierceLeft: d.ultPierce || 0   // 终极·浮游炮阵：子弹穿透 3 人
       });
     }
   }
@@ -368,13 +599,159 @@
   /* =========================================================
      感应地雷
      ========================================================= */
-  function explodeMine(m, p, trigger) {
+  function explodeMine(m, p, trigger, chained) {
     G.state.skillFx.push({ kind: 'shockEcho', x: m.x, y: m.y, r: m.r, t: 0, dur: 0.35 });
     // 首个触碰的敌人受全额伤害，范围内其余敌人只受一半
     const inRange = G.state.foes.filter(f => !f.dead && !f.fly && G.dist(f.x, f.y, m.x, m.y) <= m.r);
     for (const f of inRange) {
       const mul = f === trigger ? 1 : 0.5;
       G.dealDamage(p, f, Math.max(1, Math.round(m.dmg * mul)), { noThorn: true, noShock: true, noSplash: true, tag: 'mine' });
+    }
+    // 终极·灭世雷区：连锁引爆范围内其他地雷（只连锁一次，避免无限递归）
+    if (p.sk.mine.ultChain && !chained) {
+      const others = G.state.mines.filter(o => o !== m && G.dist(o.x, o.y, m.x, m.y) <= m.r);
+      others.forEach(o => {
+        const idx = G.state.mines.indexOf(o);
+        if (idx >= 0) G.state.mines.splice(idx, 1);
+        explodeMine(o, p, null, true);
+      });
+    }
+  }
+
+  /* =========================================================
+     火球：直线飞行，命中炸开范围伤害；终极穿透 2 敌才爆炸
+     ========================================================= */
+  function explodeFireball(p, f) {
+    G.state.skillFx.push({ kind: 'fireballBoom', x: f.x, y: f.y, r: f.r, t: 0, dur: 0.35, ult: !!f.ult });
+    const inRange = G.state.foes.filter(e => !e.dead && G.dist(e.x, e.y, f.x, f.y) <= f.r + e.r);
+    for (const e of inRange) {
+      G.dealDamage(p, e, Math.max(1, Math.round(f.dmg)), { noThorn: true, noShock: true, noSplash: true, tag: 'fireball' });
+    }
+  }
+
+  function fireFireballs(p) {
+    const cfg = p.sk.fireball;
+    for (let i = 0; i < cfg.count; i++) {
+      const target = nearestFoe(p, p.range * 1.6);
+      if (!target) break;
+      const a = Math.atan2(target.y - p.y, target.x - p.x) + (i ? (Math.random() - 0.5) * 0.5 : 0);
+      G.state.fireballs.push({
+        x: p.x + Math.cos(a) * (p.r + 4), y: p.y + Math.sin(a) * (p.r + 4),
+        vx: Math.cos(a) * cfg.speed, vy: Math.sin(a) * cfg.speed,
+        r: 8, dmg: skillDamage(p, cfg.mult), splash: cfg.r,
+        life: (p.range * 1.8) / cfg.speed, owner: p,
+        pierceLeft: cfg.pierce || 0, hit: [], ult: !!p.evolved.fireball
+      });
+    }
+  }
+
+  /** 逐帧推进火球：命中敌人 → 若还有穿透次数则穿过并伤害，否则爆炸 */
+  function updateFireballs(dt) {
+    const arr = G.state.fireballs || [];
+    const W = G.CFG.world;
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const f = arr[i];
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+      f.life -= dt;
+      let boom = f.life <= 0 || f.x < 0 || f.x > W.w || f.y < 0 || f.y > W.h;
+      if (!boom) {
+        for (const e of G.state.foes) {
+          if (e.dead || f.hit.indexOf(e) >= 0) continue;
+          if (G.dist(f.x, f.y, e.x, e.y) < f.r + e.r) {
+            f.hit.push(e);
+            if (f.pierceLeft > 0) {
+              // 终极：穿透命中直接伤害，耗尽后可再炸一次
+              G.dealDamage(f.owner, e, Math.max(1, Math.round(f.dmg * 0.6)), { noThorn: true, noShock: true, noSplash: true, tag: 'fireball' });
+              f.pierceLeft--;
+            } else {
+              boom = true;
+            }
+            break;
+          }
+        }
+      }
+      if (boom) {
+        explodeFireball(f.owner, f);
+        arr.splice(i, 1);
+      }
+    }
+  }
+
+  /* =========================================================
+     回旋镖：飞出→返回，每段独立命中（去/回各一次），终点回到玩家
+     ========================================================= */
+  /** 发射单把回旋镖：index/total 决定本把的方位偏移，实现逐把散开发射 */
+  function fireOneBoomerang(p, index, total) {
+    const cfg = p.sk.boomerang;
+    const target = nearestFoe(p, p.range * 1.8);
+    const a = target
+      ? Math.atan2(target.y - p.y, target.x - p.x) + (total > 1 ? (index / total) * Math.PI * 2 : 0)
+      : (index / Math.max(1, total)) * Math.PI * 2;
+    G.state.boomerangs.push({
+      x: p.x, y: p.y, dirX: Math.cos(a), dirY: Math.sin(a),
+      r: 11, dmg: skillDamage(p, cfg.mult), owner: p,
+      speed: cfg.speed, dist: cfg.dist, traveled: 0, phase: 0, // phase 0=飞出 1=返回
+      legs: cfg.legs, legIdx: 0, pierce: cfg.pierce, hit: [], rot: 0, ult: !!p.evolved.boomerang
+    });
+  }
+
+  /** 一次性发完整批（兼容旧调用/测试）；游戏内实际走逐把队列 */
+  function fireBoomerangs(p) {
+    const cfg = p.sk.boomerang;
+    for (let i = 0; i < cfg.count; i++) fireOneBoomerang(p, i, cfg.count);
+  }
+
+  /** 逐帧推进回旋镖：飞出到 dist 后折返，回到玩家算一段；legs 段后消失 */
+  function updateBoomerangs(dt) {
+    const arr = G.state.boomerangs || [];
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const b = arr[i];
+      const p = b.owner;
+      const step = b.speed * dt;
+      if (b.phase === 0) {
+        // 飞出：沿单位方向向量推进（初始化时 dirX/dirY 即单位向量）
+        b.x += b.dirX * step;
+        b.y += b.dirY * step;
+        b.traveled += step;
+        b.rot += 16 * dt;
+        if (b.traveled >= b.dist) { b.phase = 1; b.hit = []; b.traveled = 0; }
+      } else {
+        // 返回玩家：必须完整飞回手里才算一段完成（途中不换向）
+        const dx = p.x - b.x, dy = p.y - b.y;
+        const d = Math.hypot(dx, dy) || 1;
+        // 移动量不超过剩余距离，避免越过玩家导致来回抖动
+        const move = Math.min(step, d);
+        b.x += (dx / d) * move;
+        b.y += (dy / d) * move;
+        b.traveled += step;
+        b.rot -= 16 * dt;
+        // 真正抵达手里；极端情况（玩家移速超过回旋镖）用长距离兜底并吸附到手里
+        const landed = Math.hypot(p.x - b.x, p.y - b.y) <= p.r + b.r + 2;
+        const stuck = b.traveled > b.dist * 5;
+        if (landed || stuck) {
+          b.x = p.x; b.y = p.y;   // 明确收回手中
+          b.legIdx++;
+          if (b.legIdx >= b.legs) { arr.splice(i, 1); continue; }
+          // 下一段重新朝最近敌人飞出
+          const target = nearestFoe(p, p.range * 1.8);
+          const a = target ? Math.atan2(target.y - p.y, target.x - p.x) : Math.random() * Math.PI * 2;
+          b.dirX = Math.cos(a); b.dirY = Math.sin(a);
+          b.phase = 0; b.hit = []; b.traveled = 0;
+          continue;
+        }
+      }
+      // 命中判定（每段每敌一次，最多 pierce 个）
+      if (b.hit.length < b.pierce) {
+        for (const e of G.state.foes) {
+          if (e.dead || b.hit.indexOf(e) >= 0) continue;
+          if (G.dist(b.x, b.y, e.x, e.y) < b.r + e.r) {
+            b.hit.push(e);
+            G.dealDamage(p, e, Math.max(1, Math.round(b.dmg)), { noThorn: true, noShock: true, noSplash: true, tag: 'boomerang' });
+            if (b.hit.length >= b.pierce) break;
+          }
+        }
+      }
     }
   }
 
@@ -386,17 +763,13 @@
     if (!p || p.dead || !p.skills || !p.sk) return;
     const sk = p.sk;
 
-    /* ---- 震荡波 ---- */
+    /* ---- 震荡波：发射一道向外扩散的波，敌人被波面扫到才受伤害 ---- */
     if (p.skills.shock) {
       sk.shock.t -= dt;
       if (sk.shock.t <= 0) {
         sk.shock.t = sk.shock.cd;
         const s = sk.shock;
-        G.state.skillFx.push({ kind: 'shock', x: p.x, y: p.y, r: s.r, t: 0, dur: 0.45 });
-        setTimeout(() => {
-          if (!G.state.player || G.state.phase !== 'play') return;
-          shockBlast(p, p.x, p.y, s.r, s.mult, true);
-        }, 120);
+        spawnShockWave(p, p.x, p.y, s.r, s.mult);
       }
     }
 
@@ -414,10 +787,12 @@
       }
     }
 
-    /* ---- 环绕飞刃：周期展开/收起 ---- */
+    /* ---- 环绕飞刃：周期展开/收起；终极·无尽刃环常驻不收起 ---- */
     if (p.skills.orbit) {
       const o = sk.orbit;
-      if (o.active > 0) {
+      if (o.ultPersistent) {
+        p.orbits = o.count;   // 常驻：始终保持展开
+      } else if (o.active > 0) {
         o.active -= dt;
         p.orbits = o.count;
         if (o.active <= 0) { p.orbits = 0; o.t = o.interval; }
@@ -427,10 +802,13 @@
       }
     }
 
-    /* ---- 浮游炮：周期部署，存活一段时间后消失 ---- */
+    /* ---- 浮游炮：周期部署，存活一段时间后消失；终极·浮游炮阵常驻 ---- */
     if (p.skills.drone) {
       const d = sk.drone;
-      if (d.active > 0) {
+      if (d.ultPersistent && d.active > 0) {
+        d.shootT -= dt;
+        if (d.shootT <= 0) { d.shootT = d.cd; fireDroneVolley(p); }
+      } else if (d.active > 0) {
         d.active -= dt;
         d.shootT -= dt;
         if (d.shootT <= 0) { d.shootT = d.cd; fireDroneVolley(p); }
@@ -454,6 +832,7 @@
             x: p.x - Math.cos(a) * dd * (i ? -1 : 1),
             y: p.y - Math.sin(a) * dd * (i ? -1 : 1),
             r: cfg.r, t: 0, dmg: skillDamage(p, cfg.mult), armed: 0.4,
+            ult: !!cfg.ultChain,   // 终极·灭世雷区：专属外观
             fuse: MINE_FUSE   // 过期自爆（反挂机）
           });
         }
@@ -479,6 +858,39 @@
       }
     }
 
+    /* ---- 火球 ---- */
+    if (p.skills.fireball) {
+      sk.fireball.t -= dt;
+      if (sk.fireball.t <= 0) {
+        sk.fireball.t = sk.fireball.cd;
+        fireFireballs(p);
+      }
+    }
+
+    /* ---- 回旋镖：节拍到点后把 count 把排入队列，按 gap 逐把依次发射 ---- */
+    if (p.skills.boomerang) {
+      const bo = sk.boomerang;
+      bo.t -= dt;
+      if (bo.t <= 0) {
+        bo.t = bo.cd;
+        bo.queue = bo.count;
+        bo.shootT = 0;   // 下一帧立刻发第一把
+      }
+      if (bo.queue > 0) {
+        bo.shootT -= dt;
+        if (bo.shootT <= 0) {
+          fireOneBoomerang(p, bo.count - bo.queue, bo.count);
+          bo.queue--;
+          bo.shootT = bo.gap;
+        }
+      }
+    }
+
+    /* ---- 震荡波扩散推进（波面扫到敌人才命中） ---- */
+    advanceShockWaves(dt);
+    updateFireballs(dt);
+    updateBoomerangs(dt);
+
     /* ---- 特效计时 ---- */
     for (let i = G.state.skillFx.length - 1; i >= 0; i--) {
       const fx = G.state.skillFx[i];
@@ -489,9 +901,11 @@
   }
 
   Object.assign(G, {
-    LINES, LINE_KEYS, SKILL_CARDS,
+    LINES, LINE_KEYS, SKILL_CARDS, ULT,
+    isLineMaxed, grantUltimate,
     applySkillBuild, initSkills, updateSkills,
     skillDamage, nearestFoe, nearestFoeFrom,
-    dronePos, explodeMine, fireChainBolt, shockBlast, MINE_FUSE
+    dronePos, explodeMine, fireChainBolt, shockBlast, spawnShockWave, advanceShockWaves, SHOCK_WAVE_SPEED, MINE_FUSE,
+    explodeFireball, fireFireballs, updateFireballs, fireBoomerangs, fireOneBoomerang, updateBoomerangs
   });
 })(window.ABYSS = window.ABYSS || {});

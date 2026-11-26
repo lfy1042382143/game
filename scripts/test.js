@@ -38,7 +38,8 @@ function makeEl(id) {
     querySelectorAll() { return []; },
     addEventListener() {},
     classList: makeClassList(),
-    getContext() { return makeCtx(); }
+    getContext() { return makeCtx(); },
+    getBoundingClientRect() { return { left: 0, top: 0, width: 960, height: 600 }; }
   };
 }
 
@@ -77,12 +78,13 @@ const sandbox = {
 };
 sandbox.window = sandbox;
 sandbox.globalThis = sandbox;
+sandbox.__TEST__ = true;   // 让 main.js boot 跳过开局选武器界面，直接 startRun（保持测试可控）
 
 const ctx = vm.createContext(sandbox);
 
 const SCRIPTS = [
-  'js/core/config.js', 'js/core/utils.js', 'js/core/audio.js', 'js/core/engine.js',
-  'js/game/equipment.js', 'js/game/skills.js', 'js/game/state.js', 'js/game/combat.js',
+  'js/core/config.js', 'js/core/utils.js', 'js/core/audio.js', 'js/core/engine.js', 'js/core/touch.js',
+  'js/game/equipment.js', 'js/game/skills.js', 'js/game/build.js', 'js/game/state.js', 'js/game/combat.js',
   'js/game/bullets.js', 'js/game/player.js', 'js/game/enemies.js', 'js/game/waves.js',
   'js/game/loot.js', 'js/game/cards.js', 'js/game/events.js', 'js/game/hazards.js', 'js/game/tasks.js', 'js/game/flow.js',
   'js/ui/ui.js', 'js/render/render.js', 'js/main.js'
@@ -133,6 +135,10 @@ function runFull(seconds) {
       const site = G.state.activeSite;
       const opts = (site && site.evt ? site.evt : G.EVENTS[0]).options;
       G.chooseEventOption(opts[opts.length - 1]);
+    }
+    else if (ph === 'eventpick') {
+      const cards = G.pickBuildCards(G.state.player, 3);
+      G.chooseLevelCard(cards[0]);
     }
     else break;
   }
@@ -199,6 +205,20 @@ function featureTests() {
   assert(G.state.bullets.length > b0 && eb.length > 0, 'T4 远程敌人发射弹幕');
   assert(G.CFG.ranged.bulletSpeed < 200, 'T4 敌方弹幕速度已降低', G.CFG.ranged.bulletSpeed);
 
+  // T4b 远程敌人贴近玩家时不再直线急速后撤（改为侧向环绕，距离基本保持）
+  reset();
+  const rfNear = G.makeEnemy(1, 6);
+  G.state.foes = [rfNear];
+  const pl = G.state.player;
+  rfNear.x = pl.x + 90; rfNear.y = pl.y;   // 90 < keepMin(200)，处于"太近"区间
+  G.state.obstacles = [];
+  rfNear.atkCd = 999;                        // 屏蔽开火，专测走位
+  const dNear0 = G.dist(rfNear.x, rfNear.y, pl.x, pl.y);
+  run(1.2);
+  const dNear1 = G.dist(rfNear.x, rfNear.y, pl.x, pl.y);
+  assert(dNear1 < dNear0 + 40, 'T4b 远程敌人贴近时不再急速后撤',
+    { before: Math.round(dNear0), after: Math.round(dNear1) });
+
   // T5 弹幕命中玩家 + 无敌帧
   G.state.player.iframes = 0;
   G.state.player.shield = 0;
@@ -234,12 +254,14 @@ function featureTests() {
   const unlockCard = k => G.SKILL_CARDS.find(c => c.kind === 'skill' && c.line === k && c.sub === 'unlock');
   const dimCard = (k, d) => G.SKILL_CARDS.find(c => c.kind === 'skill' && c.line === k && c.dim === d);
   const dimTotal = G.LINE_KEYS.reduce((n, k) => n + G.LINES[k].dims.length, 0);
-  assert(G.LINE_KEYS.length === 6 && G.SKILL_CARDS.length === 6 + dimTotal,
-    'T16 六条攻击方式线（解锁卡+维度卡）', { lines: G.LINE_KEYS, cards: G.SKILL_CARDS.length });
+  assert(G.LINE_KEYS.length === 8 && G.SKILL_CARDS.length === 8 + dimTotal,
+    'T16 八条攻击方式线（解锁卡+维度卡）', { lines: G.LINE_KEYS, cards: G.SKILL_CARDS.length });
   assert(G.LINE_KEYS.includes('mine'), 'T16 地雷线保留', G.LINE_KEYS);
+  assert(G.LINE_KEYS.includes('fireball') && G.LINE_KEYS.includes('boomerang'), 'T16 火球/回旋镖线已加入', G.LINE_KEYS);
   assert(!modeByKey('homing'), 'T16 追踪箭已从卡池删除');
-  // 箭矢维度：数量/射速/弹射/穿透/分裂
+  // 箭矢维度：数量/射速/弹射/穿透（分裂弹幕已删除）
   assert(p15.skills.arrow === 1, 'T16 箭矢初始解锁', p15.skills.arrow);
+  assert(!dimCard('arrow', 'split'), 'T16 箭矢·分裂弹幕卡已删除');
   const aCount16 = dimCard('arrow', 'count');
   aCount16.apply(p15);
   assert(p15.shots === 2, 'T16 箭矢·数量维度 +1 支', p15.shots);
@@ -250,8 +272,6 @@ function featureTests() {
   assert(p15.pierce === 1, 'T16 箭矢·穿透维度', p15.pierce);
   dimCard('arrow', 'bounce').apply(p15);
   assert(p15.bounce === 1, 'T16 箭矢·弹射维度', p15.bounce);
-  dimCard('arrow', 'split').apply(p15);
-  assert(p15.splitN === 1, 'T16 箭矢·分裂弹幕维度', p15.splitN);
   assert(aCount16.max(p15) === false, 'T16 数量维度未满仍可入池');
   // 解锁其余五条线；未解锁时其维度卡不出现
   const chainDimBefore = dimCard('chain', 'jumps');
@@ -275,6 +295,8 @@ function featureTests() {
   assert(p15.sk.orbit.count === 3, 'T16 飞刃解锁 3 枚', p15.sk.orbit.count);
   dimCard('orbit', 'count').apply(p15);
   assert(p15.sk.orbit.count === 5, 'T16 飞刃·数量维度 +2 枚', p15.sk.orbit.count);
+  assert(p15.sk.orbit.r >= 92, 'T16 飞刃绕行半径已上调', p15.sk.orbit.r);
+  assert(Math.abs(p15.sk.orbit.interval - 3.5) < 1e-9, 'T16 飞刃重新部署间隔缩短至3.5s', p15.sk.orbit.interval);
   // 浮游炮维度：数量/子弹伤害/存在时间
   dimCard('drone', 'count').apply(p15);
   assert(p15.sk.drone.count === 2, 'T16 浮游炮·数量维度', p15.sk.drone.count);
@@ -294,7 +316,7 @@ function featureTests() {
   assert(!!cdrCard16, 'T16 全局冷却卡存在');
   cdrCard16.apply(p15);
   assert(p15.cdr === 1 && Math.abs(p15.sk.chain.cd - 3.0 * 0.9) < 1e-9
-    && Math.abs(p15.sk.orbit.interval - 5 * 0.9) < 1e-9
+    && Math.abs(p15.sk.orbit.interval - 3.5 * 0.9) < 1e-9
     && Math.abs(p15.sk.drone.interval - 6.5 * 0.9) < 1e-9
     && Math.abs(p15.sk.mine.cd - 3.0 * 0.88 * 0.9) < 1e-9,
     'T16 全局冷却卡同时缩短所有攻击间隔', { cdr: p15.cdr, chain: p15.sk.chain.cd, orbit: p15.sk.orbit.interval, drone: p15.sk.drone.interval, mine: p15.sk.mine.cd });
@@ -343,8 +365,10 @@ function featureTests() {
   const cards3 = G.makeLevelCards(p16d);
   const keys = cards3.map(c => c.key || c.attr);
   assert(cards3.length === 3 && new Set(keys).size === 3, 'T16c 每次升级 3 张不重复卡', keys.join(','));
-  assert(cards3.every(c => c.kind === 'attr' || c.kind === 'mode' || c.kind === 'skill'),
-    'T16c 卡牌含属性/强化/技能三类', cards3.map(c => c.kind).join(','));
+  assert(cards3.every(c => ['weapon', 'passive', 'heal'].includes(c.kind)),
+    'T16c 卡牌种类合法（仅武器/被动/回血兜底）', cards3.map(c => c.kind).join(','));
+  assert(cards3.some(c => c.kind === 'weapon' || c.kind === 'passive'),
+    'T16c VS构筑：每批升级至少含一张武器/被动卡', cards3.map(c => c.kind).join(','));
 
   // T17 等级里程碑解锁新地图（每 3 级一档：4/7/10 级解锁）
   reset();
@@ -421,10 +445,8 @@ function featureTests() {
   assert(G.state.player.baseAtk === atkBefore7 + 5 && (G.state.pendingChestUps || 0) === 0,
     'T7 宝箱强化生效并消耗', { baseAtk: G.state.player.baseAtk, chest: G.state.pendingChestUps });
 
-  // T9 事件地点：走近触发 → 选择 → 地点消失（临时关闭陷阱保证确定性）
+  // T9 事件地点：走近触发 → 选择 → 地点消失
   reset();
-  const trapChanceBak = G.CFG.events.trapChance;
-  G.CFG.events.trapChance = 0;
   const site = { x: G.state.player.x, y: G.state.player.y, evt: G.EVENTS[0], used: false };
   G.state.sites.push(site);
   run(0.3);
@@ -432,30 +454,99 @@ function featureTests() {
   G.chooseEventOption(G.EVENTS[0].options[2]);   // 离开
   assert(G.state.phase === 'play', 'T9 事件选择后回到战斗', G.state.phase);
   assert(site.used === true, 'T9 事件地点一次性（触发后消失）');
-  G.CFG.events.trapChance = trapChanceBak;
 
-  // T-Trap 陷阱：概率触发 → 弹陷阱弹窗 → 承受后生效（敌人倍率与持续时间）
+  // T9-event 事件层改造：随机陷阱已移除 / 加权随机 / 风险明码标价
+  assert(G.CFG.events.trapChance === undefined && !G.CFG.traps && !G.TRAPS && !G.resolveTrap,
+    'T9-event 35% 随机背刺陷阱系统已彻底移除');
+  assert(G.CFG.events.weights && G.CFG.events.weights.shrine > G.CFG.events.weights.merchant,
+    'T9-event 事件加权配置：商人更稀有', G.CFG.events.weights);
+  assert(G.EVENTS.every(e => e.color && e.options.some(o => o.risk)),
+    'T9-event 每种事件都有专属颜色与明码标价的风险文案');
+  const rndEv = Math.random;
+  try {
+    Math.random = () => 0;
+    const k1 = G.pickEvent().key, k2 = G.pickEvent().key;
+    const keys = G.EVENTS.map(e => e.key);
+    assert(keys.includes(k1) && keys.includes(k2) && k1 !== k2, 'T9-event 加权抽取且避免连续重复', { k1, k2 });
+  } finally { Math.random = rndEv; }
+
+  // T9-shrine 血契：献祭生命上限 → 武器升级 + 明码标价的敌人攻击提升
   reset();
-  G.CFG.events.trapChance = 1;
-  G.state.sites.push({ x: G.state.player.x, y: G.state.player.y, evt: G.EVENTS[0], used: false });
+  const pSh = G.state.player;
+  const shLv = G.weaponLevel(pSh, 'arrow'), shHp = pSh.baseHp;
+  G.state.sites.push({ x: pSh.x, y: pSh.y, evt: G.EVENTS[0], used: false });
   run(0.3);
-  assert(G.state.phase === 'event', 'T-Trap 事件选择后弹出陷阱', G.state.phase);
-  G.resolveTrap(G.TRAPS[0]);                      // 血肉盛宴：敌人生命 ×2
-  assert(G.state.phase === 'play', 'T-Trap 承受陷阱后回到战斗', G.state.phase);
-  assert(G.state.trapFoeHpMul === G.CFG.traps.foeHpMul, 'T-Trap 陷阱敌人生命倍率生效', G.state.trapFoeHpMul);
-  assert(G.state.trapUntil > G.state.time, 'T-Trap 陷阱有持续时间', Math.round(G.state.trapUntil - G.state.time));
-  // 陷阱期间刷新的敌人生命翻倍
-  const trapE = G.makeEnemy(1, 0);
-  G.state.trapUntil = 0;                          // 关闭陷阱后生成的敌人不受影响
-  const normE2 = G.makeEnemy(1, 0);
-  assert(trapE.hp > normE2.hp * 1.5, 'T-Trap 陷阱期间敌人生命翻倍', { trap: trapE.hp, norm: normE2.hp });
-  assert(Math.abs(normE2.hp - G.curveHp(1) * (G.CFG.melee.hpMul || 1)) < 2, 'T-Trap 陷阱结束后敌人恢复正常', { normE2: normE2.hp, base: G.curveHp(1) });
-  // 伏击陷阱：立即召唤敌人
+  G.chooseEventOption(G.EVENTS[0].options[0]);
+  assert(G.weaponLevel(pSh, 'arrow') === shLv + 1, 'T9-shrine 血契使武器直接 +1 级', G.weaponLevel(pSh, 'arrow'));
+  assert(pSh.baseHp < shHp && G.state.phase === 'play', 'T9-shrine 献祭生命上限后回到战斗', { hp: pSh.baseHp, phase: G.state.phase });
+  assert(G.state.eventFoeAtkMul >= 1.19 && G.state.eventFoeUntil > G.state.time, 'T9-shrine 风险：期间敌人攻击提升', G.state.eventFoeAtkMul);
+  const riskFoe = G.makeEnemy(1, 0);
+  G.state.eventFoeUntil = 0;
+  const normalFoe = G.makeEnemy(1, 0);
+  assert(riskFoe.atk > normalFoe.atk, 'T9-shrine 风险期内刷出的敌人攻击更高', { risk: riskFoe.atk, normal: normalFoe.atk });
+
+  // T9-passive 灵魂献祭：1 级被动转移给另一被动（推动进化配方）
   reset();
-  const ambushN0 = G.state.foes.filter(f => !f.dead).length;
-  G.TRAPS[2].apply();
-  assert(G.state.foes.filter(f => !f.dead).length >= ambushN0 + G.CFG.traps.ambushCount, 'T-Trap 伏击陷阱立即召唤敌人', G.state.foes.length);
-  G.CFG.events.trapChance = trapChanceBak;
+  const pTr = G.state.player;
+  G.upgradePassive(pTr, 'might'); G.upgradePassive(pTr, 'armor');
+  const m0 = G.passiveLevel(pTr, 'might'), a0 = G.passiveLevel(pTr, 'armor');
+  G.state.sites.push({ x: pTr.x, y: pTr.y, evt: G.EVENTS[0], used: false });
+  run(0.3);
+  G.chooseEventOption(G.EVENTS[0].options[1]);
+  const m1 = G.passiveLevel(pTr, 'might'), a1 = G.passiveLevel(pTr, 'armor');
+  assert(m1 + a1 === m0 + a0 && (m1 !== m0 || a1 !== a0), 'T9-passive 献祭一级被动、另一被动 +1 级', { before: [m0, a0], after: [m1, a1] });
+
+  // T9-merchant 商人：付血 → 三选一「指定」构筑升级弹窗
+  reset();
+  const pMe = G.state.player;
+  const meHp = pMe.hp, meArrow = G.weaponLevel(pMe, 'arrow');
+  G.state.sites.push({ x: pMe.x, y: pMe.y, evt: G.EVENTS[2], used: false });
+  run(0.3);
+  G.chooseEventOption(G.EVENTS[2].options[0]);
+  assert(G.state.phase === 'eventpick' && G.state.eventPick === true, 'T9-merchant 付费后进入指定强化弹窗', G.state.phase);
+  assert(pMe.hp < meHp && G.el.cards.children.length === 3, 'T9-merchant 扣除生命并展示三张构筑卡', { hp: pMe.hp, cards: G.el.cards.children.length });
+  G.chooseLevelCard({ kind: 'weapon', name: '指定升级', icon: '⚔', val: '+1', desc: '箭矢 +1', apply: pp => G.upgradeWeapon(pp, 'arrow') });
+  assert(G.state.phase === 'play' && !G.state.eventPick && G.weaponLevel(pMe, 'arrow') === meArrow + 1,
+    'T9-merchant 指定升级生效且不消耗升级队列', G.weaponLevel(pMe, 'arrow'));
+
+  // T9-fork 歧路：精英换宝箱 / 搜寻物资换回血 + 武器升级
+  reset();
+  const pFo = G.state.player;
+  G.state.sites.push({ x: pFo.x, y: pFo.y, evt: G.EVENTS[1], used: false });
+  run(0.3);
+  const foesBefore = G.state.foes.filter(f => !f.dead).length;
+  G.chooseEventOption(G.EVENTS[1].options[0]);
+  assert(G.state.foes.filter(f => !f.dead).length === foesBefore + 1 && G.state.foes.some(f => f.elite),
+    'T9-fork 挑战精英：强敌入场（击杀掉宝箱）');
+  reset();
+  const pSe = G.state.player;
+  pSe.hp = 10;
+  const seArrow = G.weaponLevel(pSe, 'arrow');
+  G.state.sites.push({ x: pSe.x, y: pSe.y, evt: G.EVENTS[1], used: false });
+  run(0.3);
+  G.chooseEventOption(G.EVENTS[1].options[1]);
+  assert(pSe.hp > 10 && G.weaponLevel(pSe, 'arrow') === seArrow + 1, 'T9-fork 搜寻物资：回血 + 武器 +1 级', { hp: pSe.hp, lv: G.weaponLevel(pSe, 'arrow') });
+
+  // T9-spring 泉水：回满血 + 明确标注的敌人增强代价
+  reset();
+  const pSp = G.state.player;
+  pSp.hp = 1;
+  G.state.sites.push({ x: pSp.x, y: pSp.y, evt: G.EVENTS[3], used: false });
+  run(0.3);
+  G.chooseEventOption(G.EVENTS[3].options[0]);
+  assert(pSp.hp >= pSp.maxHp && G.state.eventFoeAtkMul >= 1.29, 'T9-spring 回满血并触发明示代价', { hp: pSp.hp, mul: G.state.eventFoeAtkMul });
+
+  // T9-hazard 事件地点优先刷在地形附近（引导引怪进陷阱）
+  reset();
+  G.state.sites = []; G.state.obstacles = []; G.state.chests = [];
+  const pHaz = G.state.player;
+  const anchor = { x: pHaz.x + 300, y: pHaz.y };
+  G.state.hazAnchors = [anchor]; G.state.zones = [];
+  const rndSite = Math.random;
+  try { Math.random = () => 0; G.spawnSite(); } finally { Math.random = rndSite; }
+  const hazSite = G.state.sites[0];
+  assert(hazSite && G.dist(hazSite.x, hazSite.y, anchor.x, anchor.y) < 100,
+    'T9-hazard 事件地点贴近灾害锚点', hazSite && { x: hazSite.x, y: hazSite.y });
 
   // T9a 经验需求十级一档：档内恒定，跨档跳增且后期加速
   const n1 = G.xpNeed(1), n2 = G.xpNeed(2), n10 = G.xpNeed(10), n11 = G.xpNeed(11), n20 = G.xpNeed(20), n21 = G.xpNeed(21);
@@ -521,43 +612,6 @@ function featureTests() {
   G.state.bullets.push({ x: pRic.x + 40, y: pRic.y, vx: 600, vy: 0, r: 4, dmg: 1, side: 'p', life: 5, hit: [], bounces: 1 });
   run(1.0);
   assert(!G.state.bullets.some(b => b.bounces >= 2), 'T26b 反弹次数用尽后弹幕消散');
-
-  // T26c 壁垒甲：升级时刷新护盾
-  reset();
-  const pGd = G.state.player;
-  const guardItem = G.buildItem('armor', 1, 3, 1);   // 壁垒甲（史诗）
-  pGd.items.push(guardItem);
-  G.refresh(pGd);
-  const guardVal = Math.round(pGd.agg.guard);
-  assert(guardVal > 0, 'T26c 壁垒甲聚合出护盾值', guardVal);
-  pGd.shield = 0;
-  G.gainXp(G.xpNeed(pGd.level));
-  assert(pGd.shield >= guardVal, 'T26c 升级时刷新壁垒甲护盾', { shield: pGd.shield, guardVal });
-
-  // T26d 回响头盔：受击后短时加速（不再回血）
-  reset();
-  const pVp = G.state.player;
-  const vampItem = G.buildItem('helm', 0, 3, 1);     // 回响头盔（史诗）
-  pVp.items.push(vampItem);
-  G.refresh(pVp);
-  pVp.hp = pVp.maxHp; pVp.iframes = 0;
-  const hpVp0 = pVp.hp;
-  const dmgIn = 20;
-  G.dealDamage(null, pVp, dmgIn, { flat: true, noThorn: true, ignoreIframes: true });
-  assert(pVp.hasteT > 0 && pVp.agg.haste > 0, 'T26d 受击后获得短时加速', { hasteT: pVp.hasteT, pct: pVp.agg.haste });
-  assert(pVp.hp === hpVp0 - dmgIn, 'T26d 已删除受击回血', { hp: pVp.hp });
-
-  // T26e 再生头环：持续回血
-  reset();
-  const pRg = G.state.player;
-  const regenIdx = G.ITEM_DEFS.helm.findIndex(d => d.k === 'regen');
-  const regenItem = G.buildItem('helm', regenIdx, 3, 1);    // 再生头环（史诗）
-  pRg.items.push(regenItem);
-  G.refresh(pRg);
-  pRg.hp = Math.max(1, pRg.maxHp - 50);
-  const hpRg0 = pRg.hp;
-  run(3);
-  assert(pRg.hp > hpRg0, 'T26e 再生头环每秒回血', { hp0: Math.round(hpRg0), hp3: Math.round(pRg.hp), regen: pRg.agg.regen });
 
   // T26f 法师不占刷怪名额
   reset();
@@ -807,8 +861,8 @@ function featureTests() {
     if (cards.length !== 3) kindsOK = false;
     if (cards.some(c => c.key === 'xpgain')) xpSeen = true;
   }
-  assert(xpSeen, 'T23a 升级效率随机混入升级卡池（60 抽必出现）', xpSeen);
-  assert(kindsOK, 'T23a 混合池每级都出 3 张', kindsOK);
+  assert(!xpSeen, 'T23a 升级效率卡已移出升级卡池', xpSeen);
+  assert(kindsOK, 'T23a 每次升级都出 3 张', kindsOK);
   const xpCard = G.XP_CARD;
   xpCard.apply(pXp);
   xpCard.apply(pXp);
@@ -892,10 +946,10 @@ function featureTests() {
     let sawMode = false, sawAttr = false;
     for (let i = 0; i < 60; i++) {
       const cards = G.makeLevelCards(pm);
-      if (cards.some(c => c.kind === 'mode')) sawMode = true;
-      if (cards.some(c => c.kind === 'attr')) sawAttr = true;
+      if (cards.some(c => c.kind === 'weapon' || c.kind === 'passive')) sawMode = true;
+      if (cards.some(c => c.kind === 'attr' || c.kind === 'mode' || c.kind === 'ultimate')) sawAttr = true;
     }
-    assert(sawMode && sawAttr, 'T16a 混合池随机出现攻击方式与属性卡', { sawMode, sawAttr });
+    assert(sawMode && !sawAttr, 'T16a 卡池仅武器/被动，属性与通用卡已移除', { sawMode, sawAttr });
   }
   reset();
   {
@@ -932,8 +986,8 @@ function featureTests() {
     const chestsBefore = G.state.chests.length;
     G.dealDamage(G.state.player, mim, 99999);
     const mc = G.state.chests[G.state.chests.length - 1];
-    assert(G.state.chests.length > chestsBefore && mc.mimic === false && mc.rarBonus === 1,
-      'T18b 击杀宝箱怪掉落真宝箱（稀有度+1）', G.state.chests.length);
+    assert(G.state.chests.length > chestsBefore && mc.mimic === false,
+      'T18b 击杀宝箱怪掉落真宝箱', G.state.chests.length);
   }
   // 普通宝箱不受影响
   reset();
@@ -947,8 +1001,9 @@ function featureTests() {
   G.ui.syncTopbar();
   const side = sandbox.document._els.eqSide;
   const dmgSideT19 = sandbox.document._els.dmgSide;
-  assert(side && side.innerHTML.indexOf('🗡️ 攻击方式') >= 0 && side.innerHTML.indexOf('sk-dim') >= 0,
-    'T19a 右侧栏渲染攻击方式与维度等级');
+  assert(side && side.innerHTML.indexOf('武器构筑') >= 0 && side.innerHTML.indexOf('武器') >= 0
+    && side.innerHTML.indexOf('被动道具') >= 0,
+    'T19a 右侧栏渲染VS构筑（武器槽+被动槽）', side && side.innerHTML.slice(0, 200));
   assert(!!dmgSideT19 && dmgSideT19.innerHTML.indexOf('属性') >= 0 && dmgSideT19.innerHTML.indexOf('输出统计') >= 0,
     'T19a 左侧栏渲染属性与输出统计');
   assert(side.innerHTML.indexOf('生命') < 0 && dmgSideT19.innerHTML.indexOf('生命') >= 0,
@@ -967,18 +1022,6 @@ function featureTests() {
   G.state.foes.push(f20b);
   const dealt2 = G.dealDamage(G.state.player, f20b, 3, { flat: true, noThorn: true });
   assert(dealt2 === 3, 'T20b 未溢出时伤害正常', dealt2);
-
-  // T20c 装备稀有度按分钟封顶
-  reset();
-  G.state.wave = 1;
-  const rars1 = [];
-  for (let i = 0; i < 40; i++) rars1.push(G.rollChestItem(1).rarity);   // 含精英加成同样封顶
-  G.state.wave = 12;
-  const rars12 = [];
-  for (let i = 0; i < 40; i++) rars12.push(G.rollChestItem(1).rarity);
-  G.state.wave = 1;
-  assert(rars1.every(r => r === 0), 'T20c 第 1 分钟只能出普通装备', rars1.join(''));
-  assert(Math.max(...rars12) === 4, 'T20c 第 12 分钟才可能出传说', Math.max(...rars12));
 
   /* ================= T24：体型随血量 + BOSS 技能轮换 + 固定陷阱 ================= */
 
@@ -1058,10 +1101,16 @@ function featureTests() {
   assert(ovD >= ovF.r + pOv.r - 0.5, 'T24d 重叠敌人被推出玩家圆', { dist: ovD.toFixed(1), min: (ovF.r + pOv.r).toFixed(1) });
 
   /* ================= T27：怪物属性重设计 ================= */
-  // T27a 档位曲线：两分钟一档，档内恒定、跨档跳增
-  assert(G.curveHp(1) === G.curveHp(2) && G.curveHp(3) > G.curveHp(2), 'T27a 生命按两分钟一档', [G.curveHp(1), G.curveHp(2), G.curveHp(3)]);
-  assert(G.curveAtk(1) === G.curveAtk(2) && G.curveAtk(3) > G.curveAtk(2), 'T27a 攻击按两分钟一档', [G.curveAtk(1), G.curveAtk(3)]);
-  assert(G.curveDef(1) === G.curveDef(2) && G.curveDef(3) > G.curveDef(2), 'T27a 减伤率按两分钟一档', [G.curveDef(1), G.curveDef(3)]);
+  // T27a 平滑曲线（对标 VS）：每分钟连续递增，取消两分钟档内恒定的断崖
+  assert(G.curveHp(1) < G.curveHp(2) && G.curveHp(2) < G.curveHp(3), 'T27a 生命平滑逐分钟递增', [G.curveHp(1), G.curveHp(2), G.curveHp(3)]);
+  assert(G.curveAtk(1) < G.curveAtk(2) && G.curveAtk(2) < G.curveAtk(3), 'T27a 攻击平滑逐分钟递增', [G.curveAtk(1), G.curveAtk(2), G.curveAtk(3)]);
+  assert(G.curveDef(1) < G.curveDef(2) && G.curveDef(2) < G.curveDef(3), 'T27a 减伤率平滑逐分钟递增', [G.curveDef(1), G.curveDef(2), G.curveDef(3)]);
+  // T27a2 生命/防御整体 +20%（相对旧基准 28 / 5+4×tier），攻击不变
+  assert(Math.abs(G.curveHp(1) / 28 - 1.2) < 0.05 && Math.abs(G.curveHp(11) / (28 * Math.pow(1.55, 5)) - 1.2) < 0.05,
+    'T27a2 怪物生命整体 +20%（每档精确）', { hp1: G.curveHp(1), hp11: G.curveHp(11) });
+  assert(Math.abs(G.curveDef(1) - 6) < 1e-9 && Math.abs(G.curveDef(3) - 10.8) < 1e-9,
+    'T27a2 怪物减伤率整体 +20%', { d1: G.curveDef(1), d3: G.curveDef(3) });
+  assert(G.curveAtk(1) === Math.round(9.2), 'T27a2 怪物攻击未变', G.curveAtk(1));
 
   // T27b 敌人防御是减伤率（百分比），不是减法护甲
   reset();
@@ -1169,6 +1218,10 @@ function featureTests() {
     'T28d 前期经验降低、后期需求增大', { early: G.xpNeed(11), late: G.xpNeed(91) });
   assert(G.aliveCap(20) >= 30 && G.spawnInterval(20) <= 0.6,
     'T28e 后期敌人数量与刷新密度明显提高', { cap: G.aliveCap(20), interval: G.spawnInterval(20) });
+  assert(G.aliveCap(1) >= 3 && G.aliveCap(5) < G.aliveCap(15) && G.aliveCap(15) < G.aliveCap(25),
+    'T28e2 前期稀疏、随阶段递增', [G.aliveCap(1), G.aliveCap(5), G.aliveCap(15), G.aliveCap(25)]);
+  assert(G.spawnInterval(1) > G.spawnInterval(20), 'T28e2 前期刷怪间隔长于后期',
+    [G.spawnInterval(1), G.spawnInterval(20)]);
 
   reset();
   {
@@ -1187,26 +1240,14 @@ function featureTests() {
   assert(xp21 < xp11 * 3, 'T28g 击杀经验按血量开方，不随怪物指数暴涨', { xp11, xp21 });
 
   /* ================= T29：吸血删除 / 装备扩充 / 岩脉 / 技能线 / BOSS ================= */
-  // T29a 吸血全部移除
+  // T29a 吸血全部移除（装备系统已删除）
   reset();
-  assert(!G.MODE_POOL.some(c => c.key === 'leech') && !G.ITEM_DEFS.weapon.some(d => d.k === 'leech'),
-    'T29a 吸血箭卡与噬血剑已删除');
+  assert(!G.MODE_POOL.some(c => c.key === 'leech'), 'T29a 吸血箭卡已删除');
   assert(!('leech' in G.state.player.agg) && !('vamp' in G.state.player.agg),
-    'T29a 装备聚合不再含吸血词条', Object.keys(G.state.player.agg).join(','));
+    'T29a 玩家不再含吸血词条', Object.keys(G.state.player.agg).join(','));
   const pHp0 = G.state.player.hp;
   G.dealDamage(null, G.state.player, 10, { flat: true, noThorn: true, ignoreIframes: true });
   assert(G.state.player.hp === pHp0 - 10, 'T29a 受击不再吸血回血');
-
-  // T29b 装备扩至 24 件
-  const slotCounts = Object.values(G.ITEM_DEFS).map(a => a.length);
-  assert(slotCounts.length === 4 && slotCounts.every(n => n === 6) && slotCounts.reduce((a, b) => a + b, 0) === 24,
-    'T29b 四槽位共 24 件装备', slotCounts);
-  reset();
-  const extraKeys = ['execute', 'splash', 'dodge', 'shock', 'charger', 'eagle', 'tough', 'clarity', 'hastestone', 'resonance', 'greed'];
-  extraKeys.forEach(k => {
-    const slot = Object.keys(G.ITEM_DEFS).find(s => G.ITEM_DEFS[s].some(d => d.k === k));
-    assert(!!slot, 'T29b 新词条 ' + k + ' 已定义');
-  });
 
   // T29c 不规则岩脉
   reset();
@@ -1282,9 +1323,14 @@ function featureTests() {
   reset();
   const t32 = i => G.makeEnemy(1, i).type;
   assert(t32(0) === 'melee' && t32(3) === 'brute' && t32(4) === 'flyer'
-    && t32(6) === 'ranged' && t32(8) === 'bomber' && t32(9) === 'mage',
-    'T32 六类敌人分布（近战/重甲/飞行近战/远程/飞行远程/法师）',
+    && t32(6) === 'ranged' && t32(8) === 'melee' && t32(9) === 'mage',
+    'T32 敌人分布（近战/重甲/飞行近战/远程1%/法师；轰炸者已删除）',
     [0, 3, 4, 6, 8, 9].map(t32).join(','));
+  // 远程占比 = 现有的 1/10（idx%100===6 一档 ≈1%）；轰炸者不再出现
+  const dist200 = Array.from({ length: 200 }, (_, i) => G.makeEnemy(1, i).type);
+  assert(dist200.filter(t => t === 'ranged').length === 2 && dist200.every(t => t !== 'bomber'),
+    'T32 远程怪占比降至1%（现有1/10）且无轰炸者',
+    { ranged: dist200.filter(t => t === 'ranged').length, bomber: dist200.filter(t => t === 'bomber').length });
   const p32 = G.state.player;
   const mk32 = t => {
     const f = G.makeEnemy(1, 0);
@@ -1304,17 +1350,18 @@ function featureTests() {
   G.dealDamage(p32, b32, 10, { tag: 'arrow', flat: true, noThorn: true });
   assert(500 - bHp0_32 + b32.hp === 0 || (bHp0_32 - b32.hp) <= 7,
     'T32 重甲受箭矢伤害降低（×0.55）', bHp0_32 - b32.hp);
-  // 飞行：震荡波/地雷免疫，箭矢弱点
+  // 飞行：震荡波半伤(×0.5)、地雷仍免疫，箭矢弱点
   const dealt32 = G.dealDamage(p32, f32, 50, { tag: 'shock', flat: true, noThorn: true });
   const dealt32b = G.dealDamage(p32, f32, 50, { tag: 'mine', flat: true, noThorn: true });
-  assert(dealt32 === 0 && f32.hp === 500, 'T32 飞行单位免疫震荡波', dealt32);
-  assert(dealt32b === 0, 'T32 飞行单位免疫地雷', dealt32b);
+  assert(dealt32 === 25 && f32.hp === 475, 'T32 飞行单位受震荡波半伤(×0.5)', dealt32);
+  assert(dealt32b === 0, 'T32 飞行单位仍免疫地雷', dealt32b);
   const dealt32c = G.dealDamage(p32, f32, 10, { tag: 'arrow', flat: true, noThorn: true });
   assert(dealt32c > 10, 'T32 飞行单位弱箭矢（×1.15）', dealt32c);
   // 远程：近身伤害降低（震荡波 ×0.65）
   const dealt32d = G.dealDamage(p32, r32, 10, { tag: 'shock', flat: true, noThorn: true });
   assert(dealt32d < 10 && dealt32d >= 6, 'T32 远程敌人受近身伤害降低（×0.65）', dealt32d);
-  // 初始 DPS 对齐：各攻击方式典型战斗 DPS 与箭矢相差不超过 0.45~2.2 倍
+  // 初始 DPS 对齐：各攻击方式典型战斗 DPS 与箭矢相差不超过 0.15~2.4 倍
+  // （飞刃定位为「难命中的高单次伤害」，名义 DPS 偏高但实战命中率低，故上限放宽到 2.4）
   const arrowDps32 = p32.atk * p32.shotDmgMul / (G.CFG.player.atkCd * p32.atkCdMul);
   const dpsPairs32 = [
     ['闪电', p32.sk.chain.mult * p32.atk * 2 / p32.sk.chain.cd],        // 2 跳 AoE（低乘区工具型）
@@ -1325,7 +1372,7 @@ function featureTests() {
   ];
   dpsPairs32.forEach(pr => {
     const ratio32 = pr[1] / arrowDps32;
-    assert(ratio32 > 0.15 && ratio32 < 2.2,
+    assert(ratio32 > 0.15 && ratio32 < 2.4,
       'T32 ' + pr[0] + ' 初始 DPS 与箭矢对齐（×' + ratio32.toFixed(2) + '）', ratio32);
   });
 
@@ -1345,26 +1392,45 @@ function featureTests() {
   assert(dA33 > 0 && dB33 > 0, 'T33a 闪电命中主目标与弹射目标', { dA: dA33, dB: dB33 });
   assert(Math.abs(dB33 - dA33 * 0.8) <= 1, 'T33a 弹射目标伤害 ×0.8 递减', { dA: dA33, dB: dB33 });
 
-  // T33b 震荡波：命中越多单发越低
+  // T33b 震荡波：距离衰减——越靠外伤害越低（近距满伤、远距衰减），与命中数无关
   reset();
   const p33b = G.state.player;
   G.SKILL_CARDS.find(c => c.line === 'shock' && c.sub === 'unlock').apply(p33b);
-  const solo33 = G.makeEnemy(1, 0);
-  const trio33 = [0, 1, 2].map(() => G.makeEnemy(1, 0));
-  solo33.maxHp = 400; solo33.hp = 400; solo33.res = null;
-  trio33.forEach(f => { f.maxHp = 400; f.hp = 400; f.res = null; });
-  solo33.x = p33b.x + 50; solo33.y = p33b.y;
-  trio33.forEach((f, i) => { f.x = p33b.x + 60 + i * 40; f.y = p33b.y; });
-  // 第一波：只有单目标
-  G.state.foes = [solo33];
-  G.shockBlast(p33b, p33b.x, p33b.y, p33b.sk.shock.r, p33b.sk.shock.mult, false);
-  const soloDmg33 = 400 - solo33.hp;
-  // 第二波：3 目标
-  G.state.foes = [trio33[0], trio33[1], trio33[2]];
-  G.shockBlast(p33b, p33b.x, p33b.y, p33b.sk.shock.r, p33b.sk.shock.mult, false);
-  const trioDmg33 = 400 - trio33[0].hp;
-  assert(soloDmg33 > 0, 'T33b 震荡波单目标全额', soloDmg33);
-  assert(trioDmg33 < soloDmg33, 'T33b 3 目标时单发伤害降低', { solo: soloDmg33, trio: trioDmg33 });
+  const near33 = G.makeEnemy(1, 0), far33 = G.makeEnemy(1, 0);
+  [near33, far33].forEach(f => { f.maxHp = 4000; f.hp = 4000; f.res = null; });
+  const R33 = p33b.sk.shock.r;
+  near33.x = p33b.x + R33 * 0.1; near33.y = p33b.y;    // 近中心
+  far33.x = p33b.x + R33 * 0.95; far33.y = p33b.y;     // 接近边缘
+  G.state.foes = [near33, far33];
+  G.shockBlast(p33b, p33b.x, p33b.y, R33, p33b.sk.shock.mult, false);
+  const nearDmg33 = 4000 - near33.hp, farDmg33 = 4000 - far33.hp;
+  assert(nearDmg33 > 0 && farDmg33 > 0, 'T33b 震荡波近远目标均受伤', { near: nearDmg33, far: farDmg33 });
+  assert(farDmg33 < nearDmg33, 'T33b 震荡波越向外伤害越低', { near: nearDmg33, far: farDmg33 });
+  assert(farDmg33 >= nearDmg33 * 0.35, 'T33b 边缘伤害不低于中心35%', { near: nearDmg33, far: farDmg33 });
+  // 与命中数无关：同样距离下 1 个目标和 3 个目标伤害一致
+  reset();
+  const p33b2s = G.state.player;
+  G.SKILL_CARDS.find(c => c.line === 'shock' && c.sub === 'unlock').apply(p33b2s);
+  const mkF = d => { const f = G.makeEnemy(1, 0); f.maxHp = 4000; f.hp = 4000; f.res = null; f.x = p33b2s.x + d; f.y = p33b2s.y; return f; };
+  const oneF = mkF(60), threeF = [mkF(60), mkF(70), mkF(80)];
+  G.state.foes = [oneF];
+  G.shockBlast(p33b2s, p33b2s.x, p33b2s.y, p33b2s.sk.shock.r, p33b2s.sk.shock.mult, false);
+  const oneDmg33 = 4000 - oneF.hp;
+  G.state.foes = threeF;
+  G.shockBlast(p33b2s, p33b2s.x, p33b2s.y, p33b2s.sk.shock.r, p33b2s.sk.shock.mult, false);
+  assert(4000 - threeF[0].hp === oneDmg33, 'T33b 同距离下伤害不受命中数影响',
+    { one: oneDmg33, three: 4000 - threeF[0].hp });
+
+  // T33b2 震荡波撞墙反弹已取消：主波触及障碍物也不再生成反弹特效
+  reset();
+  const p33b2 = G.state.player;
+  G.SKILL_CARDS.find(c => c.line === 'shock' && c.sub === 'unlock').apply(p33b2);
+  G.state.foes = [];
+  G.state.obstacles = [{ x: p33b2.x + 100, y: p33b2.y, r: 40 }];
+  G.state.skillFx = [];
+  G.shockBlast(p33b2, p33b2.x, p33b2.y, p33b2.sk.shock.r, p33b2.sk.shock.mult, true);
+  assert(!G.state.skillFx.some(f => f.kind === 'shockBounce'), 'T33b2 震荡波不再生成反弹特效',
+    G.state.skillFx.map(f => f.kind));
 
   // T33c 地雷引信：到期自动引爆
   reset();
@@ -1379,38 +1445,76 @@ function featureTests() {
   run(G.MINE_FUSE + 0.2);
   assert(G.state.mines.length === 0, 'T33c 地雷到期自动引爆', G.state.mines.length);
 
-  // T33d 护送任务
+  // T33d 解救俘虏任务（清怪解救）
   reset();
   const p33d = G.state.player;
   G.startTask('escort');
-  assert(!!G.state.task && G.state.task.kind === 'escort', 'T33d 护送任务开启');
+  assert(!!G.state.task && G.state.task.kind === 'escort', 'T33d 解救任务开启');
   const npc33 = G.state.task.npc;
-  const foe33d = G.makeEnemy(1, 0);
+  const guards33 = G.state.task.guards;
+  assert(npc33.name === '囚徒' && npc33.captive === true, 'T33d 囚徒已生成且被囚禁', npc33.name);
+  assert(guards33.length === 6 && guards33.every(g => g.guard === true), 'T33d 生成6名守卫', guards33.length);
+  // 守卫环绕囚徒（半径 78~104）
+  assert(guards33.every(g => G.dist(g.x, g.y, npc33.x, npc33.y) >= 70 && G.dist(g.x, g.y, npc33.x, npc33.y) <= 115),
+    'T33d 守卫环绕囚徒');
+  // 囚徒站桩：run 一小段位置不变
+  const npcPos0_33 = { x: npc33.x, y: npc33.y };
+  run(0.5);
+  assert(G.dist(npc33.x, npc33.y, npcPos0_33.x, npcPos0_33.y) < 1, 'T33d 囚徒站桩不移动');
+  // 守卫索敌玩家而非囚徒（解救任务里 taskFocus 始终返回玩家）
   G.state.obstacles = [];
-  foe33d.x = npc33.x + 150; foe33d.y = npc33.y;
-  G.state.foes = [foe33d];
+  const guard0 = guards33[0];
+  guard0.x = npc33.x + 120; guard0.y = npc33.y;
   p33d.x = npc33.x - 400; p33d.y = npc33.y;
-  const baseHp0_33 = p33d.baseHp;
+  assert(G.taskFocus(guard0) === p33d, 'T33d 守卫索敌玩家而非囚徒');
+  const gx0 = guard0.x;
   run(1.2);
-  const dNpc33 = G.dist(foe33d.x, foe33d.y, npc33.x, npc33.y);
-  const dP33 = G.dist(foe33d.x, foe33d.y, p33d.x, p33d.y);
-  assert(dNpc33 < dP33, 'T33d 护送期间敌人追击使者而非玩家', { dNpc: Math.round(dNpc33), dP: Math.round(dP33) });
-  npc33.hp = 1;
-  G.dealDamage(foe33d, npc33, 100, { flat: true, noThorn: true });
-  run(0.1);   // 下一帧结算任务失败
-  assert(npc33.dead && G.state.task === null, 'T33d 使者死亡任务结束');
-  assert(p33d.baseHp < baseHp0_33, 'T33d 失败惩罚：最大生命下降', p33d.baseHp);
-  G.startTask('escort');
-  G.state.task.npc.hp = G.state.task.npc.maxHp;
-  G.state.task.time = 0.01;
+  assert(guard0.x < gx0 - 10, 'T33d 守卫朝玩家方向移动', { from: Math.round(gx0), to: Math.round(guard0.x) });
+  // 杀光守卫 → 解救成功转同伴
+  guards33.forEach(g => { g.dead = true; });
   run(0.1);
-  assert(!!G.state.companion && G.state.task === null, 'T33d 护送成功转同伴');
+  assert(!!G.state.companion && G.state.task === null, 'T33d 杀光守卫解救成功转同伴');
   const foe33e = G.makeEnemy(1, 0);
   foe33e.x = G.state.companion.x + 120; foe33e.y = G.state.companion.y;
   foe33e.maxHp = 200; foe33e.hp = 200; foe33e.res = null;
   G.state.foes = [foe33e];
   run(1.5);
   assert(foe33e.hp < 200, 'T33d 同伴自动射击敌人', 200 - foe33e.hp);
+  // 囚徒死亡 → 失败惩罚
+  reset();
+  G.startTask('escort');
+  const baseHp0_33 = G.state.player.baseHp;
+  const npc33b = G.state.task.npc;
+  npc33b.hp = 1;
+  G.dealDamage(G.state.task.guards[0], npc33b, 100, { flat: true, noThorn: true });
+  run(0.1);
+  assert(npc33b.dead && G.state.task === null, 'T33d 囚徒遇害任务结束');
+  assert(G.state.player.baseHp < baseHp0_33, 'T33d 失败惩罚：最大生命下降', G.state.player.baseHp);
+  // 超时 → 失败
+  reset();
+  G.startTask('escort');
+  G.state.task.time = 0.01;
+  run(0.1);
+  assert(G.state.task === null && !G.state.companion, 'T33d 超时解救失败');
+
+  // T33f 地形与目标联动：解救任务可落在灾害附近，地形击杀计入清怪进度
+  reset();
+  const pHz = G.state.player;
+  const hzAnchor = { x: pHz.x + 250, y: pHz.y };
+  G.state.hazAnchors = [hzAnchor]; G.state.zones = [];
+  const rndTask = Math.random;
+  try { Math.random = () => 0; G.startTask('escort'); } finally { Math.random = rndTask; }
+  const taskHz = G.state.task;
+  assert(taskHz && taskHz.nearHazard && G.dist(taskHz.npc.x, taskHz.npc.y, hzAnchor.x, hzAnchor.y) < 1,
+    'T33f 解救任务优先落在灾害锚点附近');
+  const hzGuards = taskHz.guards;
+  const hzx = hzGuards[0].x, hzy = hzGuards[0].y;
+  hzGuards.forEach(g => { g.x = hzx; g.y = hzy; g.hp = 1; });
+  G.state.hazards.push({ kind: 'fire', x: hzx, y: hzy, r: 60, t: 1.2, warn: 1.1, hit: false, boomT: 0, dmg: 999 });
+  G.updateHazards(0.2);
+  assert(hzGuards.every(g => g.dead && g.hazardKilled), 'T33f 火球击杀守卫并标记地形击杀');
+  G.updateTasks(0.02);
+  assert(G.state.task === null && !!G.state.companion, 'T33f 地形击杀计入解救进度并完成任务');
 
   // T33e 水晶任务
   reset();
@@ -1443,19 +1547,6 @@ function featureTests() {
   assert(boss29.hp > norm29.hp * 8, 'T29e BOSS 血量远高于同期普通怪（持久战）', { boss: boss29.hp, norm: norm29.hp });
   assert(G.CFG.elite.bossHpMul >= 8, 'T29e BOSS 血量倍率配置', G.CFG.elite.bossHpMul);
 
-  // T29f 装备评分替换：弱装不替换强装
-  const weak29 = G.buildItem('weapon', 0, 0, 1);   // 普通 Lv1
-  const strong29 = G.buildItem('weapon', 1, 4, 5); // 传说 Lv5
-  assert(G.itemScore(strong29) > G.itemScore(weak29) * 2, 'T29f 装备评分区分强弱',
-    { weak: G.itemScore(weak29), strong: G.itemScore(strong29) });
-  reset();
-  const p29b = G.state.player;
-  p29b.items = [strong29]; G.refresh(p29b);
-  const weakLoot = { item: weak29, slot: 'weapon', done: false };
-  G.state.loots = [weakLoot];
-  const plan = G.planFor(weak29);
-  assert(plan.mode !== 'swap', 'T29f 弱装备不会替换强装备', { mode: plan.mode });
-
   // T29g 升级选卡期间游戏完全暂停
   reset();
   G.gainXp(G.xpNeed(1));
@@ -1464,6 +1555,703 @@ function featureTests() {
   G.update(1 / 60); G.update(1 / 60);
   assert(G.state.phase === 'levelup' && G.state.time === tPause && G.state.foes.length === foesPause,
     'T29g 升级弹窗期间 update 不推进游戏', { phase: G.state.phase, dt: G.state.time - tPause });
+
+  // ============ T34 超级武器（进化走 build.js，试炼Boss已删除） ============
+  const dimCard34 = (k, d) => G.SKILL_CARDS.find(c => c.kind === 'skill' && c.line === k && c.dim === d);
+  const unlock34 = k => G.SKILL_CARDS.find(c => c.kind === 'skill' && c.line === k && c.sub === 'unlock');
+  /** 把某线所有维度直接拉满（绕过升级流程，专测终极逻辑） */
+  const maxLine = (p, k) => {
+    if (!p.skills[k] && unlock34(k)) unlock34(k).apply(p);
+    G.LINES[k].dims.forEach(d => { p.sd[k][d.key] = d.max; });
+    G.applySkillBuild(p);
+  };
+
+  // T34a 核心字段与满级判定（试炼/终极卡系统已删除）
+  reset();
+  const p34 = G.state.player;
+  assert(p34.evolved && Object.keys(p34.evolved).length === 0 && !('ultReady' in p34),
+    'T34a 进化集合初始为空且无试炼标记', { evolved: p34.evolved, ultReady: p34.ultReady });
+  assert(!G.ULT_CARDS && !G.ultimateCandidates && !G.onTrialBossKilled,
+    'T34a 试炼Boss与终极卡系统已彻底移除');
+  assert(!G.isLineMaxed(p34, 'arrow'), 'T34a 未满级时判定为 false');
+  maxLine(p34, 'arrow');
+  assert(G.isLineMaxed(p34, 'arrow'), 'T34a 全维度满级判定为 true');
+  assert(!G.isLineMaxed(p34, 'chain'), 'T34a 其他线仍非满级');
+
+  // T34d VS构筑：满级不触发试炼Boss；改为「武器满级 + 配方被动满级」自动进化
+  reset();
+  const p34d = G.state.player;
+  p34d.weapons.shock = G.BUILD.WEAPON_MAX;
+  p34d.passives.area = G.BUILD.PASSIVE_MAX;
+  G.rebuildFromBuild(p34d);
+  const evolved = G.checkEvolution(p34d);
+  assert(evolved === 'shock' && p34d.evolved && p34d.evolved.shock === true,
+    'T34d 满级+配方被动满级自动进化', { evolved, evolvedMap: p34d.evolved });
+  G.state.obstacles = [];
+  G.state.foes = [];
+  G.state.taskT = 999;
+  G.updateTasks(1 / 60);
+  assert(!G.state.task || G.state.task.kind !== 'trial', 'T34d VS构筑下不再触发试炼Boss',
+    G.state.task && G.state.task.kind);
+
+  // T34e 多重进化：每局可拥有多把超级武器（各配方独立判定）
+  reset();
+  const p34e = G.state.player;
+  p34e.weapons.shock = G.BUILD.WEAPON_MAX;
+  p34e.passives.area = G.BUILD.PASSIVE_MAX;
+  G.rebuildFromBuild(p34e);
+  const evo1 = G.checkEvolution(p34e);
+  p34e.weapons.mine = G.BUILD.WEAPON_MAX;
+  p34e.passives.armor = G.BUILD.PASSIVE_MAX;   // 地雷配方需 armor
+  G.rebuildFromBuild(p34e);
+  const evo2 = G.checkEvolution(p34e);
+  assert(evo1 === 'shock' && evo2 === 'mine' && G.evolvedCount(p34e) === 2 &&
+    p34e.evolved.shock === true && p34e.evolved.mine === true,
+    'T34e 一局可进化多把超级武器', { evo1, evo2, count: G.evolvedCount(p34e) });
+  // 各自的终极质变同时生效：震荡波无视衰减 + 地雷连锁引爆
+  assert(p34e.sk.shock.ultNoFalloff === true && p34e.sk.mine.ultChain === true,
+    'T34e 多把超级武器的质变效果并存',
+    { shock: p34e.sk.shock.ultNoFalloff, mine: p34e.sk.mine.ultChain });
+  // 已进化的线不会重复进化
+  const evo3 = G.checkEvolution(p34e);
+  assert(evo3 === null && G.evolvedCount(p34e) === 2, 'T34e 已进化武器不重复进化', evo3);
+
+  // T34f 六条超级武器质变效果（用作弊码赋予终极后断言运行参数）
+  const checkUlt = (k, fn) => {
+    reset();
+    const p = G.state.player;
+    G.grantUltimate(p, k);
+    fn(p, G);
+  };
+  // 箭矢：箭数翻倍、穿5、射速+25%、穿透不衰减
+  checkUlt('arrow', (p) => {
+    const base = 1 + G.LINES.arrow.dims.find(d => d.key === 'count').max;
+    assert(p.shots === base * 2, 'T34f 箭矢终极箭数翻倍', p.shots);
+    assert(p.pierce >= 5 && p.ultPierceNoDecay === true, 'T34f 箭矢终极穿透5且不衰减', p.pierce);
+    assert(Math.abs(p.arrowRangeMul - 1.55) < 1e-9, 'T34f 箭矢终极射程×1.55', p.arrowRangeMul);
+    // 实际箭矢寿命：终极应比普通射程远（life = p.range × arrowRangeMul / 弹速）
+    G.state.bullets = [];
+    G.fireVolley(p);
+    const ultLife = G.state.bullets[0].life;
+    const normalLife = p.range / (G.CFG.player.bulletSpeed * p.bulletSpeedMul);
+    assert(ultLife > normalLife * 1.5, 'T34f 箭矢终极子弹寿命变长（攻击范围更大）',
+      { ult: ultLife.toFixed(3), normal: normalLife.toFixed(3) });
+  });
+  // 闪电：每跳不递减、目标+4、道数翻倍、麻痹延长
+  checkUlt('chain', (p) => {
+    assert(p.sk.chain.ultNoDecay === true && p.sk.chain.ultStun === 0.8, 'T34f 闪电终极不递减+麻痹延长');
+    assert(p.sk.chain.jumps >= 6 && p.sk.chain.bolts >= 2, 'T34f 闪电终极目标+4道数翻倍',
+      { jumps: p.sk.chain.jumps, bolts: p.sk.chain.bolts });
+  });
+  // 震荡波：半径×1.8、伤害×1.5、无视衰减（反弹已取消）
+  checkUlt('shock', (p) => {
+    const base = 180 + 24 * G.LINES.shock.dims.find(d => d.key === 'range').max;
+    assert(Math.abs(p.sk.shock.r - base * 1.8) < 1, 'T34f 震荡波终极半径×1.8', p.sk.shock.r);
+    assert(p.sk.shock.ultNoFalloff === true && p.sk.shock.ultBounces === undefined,
+      'T34f 震荡波终极无视衰减（无反弹）', { noFalloff: p.sk.shock.ultNoFalloff, bounces: p.sk.shock.ultBounces });
+  });
+  // 飞刃：数量+6、常驻、命中半径放大、转速×1.4
+  checkUlt('orbit', (p) => {
+    assert(p.sk.orbit.ultPersistent === true && p.orbitHitRadius > 14, 'T34f 飞刃终极常驻+命中半径放大', p.orbitHitRadius);
+    assert(p.sk.orbit.count >= 9, 'T34f 飞刃终极数量+6', p.sk.orbit.count);
+  });
+  // 浮游炮：数量+3、射速×1.6、穿透3、常驻
+  checkUlt('drone', (p) => {
+    assert(p.sk.drone.ultPersistent === true && p.sk.drone.ultPierce === 3, 'T34f 浮游炮终极常驻+穿透3');
+    assert(p.sk.drone.count >= 4 && p.sk.drone.cd < 0.8, 'T34f 浮游炮终极数量+3射速提升',
+      { count: p.sk.drone.count, cd: p.sk.drone.cd });
+  });
+  // 地雷：布雷翻倍、半径×2、连锁引爆
+  checkUlt('mine', (p) => {
+    assert(p.sk.mine.ultChain === true, 'T34f 地雷终极连锁引爆标记');
+    const base = 80 + 20 * G.LINES.mine.dims.find(d => d.key === 'range').max;
+    assert(Math.abs(p.sk.mine.r - base * 2) < 1, 'T34f 地雷终极半径×2', p.sk.mine.r);
+  });
+
+  // T34g 作弊码：直接赋予终极武器
+  reset();
+  const p34g = G.state.player;
+  assert(G.grantUltimate(p34g, 'shock') === true, 'T34g 作弊码赋予终极武器');
+  assert(p34g.evolved && p34g.evolved.shock === true, 'T34g 作弊码锁定终极', p34g.evolved);
+  assert(G.isLineMaxed(p34g, 'shock'), 'T34g 作弊码拉满该线全维度');
+  assert(p34g.sk.shock.ultNoFalloff === true, 'T34g 作弊码终极质变已生效');
+  // 叠加：再赋予另一条线，两把超级武器质变并存
+  G.grantUltimate(p34g, 'chain');
+  assert(p34g.evolved.shock === true && p34g.evolved.chain === true &&
+    p34g.sk.chain.ultNoDecay === true && p34g.sk.shock.ultNoFalloff === true,
+    'T34g 作弊码可叠加多把终极（互不覆盖）');
+
+  // ===== T36 远程怪极少化 + 飞刃终极三层反向刀阵 + 多段伤害 =====
+  // T36a 类型分布：远程 idx%100===6 一档（≈1%，现有 1/10），idx7/8 改刷近战，轰炸者已删除
+  const dist36 = Array.from({ length: 10 }, (_, i) => G.makeEnemy(1, i).type);
+  assert(dist36[6] === 'ranged' && dist36[7] === 'melee' && dist36[8] === 'melee',
+    'T36a idx6远程(idx%100===6)/idx7、idx8近战', dist36.join(','));
+  const dist100 = Array.from({ length: 100 }, (_, i) => G.makeEnemy(1, i).type);
+  assert(dist100.filter(t => t === 'ranged').length === 1 && dist100.every(t => t !== 'bomber'),
+    'T36a 远程怪占比降至1%（现有1/10）且无轰炸者',
+    { ranged: dist100.filter(t => t === 'ranged').length, bomber: dist100.filter(t => t === 'bomber').length });
+
+  // T36b 飞刃终极三层结构：ring 0/1/2 三层，外/内环反向（dir=-1）、半径递增
+  reset();
+  const p36 = G.state.player;
+  G.grantUltimate(p36, 'orbit');
+  p36.orbits = p36.sk.orbit.count;   // 模拟终极常驻（游戏循环 updateSkills 中展开）
+  assert(p36.orbitTriple === true, 'T36b 飞刃终极三层刀阵标记');
+  const bs36 = G.orbitPositions(p36);
+  const rings36 = [...new Set(bs36.map(b => b.ring))].sort();
+  assert(rings36.length === 3 && rings36[0] === 0 && rings36[2] === 2, 'T36b 三层刀刃均有 ring 标记', rings36);
+  const radOf = r => G.dist(p36.x, p36.y, bs36.find(b => b.ring === r).x, bs36.find(b => b.ring === r).y);
+  assert(radOf(1) > radOf(0) && radOf(0) > radOf(2), 'T36b 外环>主环>内环半径', [radOf(0), radOf(1), radOf(2)]);
+  assert(bs36.find(b => b.ring === 1).dir === -1 && bs36.find(b => b.ring === 2).dir === -1
+    && bs36.find(b => b.ring === 0).dir === 1, 'T36b 外环/内环反向旋转');
+  const cntMain = bs36.filter(b => b.ring === 0).length;
+  assert(cntMain > bs36.filter(b => b.ring === 1).length
+    && cntMain > bs36.filter(b => b.ring === 2).length, 'T36b 主环数量多于外/内环',
+    { main: cntMain, outer: bs36.filter(b => b.ring === 1).length, inner: bs36.filter(b => b.ring === 2).length });
+
+  // T36c 多段伤害：同一敌人被三层各命中一次（独立冷却），一帧内掉三段血
+  reset();
+  const p36c = G.state.player;
+  G.grantUltimate(p36c, 'orbit');
+  p36c.orbits = p36c.sk.orbit.count;
+  p36c.orbitR = 30;              // 缩小三层半径，保证都在敌人判定范围内
+  p36c.orbitHitRadius = 60;
+  const foe36 = G.makeEnemy(1, 0);
+  foe36.x = p36c.x; foe36.y = p36c.y;
+  foe36.hp = foe36.maxHp = 100000; foe36.def = 0; foe36.shield = 0;
+  G.state.foes = [foe36];
+  const hp36a = foe36.hp;
+  G.updateOrbitBlades(p36c, 0.016);
+  const dmg36 = hp36a - foe36.hp;
+  const oneHit36 = p36c.atk * p36c.orbitDmgMul;
+  assert(dmg36 >= oneHit36 * 2.5, 'T36c 三层同帧多段伤害（≥2.5段）', { dmg: dmg36, oneHit: oneHit36 });
+  assert(foe36.orbitRingCd && foe36.orbitRingCd.filter(c => c > 0).length === 3,
+    'T36c 三层各自触发独立冷却', foe36.orbitRingCd);
+  // 紧接着一帧内冷却未结束，不再重复伤害
+  const hp36b = foe36.hp;
+  G.updateOrbitBlades(p36c, 0.016);
+  assert(foe36.hp === hp36b, 'T36c 冷却期内不再重复结算');
+
+  // T36d 重开清空三层标记
+  reset();
+  assert(G.state.player.orbitTriple === false, 'T36d 重开后飞刃三层标记清空');
+
+  // ===== T37 开局选择初始武器 =====
+  // T37a 默认 startRun() 仍解锁箭矢（兼容旧调用/测试）
+  G.startRun();
+  assert(G.state.player.skills.arrow === 1 && G.state.player.startLine === 'arrow', 'T37a 默认开局仍是箭矢');
+
+  // T37b 每把武器都能作为初始武器，且仅解锁该线
+  const allLines = G.LINE_KEYS;
+  assert(allLines.length === 8, 'T37b 共八条攻击线可选', allLines.length);
+  allLines.forEach(line => {
+    G.startRun(line);
+    const p = G.state.player;
+    const unlocked = allLines.filter(k => p.skills[k] === 1);
+    assert(p.startLine === line && p.skills[line] === 1 && unlocked.length === 1,
+      'T37b 初始武器=' + line + ' 仅解锁该线', { start: p.startLine, unlocked });
+  });
+
+  // T37c 选闪电开局：闪电可用（有技能参数），箭矢未解锁
+  G.startRun('chain');
+  const p37 = G.state.player;
+  assert(p37.skills.arrow === 0 && p37.skills.chain === 1, 'T37c 闪电开局箭矢未解锁',
+    { arrow: p37.skills.arrow, chain: p37.skills.chain });
+  assert(p37.sk.chain && p37.sk.chain.jumps >= 2, 'T37c 闪电开局技能参数正常', p37.sk.chain);
+
+  // T37d 初始武器无维度升级（1 级基础）
+  G.startRun('shock');
+  const sd37 = G.state.player.sd.shock;
+  assert(Object.keys(sd37).every(d => sd37[d] === 0), 'T37d 初始武器无维度卡升级', sd37);
+
+  // T37e 选武器界面存在且导出
+  assert(typeof G.ui.showStartSelect === 'function', 'T37e 开局选择界面函数已导出');
+  assert(!!G.$('startOverlay') && !!G.$('startCards'), 'T37e 开局选择界面 DOM 存在');
+
+  // T37f 非箭矢武器开局：不会自动射出箭矢（修复：持续射击需箭矢线解锁）
+  G.startRun('chain');
+  G.state.bullets = [];
+  run(1.5);
+  const arrowBullets37 = G.state.bullets.filter(b => b.side === 'p');
+  assert(arrowBullets37.length === 0, 'T37f 闪电开局不射箭矢', arrowBullets37.length);
+  // 抽到箭矢解锁卡后恢复射击
+  const unlockArrow37 = G.SKILL_CARDS.find(c => c.line === 'arrow' && c.sub === 'unlock');
+  unlockArrow37.apply(G.state.player);
+  G.state.bullets = [];
+  run(1.5);
+  assert(G.state.bullets.some(b => b.side === 'p'), 'T37f 解锁箭矢后恢复射击',
+    G.state.bullets.filter(b => b.side === 'p').length);
+
+  // ===== T38 飞刃防贴身：飞行判定增强 + 伤害加强 =====
+  G.startRun('orbit');
+  const p38 = G.state.player;
+  assert(Math.abs(p38.orbitDmgMul - 1.1) < 1e-9, 'T38 飞刃单次伤害倍率提升到1.1', p38.orbitDmgMul);
+  const groundFoe38 = G.makeEnemy(1, 0);    // melee 地面
+  const flyFoe38 = G.makeEnemy(1, 4);       // flyer 飞行
+  const reachGround38 = G.orbitHitRadiusFor(p38, groundFoe38);
+  const reachFly38 = G.orbitHitRadiusFor(p38, flyFoe38);
+  assert(flyFoe38.fly === true, 'T38 测试对象为飞行单位');
+  assert(reachFly38 > reachGround38 * 1.4, 'T38 飞刃对飞行单位命中判定显著放大',
+    { ground: reachGround38.toFixed(1), fly: reachFly38.toFixed(1) });
+  // 近距离飞行怪能被飞刃扫到（放在飞刃环内侧）
+  p38.orbits = p38.sk.orbit.count;
+  p38.orbitR = 60;
+  flyFoe38.x = p38.x + 50; flyFoe38.y = p38.y;
+  flyFoe38.hp = flyFoe38.maxHp = 100000; flyFoe38.def = 0; flyFoe38.shield = 0;
+  G.state.foes = [flyFoe38];
+  G.state.obstacles = [];
+  const hpFly38 = flyFoe38.hp;
+  run(0.8);
+  assert(flyFoe38.hp < hpFly38, 'T38 飞刃能打到贴身飞行怪', hpFly38 - flyFoe38.hp);
+
+  // ===== T39 震荡波扩散波面命中 + 命中音效节流 =====
+  G.startRun('shock');
+  const p39 = G.state.player;
+  // 放一个远处敌人（波尚未扫到时不应受伤）
+  const farFoe39 = G.makeEnemy(1, 0);
+  farFoe39.maxHp = 100000; farFoe39.hp = 100000; farFoe39.def = 0; farFoe39.shield = 0; farFoe39.res = null;
+  const R39 = p39.sk.shock.r;
+  farFoe39.x = p39.x + R39 * 0.9; farFoe39.y = p39.y;
+  G.state.foes = [farFoe39];
+  G.state.skillFx = [];
+  G.spawnShockWave(p39, p39.x, p39.y, R39, p39.sk.shock.mult);
+  const w39 = G.state.skillFx.find(f => f.wave).wave;
+  assert(w39 && w39.r === 0, 'T39 扩散波从中心半径0开始', w39 && w39.r);
+  // 推进一小步：波面半径 >0 但还没到远敌（0.9R），远敌不受伤
+  G.advanceShockWaves(0.05);
+  const rAfter39 = w39.r;
+  assert(rAfter39 > 0 && rAfter39 < R39 * 0.9, 'T39 波面逐步扩散', rAfter39);
+  assert(farFoe39.hp === 100000, 'T39 波面未扫到时敌人不受伤', 100000 - farFoe39.hp);
+  // 继续推进直到波面扫过远敌
+  for (let i = 0; i < 20 && w39.r < R39; i++) G.advanceShockWaves(0.05);
+  assert(farFoe39.hp < 100000, 'T39 波面扫到后敌人才受伤', 100000 - farFoe39.hp);
+  assert(w39.hit.has(farFoe39), 'T39 敌人被波面标记命中一次');
+
+  // 音效节流：连续多次 sfxHit 在极短时间内只播放一次
+  G.resetHitSfx();
+  const playsBefore39 = G.getHitSfxPlays();
+  for (let i = 0; i < 8; i++) G.sfxHit(false);
+  const playsAfter39 = G.getHitSfxPlays() - playsBefore39;
+  assert(playsAfter39 === 1, 'T39 同帧多次命中音效只播放一次', playsAfter39);
+
+  // ===== T40 飞行敌人骚扰攻击：命中后飞远，再回来 =====
+  // T40a 掠袭者：贴近命中后切脱离并拉远距离
+  reset();
+  const p40 = G.state.player;
+  const fly40 = G.makeEnemy(1, 4);   // flyer
+  fly40.x = p40.x + 30; fly40.y = p40.y;
+  fly40.atkCd = 0;
+  G.state.foes = [fly40];
+  G.state.obstacles = [];
+  const hp40 = p40.hp;
+  assert(fly40.diveState === 'approach', 'T40a 掠袭者初始为逼近状态');
+  run(0.1);
+  assert(fly40.diveState === 'retreat', 'T40a 掠袭者命中后切脱离', fly40.diveState);
+  const dFly40 = G.dist(fly40.x, fly40.y, p40.x, p40.y);
+  run(0.5);
+  const dFly40b = G.dist(fly40.x, fly40.y, p40.x, p40.y);
+  assert(dFly40b > dFly40, 'T40a 脱离期间飞离玩家', { from: dFly40.toFixed(1), to: dFly40b.toFixed(1) });
+  // 拉到安全距离后转回逼近
+  for (let i = 0; i < 120 && fly40.diveState === 'retreat'; i++) run(0.05);
+  assert(fly40.diveState === 'approach', 'T40a 飞远后重新逼近准备下次攻击', fly40.diveState);
+  // T40b 飞行轰炸者已删除：不再生成 bomber 类型
+  const b40 = G.makeEnemy(1, 8);
+  assert(b40.type === 'melee' && !G.CFG.bomber, 'T40b 飞行轰炸者已彻底删除（idx8 改刷近战）', b40.type);
+
+  // ===== T41 VS构筑系统：武器8级 / 槽位取舍 / 被动 / 进化配方 =====
+  const B = G.BUILD;
+  // T41a 开局一件武器、无被动
+  reset();
+  const p41 = G.state.player;
+  assert(!!p41.weapons && !!p41.passives, 'T41a 构筑字段已初始化');
+  assert(G.weaponCount(p41) === 1 && G.weaponLevel(p41, 'arrow') === 1, 'T41a 开局仅1件初始武器');
+  assert(G.passiveCount(p41) === 0, 'T41a 开局无被动');
+
+  // T41b 武器固定8级路线：升级逐级、满级锁定
+  G.upgradeWeapon(p41, 'arrow');
+  assert(G.weaponLevel(p41, 'arrow') === 2, 'T41b 武器升到Lv2', G.weaponLevel(p41, 'arrow'));
+  assert(p41.shots === 2, 'T41b Lv2维度映射到运行参数（箭矢2支）', p41.shots);
+  for (let i = 0; i < 10; i++) G.upgradeWeapon(p41, 'arrow');
+  assert(G.weaponLevel(p41, 'arrow') === B.WEAPON_MAX, 'T41b 武器满级锁定在8', G.weaponLevel(p41, 'arrow'));
+
+  // T41c 武器槽动态上限（池子数量的 2/3，当前 8 池 → 5 格）
+  reset();
+  const p41c = G.state.player;
+  const wSlotsC = G.BUILD.WEAPON_SLOTS, pSlotsC = G.BUILD.PASSIVE_SLOTS;
+  assert(wSlotsC === G.slotCount(Object.keys(G.BUILD.WEAPON_LEVELS).length)
+      && pSlotsC === G.slotCount(G.BUILD.PASSIVE_IDS.length),
+    'T41c 武器/被动槽位随池子数量动态计算', { wSlotsC, pSlotsC });
+  assert(wSlotsC === 5 && pSlotsC === 5, 'T41c 当前 8 池 → 各 5 格', [wSlotsC, pSlotsC]);
+  // 槽位计算器：池子增减时按比例变化（6→4、8→5、10→7，最小 1）
+  assert(G.slotCount(6) === 4 && G.slotCount(8) === 5 && G.slotCount(10) === 7 && G.slotCount(1) === 1,
+    'T41c 槽位随池子数量动态变化（6→4/8→5/10→7/1→1）',
+    [G.slotCount(6), G.slotCount(8), G.slotCount(10), G.slotCount(1)]);
+  // 开局已有 1 把武器，再填满剩余槽位
+  const otherWeaponsC = Object.keys(G.BUILD.WEAPON_LEVELS).filter(k => !p41c.weapons[k]);
+  otherWeaponsC.slice(0, wSlotsC - 1).forEach(k => G.addWeapon(p41c, k));
+  assert(G.weaponCount(p41c) === wSlotsC, 'T41c 武器槽可填满', G.weaponCount(p41c));
+  const extraWeaponC = otherWeaponsC.find(k => !p41c.weapons[k]);
+  assert(extraWeaponC && G.addWeapon(p41c, extraWeaponC) === false, 'T41c 满槽后不能再加武器');
+
+  // T41d 被动槽动态上限 + 属性增益生效
+  reset();
+  const p41d = G.state.player;
+  const atk41d0 = p41d.atk;
+  G.upgradePassive(p41d, 'might');
+  assert(G.passiveLevel(p41d, 'might') === 1 && p41d.atk > atk41d0,
+    'T41d 力量被动生效（攻击提升）', { atk0: atk41d0, atk1: p41d.atk });
+  const restPassivesD = G.BUILD.PASSIVE_IDS.filter(id => !p41d.passives[id]);
+  restPassivesD.slice(0, pSlotsC - 1).forEach(id => G.upgradePassive(p41d, id));
+  assert(G.passiveCount(p41d) === pSlotsC, 'T41d 被动槽可填满', G.passiveCount(p41d));
+  const extraPassiveD = restPassivesD.find(id => !p41d.passives[id]);
+  assert(extraPassiveD && G.upgradePassive(p41d, extraPassiveD) === false, 'T41d 满槽后不能再加新被动');
+
+  // T41e 进化配方：仅武器满级+指定被动满级才进化
+  reset();
+  const p41e = G.state.player;
+  p41e.weapons.arrow = B.WEAPON_MAX;
+  G.rebuildFromBuild(p41e);
+  assert(G.checkEvolution(p41e) === null, 'T41e 仅武器满级不进化');
+  p41e.passives.might = B.PASSIVE_MAX;   // arrow 配方 = might
+  G.rebuildFromBuild(p41e);
+  assert(G.checkEvolution(p41e) === 'arrow' && p41e.evolved.arrow === true,
+    'T41e 武器满级+力量满级→进化贯穿诸天', p41e.ultimate);
+
+  // T41e2 八把武器进化配方一一对应，无重复被动
+  const recipes41 = G.BUILD.EVOLVE_RECIPE;
+  const recipeVals41 = Object.keys(recipes41).map(k => recipes41[k]);
+  assert(G.LINE_KEYS.length === 8 && Object.keys(recipes41).length === 8,
+    'T41e2 八把武器均有进化配方', recipes41);
+  assert(new Set(recipeVals41).size === 8,
+    'T41e2 八配方被动互不重复', recipeVals41);
+  assert(recipeVals41.every(id => !!G.BUILD.PASSIVES[id]),
+    'T41e2 配方被动均为合法被动道具', recipeVals41);
+
+  // T41f 卡池：优先含武器/被动构筑卡，满级武器不再出升级卡
+  reset();
+  const p41f = G.state.player;
+  const bag41f = G.makeLevelCards(p41f);
+  assert(bag41f.some(c => c.kind === 'weapon' || c.kind === 'passive'),
+    'T41f 升级卡池含构筑卡', bag41f.map(c => c.kind).join(','));
+  p41f.weapons.arrow = B.WEAPON_MAX;
+  G.rebuildFromBuild(p41f);
+  const bag41f2 = G.makeLevelCards(p41f);
+  assert(!bag41f2.some(c => c.kind === 'weapon' && c.line === 'arrow' && !c.isNew),
+    'T41f 满级武器不再出现在升级卡池', bag41f2.map(c => c.key || c.attr).join(','));
+
+  // T41g 端到端：通过升级弹窗选构筑卡确实推进构筑（多次抽卡池确保覆盖武器/被动）
+  reset();
+  const p41g = G.state.player;
+  let wCard = null, pCard = null;
+  for (let i = 0; i < 30 && (!wCard || !pCard); i++) {
+    G.makeLevelCards(p41g).forEach(c => {
+      if (c.kind === 'weapon' && !wCard) wCard = c;
+      if (c.kind === 'passive' && !pCard) pCard = c;
+    });
+  }
+  assert(!!wCard && !!pCard, 'T41g 卡池能提供武器卡与被动卡');
+  G.state.pendingLevelUps = 1;
+  G.showLevelUp();
+  G.chooseLevelCard(wCard);
+  assert(G.weaponLevel(G.state.player, wCard.line) >= 1 && G.weaponCount(G.state.player) >= 1,
+    'T41g 选武器卡后构筑推进', { line: wCard.line, lv: G.weaponLevel(G.state.player, wCard.line), count: G.weaponCount(G.state.player) });
+  G.state.pendingLevelUps = 1;
+  G.showLevelUp();
+  G.chooseLevelCard(pCard);
+  assert(G.passiveLevel(G.state.player, pCard.pid) >= 1, 'T41g 选被动卡后获得被动',
+    G.passiveLevel(G.state.player, pCard.pid));
+
+  // ===== T42：对标 VS 的怪物刷新策略 / 血量平滑 / 数量上限 =====
+  // T42a 四阶段划分：1-5 试探 / 6-15 爬升 / 16-25 高压 / 26+ 满负荷
+  assert(G.spawnPhase(1) === 0 && G.spawnPhase(5) === 0 && G.spawnPhase(6) === 1 &&
+    G.spawnPhase(15) === 1 && G.spawnPhase(16) === 2 && G.spawnPhase(25) === 2 &&
+    G.spawnPhase(26) === 3 && G.spawnPhase(60) === 3,
+    'T42a 四阶段按分钟正确划分', [1, 5, 6, 15, 16, 25, 26, 60].map(G.spawnPhase));
+  // T42b 成群批量：阶段越靠后单次刷越多
+  const batches42 = [1, 8, 18, 30].map(m => G.spawnBatch(m));
+  assert(batches42[0][1] < batches42[1][1] && batches42[1][1] < batches42[2][1] &&
+    batches42[2][1] < batches42[3][1],
+    'T42b 成群批量随阶段递增', batches42);
+  assert(batches42.every(b => b[1] >= 2), 'T42b 每阶段都成群（至少2只）', batches42);
+  // T42c 上限对标：capMax=200，后期逼近但受阶段倍率约束
+  assert(G.CFG.spawn.capMax === 200 && G.aliveCap(60) === 200,
+    'T42c 后期存活上限达200', G.aliveCap(60));
+  assert(G.aliveCap(1) < G.aliveCap(30) && G.aliveCap(30) <= 200,
+    'T42c 数量随阶段爬升且不越界', [G.aliveCap(1), G.aliveCap(30)]);
+  // T42d 血量平滑：逐分钟递增且无两分钟断崖（相邻增幅均匀）
+  const hps42 = [1, 2, 3, 4, 5].map(m => G.curveHp(m));
+  const jumps42 = [];
+  for (let i = 1; i < hps42.length; i++) jumps42.push(hps42[i] / hps42[i - 1]);
+  assert(jumps42.every(j => j > 1.05 && j < 1.45),
+    'T42d 血量逐分钟平滑增长（无断崖）', { hp: hps42, jumps: jumps42.map(j => j.toFixed(2)) });
+  // 档首锚点不变：奇数分钟值与旧阶梯（33.6×1.55^tier）一致
+  assert(Math.abs(G.curveHp(11) - 33.6 * Math.pow(1.55, 5)) < 1,
+    'T42d 奇数分钟锚点保持原阶梯强度', G.curveHp(11));
+  // T42e 成群从四周：一批怪的出生角度分散（非同一方向）
+  reset();
+  const p42 = G.state.player;
+  const wall42 = [];
+  for (let i = 0; i < 6; i++) {
+    const base = 0.5, angle = base + (i / 6) * Math.PI * 1.6;
+    wall42.push(G.spawnNearPlayer(angle));
+  }
+  // 至少分布在两个象限（以玩家为中心判断方位）
+  const quadrants42 = new Set(wall42.map(s => (s.x >= p42.x ? 1 : 0) + (s.y >= p42.y ? 2 : 0)));
+  assert(quadrants42.size >= 2, 'T42e 成群敌人分散到玩家四周', [...quadrants42]);
+
+  // ===== T-M 移动端适配：虚拟摇杆 / 输入合并 / 性能降级 / 构筑面板 =====
+  // T-M1 摇杆纯函数：死区与归一化（BASE_R=58，DEAD=0.14）
+  const sv0 = G.touch.stickVector(0, 0);
+  assert(sv0.dx === 0 && sv0.dy === 0, 'T-M1 摇杆零偏移无输出');
+  const svDead = G.touch.stickVector(4, 3);   // 半径 5 < 死区 ≈8.1
+  assert(svDead.dx === 0 && svDead.dy === 0, 'T-M1 死区内无输出', svDead);
+  const svEdge = G.touch.stickVector(58, 0);  // 满偏 → 幅度 1
+  assert(Math.abs(Math.hypot(svEdge.dx, svEdge.dy) - 1) < 0.02 && svEdge.dx > 0.9,
+    'T-M1 满偏输出归一化幅度1', svEdge);
+  const svHalf = G.touch.stickVector(29, 0);  // 半程（死区外）→ 缓速幅度
+  const magHalf = Math.hypot(svHalf.dx, svHalf.dy);
+  assert(magHalf > 0.2 && magHalf < 0.9, 'T-M1 半程缓速幅度', magHalf.toFixed(2));
+  const svDiag = G.touch.stickVector(41, 41);
+  assert(Math.hypot(svDiag.dx, svDiag.dy) <= 1.01, 'T-M1 斜向不超速',
+    Math.hypot(svDiag.dx, svDiag.dy).toFixed(2));
+
+  // T-M2 触屏检测：无头/桌面环境为 false，摇杆不启用
+  assert(G.touch.isTouchDevice() === false, 'T-M2 无头/桌面环境不启用触控');
+  assert(!!G.engine.touch && G.engine.touch.active === false, 'T-M2 引擎默认无触控输入');
+
+  // T-M3 moveVec 合并：键盘 + 摇杆向量叠加，玩家侧幅度钳制保持键盘手感
+  reset();
+  G.engine.keys.clear();
+  G.engine.keys.add('d');
+  const mv0 = G.engine.moveVec();
+  assert(mv0.dx === 1 && mv0.dy === 0, 'T-M3 键盘输入不变', mv0);
+  G.engine.touch.active = true; G.engine.touch.dx = 0.4; G.engine.touch.dy = 0;
+  const mv1 = G.engine.moveVec();
+  assert(Math.abs(mv1.dx - 1.4) < 1e-9 && mv1.dy === 0, 'T-M3 键盘+摇杆向量合并', mv1);
+  G.engine.keys.clear(); G.engine.keys.add('w'); G.engine.keys.add('d');
+  G.engine.touch.active = false;
+  const mvDiag = G.engine.moveVec();
+  assert(Math.abs(Math.hypot(mvDiag.dx, mvDiag.dy) - Math.SQRT2) < 1e-9, 'T-M3 键盘对角保持原样');
+  const pM3 = G.state.player;
+  G.state.obstacles = []; G.state.sites = [];   // 排除碰撞/事件干扰
+  const x0M3 = pM3.x, y0M3 = pM3.y;
+  run(1);
+  assert(G.dist(pM3.x, pM3.y, x0M3, y0M3) > 100, 'T-M3 键盘对角仍全速移动',
+    Math.round(G.dist(pM3.x, pM3.y, x0M3, y0M3)));
+  G.engine.keys.clear();
+
+  // T-M4 摇杆模拟量：0.4 幅度 → 1 秒位移 ≈ 0.4 × speed（缓速走位）
+  reset();
+  G.state.obstacles = []; G.state.sites = [];
+  const pSlow = G.state.player;
+  const x0S = pSlow.x;
+  G.engine.touch.active = true; G.engine.touch.dx = 0.4; G.engine.touch.dy = 0;
+  run(1);
+  const distS = pSlow.x - x0S;
+  const expectS = G.CFG.player.speed * 0.4;
+  assert(Math.abs(distS - expectS) < expectS * 0.15, 'T-M4 摇杆小幅=按比例缓速走位',
+    { dist: Math.round(distS), expect: Math.round(expectS) });
+  G.touch.release();
+  assert(G.engine.touch.active === false, 'T-M4 释放摇杆后输入清零');
+
+  // T-M5 性能降级：lowFx 时敌人上限软降 120，关闭后恢复
+  assert(G.CFG.perf && G.CFG.perf.lowFx === false, 'T-M5 桌面默认 fullFx');
+  const capM = G.aliveCap(60);
+  G.CFG.perf.lowFx = true;
+  assert(G.aliveCap(60) <= G.CFG.perf.capMaxMobile && G.aliveCap(60) < capM,
+    'T-M5 lowFx 敌人上限软降', G.aliveCap(60));
+  G.CFG.perf.lowFx = false;
+  assert(G.aliveCap(60) === capM, 'T-M5 关闭降级后恢复', G.aliveCap(60));
+
+  // T-M6 构筑面板：play 阶段打开即暂停，关闭恢复，反复开关安全
+  reset();
+  assert(typeof G.ui.showBuildPanel === 'function' && typeof G.ui.hideBuildPanel === 'function',
+    'T-M6 构筑面板函数已导出');
+  G.ui.showBuildPanel();
+  assert(G.el.buildOverlay.classList.contains('show') && G.state.paused === true, 'T-M6 打开面板并暂停');
+  G.ui.hideBuildPanel();
+  assert(!G.el.buildOverlay.classList.contains('show') && G.state.paused === false, 'T-M6 关闭面板并恢复');
+  G.ui.showBuildPanel();
+  G.ui.hideBuildPanel();
+  assert(G.state.paused === false, 'T-M6 反复开关面板安全');
+
+  // T-M7 自动索敌：触屏指针（合成鼠标事件的根源）不得接管瞄准
+  assert(typeof G.engine.pointerMove === 'function', 'T-M7 指针处理函数已导出');
+  G.engine.pointerMove({ clientX: 300, clientY: 200, pointerType: 'touch' });
+  assert(G.engine.mouse.active === false, 'T-M7 触屏指针不激活鼠标瞄准（保持自动索敌）',
+    { active: G.engine.mouse.active, cx: G.engine.mouse.cx });
+  G.engine.pointerMove({ clientX: 300, clientY: 200, pointerType: 'mouse' });
+  assert(G.engine.mouse.active === true && G.engine.mouse.cx === 300 && G.engine.mouse.cy === 200,
+    'T-M7 真实鼠标仍接管瞄准', { active: G.engine.mouse.active, cx: G.engine.mouse.cx, cy: G.engine.mouse.cy });
+  // 无 pointerType 的旧事件（部分桌面环境）按鼠标处理，行为不变
+  G.engine.pointerMove({ clientX: 480, clientY: 300 });
+  assert(G.engine.mouse.cx === 480 && G.engine.mouse.cy === 300, 'T-M7 无 pointerType 时兼容旧鼠标行为');
+  G.engine.mouse.active = false;   // 还原，避免影响后续测试
+
+  // ===== T-NW 新增武器线：火球 / 回旋镖，被动：暴击 / 移速 =====
+  // T-NW1 两条线可作为初始武器，解锁与运行参数齐全
+  reset();
+  G.startRun('fireball');
+  const pNW1 = G.state.player;
+  assert(pNW1.skills.fireball === 1 && !!pNW1.sk.fireball && pNW1.sk.fireball.count >= 1,
+    'T-NW1 火球开局解锁且运行参数就绪', { sk: pNW1.sk.fireball });
+  G.startRun('boomerang');
+  const pNW1b = G.state.player;
+  assert(pNW1b.skills.boomerang === 1 && !!pNW1b.sk.boomerang && pNW1b.sk.boomerang.legs === 2,
+    'T-NW1 回旋镖开局解锁且默认 2 段往返', { sk: pNW1b.sk.boomerang });
+
+  // T-NW2 火球成长表：8 级维度映射 → 运行参数
+  reset();
+  const pNW2 = G.state.player;
+  G.addWeapon(pNW2, 'fireball');
+  const fbDim0 = pNW2.sk.fireball.count;
+  for (let i = 0; i < 7; i++) G.upgradeWeapon(pNW2, 'fireball');
+  assert(G.weaponLevel(pNW2, 'fireball') === 8, 'T-NW2 火球可升到 Lv8');
+  assert(pNW2.sk.fireball.count > fbDim0 && pNW2.sk.fireball.r > 70 && pNW2.sk.fireball.cd < 3.6
+      && pNW2.sk.fireball.mult >= 3.7,
+    'T-NW2 火球 Lv8 维度映射（数量/半径/频率/高伤）',
+    { count: pNW2.sk.fireball.count, r: pNW2.sk.fireball.r, cd: pNW2.sk.fireball.cd, mult: pNW2.sk.fireball.mult });
+  assert(G.LINES.fireball.dims.find(d => d.key === 'dmg').eff(3).indexOf('370') >= 0,
+    'T-NW2 火球满级单次 370% 攻击（低频高伤定位）');
+
+  // T-NW3 火球发射并爆炸命中敌人
+  reset();
+  G.startRun('fireball');
+  const pNW3 = G.state.player;
+  const foeNW3 = G.makeEnemy(1, 0);
+  G.state.foes.push(foeNW3);
+  foeNW3.x = pNW3.x + 120; foeNW3.y = pNW3.y;
+  const foeHp0 = foeNW3.hp;
+  G.fireFireballs(pNW3);
+  assert(G.state.fireballs.length >= 1, 'T-NW3 火球已发射', G.state.fireballs.length);
+  for (let i = 0; i < 60; i++) G.updateFireballs(1 / 60);
+  assert(foeNW3.dead || foeNW3.hp < foeHp0, 'T-NW3 火球爆炸对敌人造成伤害',
+    { hp0: foeHp0, hp1: foeNW3.hp, dead: foeNW3.dead });
+
+  // T-NW4a 回旋镖逐把依次发射（不一次性全扔）
+  reset();
+  G.startRun('boomerang');
+  const pNW4a = G.state.player;
+  // 造 3 把的构筑：满级 Lv8 维度 count=2 → 3 把
+  for (let i = 0; i < 7; i++) G.upgradeWeapon(pNW4a, 'boomerang');
+  const cnt4a = pNW4a.sk.boomerang.count;
+  assert(cnt4a === 3, 'T-NW4a 回旋镖满级 3 把', cnt4a);
+  G.state.boomerangs = [];
+  pNW4a.sk.boomerang.t = 0.001;   // 让下一帧触发一轮
+  G.update(1 / 60);
+  assert(G.state.boomerangs.length === 1, 'T-NW4a 一轮开始只发第 1 把', G.state.boomerangs.length);
+  for (let i = 0; i < 20; i++) G.update(1 / 60);   // 跨越 gap=0.22s
+  assert(G.state.boomerangs.length === 2, 'T-NW4a 间隔后发第 2 把', G.state.boomerangs.length);
+  for (let i = 0; i < 20; i++) G.update(1 / 60);
+  assert(G.state.boomerangs.length === 3, 'T-NW4a 再间隔后发第 3 把', G.state.boomerangs.length);
+  assert(G.state.boomerangs.length < 4, 'T-NW4a 不会一次性全扔');
+
+  // T-NW4 回旋镖发射、往返与多段命中
+  reset();
+  G.startRun('boomerang');
+  const pNW4 = G.state.player;
+  const foeNW4 = G.makeEnemy(1, 0);
+  G.state.foes.push(foeNW4);
+  foeNW4.baseHp = 99999; foeNW4.maxHp = 99999; foeNW4.hp = 99999;  // 防止被打死，验证多段
+  foeNW4.x = pNW4.x + 140; foeNW4.y = pNW4.y;
+  const foeHp4 = foeNW4.hp;
+  G.fireBoomerangs(pNW4);
+  assert(G.state.boomerangs.length >= 1, 'T-NW4 回旋镖已发射', G.state.boomerangs.length);
+  let sawReturn = false;
+  for (let i = 0; i < 200; i++) {
+    G.updateBoomerangs(1 / 60);
+    if (G.state.boomerangs.some(b => b.phase === 1)) sawReturn = true;
+    if (!G.state.boomerangs.length) break;
+  }
+  assert(sawReturn, 'T-NW4 回旋镖飞出后折返');
+  assert(foeNW4.hp < foeHp4, 'T-NW4 回旋镖往返对敌人造成伤害', { hp0: foeHp4, hp1: foeNW4.hp });
+
+  // T-NW4b 回旋镖必须完整飞回玩家手里才结束一段（不能半路换向）
+  reset();
+  G.startRun('boomerang');
+  const pNW4b = G.state.player;
+  G.state.boomerangs = [];
+  G.state.foes = [];   // 无敌人，纯验证飞行轨迹
+  pNW4b.sk.boomerang.t = 0.001;
+  G.update(1 / 60);   // 发出第 1 把
+  const bm4b = G.state.boomerangs[0];
+  assert(bm4b, 'T-NW4b 回旋镖已发出');
+  // 推进到返回段（phase=1）
+  let guard4b = 0;
+  while (bm4b.phase === 0 && guard4b++ < 400) G.updateBoomerangs(1 / 60);
+  assert(bm4b.phase === 1, 'T-NW4b 进入返回段', { phase: bm4b.phase });
+  // 返回途中：制造 traveled 已超过单程 dist 但距离玩家仍很远的情形
+  bm4b.x = pNW4b.x + 200; bm4b.y = pNW4b.y;
+  bm4b.traveled = bm4b.dist + 10;
+  G.updateBoomerangs(1 / 60);
+  assert(G.state.boomerangs.length === 1 && bm4b.phase === 1,
+    'T-NW4b 距离玩家远时不会因 traveled 超程提前结束',
+    { n: G.state.boomerangs.length, phase: bm4b.phase, d: Math.round(G.dist(bm4b.x, bm4b.y, pNW4b.x, pNW4b.y)) });
+  // 继续推进直到真正接近玩家，此时才结束第一段
+  guard4b = 0;
+  while (G.state.boomerangs.length && bm4b.legIdx === 0 && guard4b++ < 400) G.updateBoomerangs(1 / 60);
+  assert(bm4b.legIdx >= 1, 'T-NW4b 真正飞回手里后才进入下一段', { legIdx: bm4b.legIdx, phase: bm4b.phase });
+
+  // T-NW5 进化配方：火球+暴击、回旋镖+移速
+  const recipeNW = G.BUILD.EVOLVE_RECIPE;
+  assert(recipeNW.fireball === 'crit' && recipeNW.boomerang === 'movespeed',
+    'T-NW5 新武器配方绑定暴击/移速', recipeNW);
+  reset();
+  const pNW5 = G.state.player;
+  pNW5.weapons.fireball = 8; pNW5.passives.crit = 5;
+  G.rebuildFromBuild(pNW5);
+  assert(G.checkEvolution(pNW5) === 'fireball' && pNW5.evolved.fireball === true,
+    'T-NW5 火球满级+暴击满级→陨火焚天');
+  const fiUlt = pNW5.sk.fireball;
+  assert(fiUlt.pierce === 2 && fiUlt.r > 70, 'T-NW5 陨火焚天：穿透2+半径放大', fiUlt);
+
+  // T-NW6 终极回旋镖：4 段往返、穿透 +3
+  reset();
+  const pNW6 = G.state.player;
+  pNW6.weapons.boomerang = 8; pNW6.passives.movespeed = 5;
+  G.rebuildFromBuild(pNW6);
+  assert(G.checkEvolution(pNW6) === 'boomerang' && pNW6.evolved.boomerang === true,
+    'T-NW6 回旋镖满级+移速满级→无尽回旋');
+  const boUlt = pNW6.sk.boomerang;
+  assert(boUlt.legs === 4 && boUlt.pierce === 9, 'T-NW6 无尽回旋：4 段+穿透+3', boUlt);
+
+  // T-NW7 暴击被动：概率暴击造成双倍伤害（固定式暴击不重复掷骰）
+  reset();
+  const pNW7 = G.state.player;
+  G.upgradePassive(pNW7, 'crit');
+  assert(Math.abs(pNW7.pasCrit - 0.05) < 1e-9, 'T-NW7 暴击被动 Lv1 = 5%', pNW7.pasCrit);
+  const targetNW7 = G.makeEnemy(1, 0);
+  targetNW7.baseDef = 0; targetNW7.def = 0;
+  targetNW7.baseHp = 9999; targetNW7.maxHp = 9999; targetNW7.hp = 9999;  // 避免伤害被血量截断
+  const rand0 = Math.random;
+  Math.random = () => 0;   // 必定触发概率暴击
+  const dealtCrit = G.dealDamage(pNW7, targetNW7, 100, { noThorn: true, noSplash: true, tag: 'fireball' });
+  Math.random = rand0;
+  assert(dealtCrit >= 200, 'T-NW7 概率暴击造成双倍伤害', dealtCrit);
+
+  // T-NW8 移速被动：映射到 pasMoveSpeed，速度乘区生效
+  reset();
+  const pNW8 = G.state.player;
+  G.upgradePassive(pNW8, 'movespeed');
+  G.upgradePassive(pNW8, 'movespeed');
+  assert(Math.abs(pNW8.pasMoveSpeed - 0.16) < 1e-9, 'T-NW8 移速 Lv2 = +16%', pNW8.pasMoveSpeed);
+
+  // T-NW9 开局选武器卡片自适应：数量与内容均由数据生成，新增武器无需改 UI
+  reset();
+  const metaMissing9 = G.LINE_KEYS.filter(k => {
+    const L = G.LINES[k];
+    return !L.color || !L.tagline || !Array.isArray(L.stats);
+  });
+  assert(metaMissing9.length === 0, 'T-NW9 每条武器线都带展示元数据', metaMissing9);
+  G.ui.showStartSelect();
+  assert(G.el.startCards.children.length === G.LINE_KEYS.length,
+    'T-NW9 开局卡片数量随武器线数量自动变化',
+    { cards: G.el.startCards.children.length, lines: G.LINE_KEYS.length });
+  const card9 = G.el.startCards.children[0];
+  assert(card9.innerHTML.indexOf('sc-evo') >= 0 && card9.innerHTML.indexOf('sc-stat') >= 0,
+    'T-NW9 卡片含自动生成的进化路线与数值标签');
+  G.el.startOverlay.classList.remove('show');
+  reset();
 
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;
@@ -1500,14 +2288,15 @@ function simulate(runs) {
     }
     if (st.phase === 'event') {
       const overlay = sandbox.document._els.eventOverlay;
-      if (overlay.classList.contains('show')) {
-        if (st.activeSite && st.activeSite.evt) {
-          const opts = st.activeSite.evt.options;
-          G.chooseEventOption(opts[opts.length - 1]);
-        } else {
-          G.resolveTrap(G.TRAPS[0]);   // 陷阱弹窗：直接承受
-        }
+      if (overlay.classList.contains('show') && st.activeSite && st.activeSite.evt) {
+        const opts = st.activeSite.evt.options;
+        G.chooseEventOption(opts[opts.length - 1]);
       }
+      return;
+    }
+    if (st.phase === 'eventpick') {
+      const cards = G.pickBuildCards(st.player, 3);
+      if (cards.length) G.chooseLevelCard(cards[0]);
     }
   }
 
@@ -1565,7 +2354,7 @@ function simulate(runs) {
     if (!meleeThreat) {
       let hd = Infinity;
       for (const f of alive) {
-        if (f.type !== 'ranged' && f.type !== 'boss' && f.type !== 'mage' && f.type !== 'mimic' && f.type !== 'bomber') continue;
+        if (f.type !== 'ranged' && f.type !== 'boss' && f.type !== 'mage' && f.type !== 'mimic') continue;
         const d = G.dist(p.x, p.y, f.x, f.y);
         if (d < hd) { hd = d; hunted = f; }
       }

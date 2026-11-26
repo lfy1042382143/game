@@ -173,6 +173,8 @@
           if (f.dead) continue;
           if (G.dist(f.x, f.y, h.x, h.y) < h.r + f.r) {
             G.dealDamage(null, f, h.dmg, { flat: true, noThorn: true });
+            // 地形击杀计入任务清怪进度（守卫/水晶只看 dead 标记），并留标记供展示与测试
+            if (f.dead) f.hazardKilled = true;
           }
         }
       }

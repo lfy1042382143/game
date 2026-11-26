@@ -20,7 +20,11 @@
       t: 0.9,
       big: !!big
     });
-    if (state.floaters.length > 60) state.floaters.splice(0, state.floaters.length - 60);
+    // 飘字上限：移动端 lowFx 时减半，防止低端机刷屏掉帧
+    const fCap = (CFG.perf && CFG.perf.lowFx)
+      ? Math.max(8, Math.round((CFG.perf.floaterCap || 60) / 2))
+      : (CFG.perf ? (CFG.perf.floaterCap || 60) : 60);
+    if (state.floaters.length > fCap) state.floaters.splice(0, state.floaters.length - fCap);
   }
 
   /* =========================================================
@@ -45,15 +49,20 @@
 
     // 玩家无敌帧：受击后的躲避窗口
     if (tgt === state.player && tgt.iframes > 0 && !opts.ignoreIframes) return 0;
-    // 影遁甲：概率完全闪避（只在玩家受击时掷骰）
-    if (tgt === state.player && !opts.flat && tgt.agg && tgt.agg.dodge > 0 && Math.random() * 100 < tgt.agg.dodge) {
-      floatText(tgt, '闪避', '#a5b4fc');
-      return 0;
-    }
 
     let dmg = amt;
 
-    // 类型抗性/弱点：玩家攻击按 tag 匹配敌人抗性乘区（0 = 免疫，如飞行系免疫震荡波/地雷）
+    // 暴击被动（构筑）：玩家攻击敌人时按 pasCrit 概率触发，造成双倍伤害。
+    // 与卡片的固定节拍暴击（调用方已在 amt 里乘过倍率、置 opts.crit）独立：
+    // 已经暴击的一击不再重复掷骰，避免双重乘算。
+    let critHit = !!opts.crit;
+    if (!critHit && src === state.player && tgt.isMon && !opts.flat && src.pasCrit > 0
+        && Math.random() < src.pasCrit) {
+      dmg *= 2;
+      critHit = true;
+    }
+
+    // 类型抗性/弱点：玩家攻击按 tag 匹配敌人抗性乘区（0 = 免疫，如飞行系免疫地雷；震荡波对飞行 ×0.5）
     if (src === state.player && tgt.isMon && opts.tag && tgt.res) {
       const m = tgt.res[opts.tag];
       if (m !== undefined) {
@@ -65,22 +74,13 @@
       }
     }
 
-    // 碎骨刃：对残血敌人的处决加成
-    if (src && src === state.player && tgt.isMon && src.agg && src.agg.execute > 0
-        && tgt.hp / Math.max(1, tgt.maxHp) < 0.35) {
-      dmg *= 1 + src.agg.execute / 100;
-    }
-
     // 精英光环：半径内小怪攻击提升（发射时已锁 dmg 的弹幕也在此统一结算）
     if (src && src.isMon && src.auraAtkMul && src.auraAtkMul > 1) dmg *= src.auraAtkMul;
 
-    // 防御减免（flat 词缀如反伤不受防御影响）
-    // 玩家：减法防御（装备 flat def）；敌人：减伤率百分比（def 即减伤%），破甲按比例削减
+    // 防御减免（flat 伤害不受防御影响）
+    // 敌人：减伤率百分比（def 即减伤%）；玩家：减法防御
     if (!opts.flat) {
-      const rend = (src && src === state.player && src.agg && src.agg.rend) || 0;
-      const pierce = opts.pierce !== undefined
-        ? opts.pierce
-        : ((src && src.agg ? src.agg.pierce : 0) + rend);
+      const pierce = opts.pierce || 0;   // 调用方显式破甲（预留）
       if (tgt.isMon) {
         const dr = clamp(tgt.def, 0, 60) * (1 - clamp(pierce, 0, 80) / 100);
         dmg *= 1 - dr / 100;
@@ -88,15 +88,6 @@
         const effDef = Math.max(0, tgt.def * (1 - clamp(pierce, 0, 80) / 100));
         dmg = Math.max(1, dmg - effDef);
       }
-    }
-
-    // 减伤（龙鳞甲）
-    if (tgt.agg && tgt.agg.bulwark > 0) {
-      dmg *= 1 - Math.min(60, tgt.agg.bulwark) / 100;
-    }
-    // 坚韧盔：濒死减伤
-    if (tgt === state.player && tgt.agg && tgt.agg.tough > 0 && tgt.hp / Math.max(1, tgt.maxHp) < 0.35) {
-      dmg *= 1 - Math.min(60, tgt.agg.tough) / 100;
     }
     dmg = Math.max(1, Math.round(dmg));
 
@@ -117,39 +108,23 @@
       tgt.flashT = 0.12;
       // 玩家受击后获得短暂无敌帧（躲避窗口），期间免疫一切伤害
       if (tgt === state.player) tgt.iframes = G.CFG.player.iframes;
-      floatText(tgt, dmg, opts.crit ? '#fbbf24' : (tgt === state.player ? '#f87171' : '#fff'), opts.crit);
+      floatText(tgt, dmg, critHit ? '#fbbf24' : (tgt === state.player ? '#f87171' : '#fff'), critHit);
       // 输出统计：按攻击方式归集玩家造成的伤害（opts.tag 由各攻击来源传入）
       if (opts.tag && src === state.player && tgt !== state.player && state.dmgStats) {
         state.dmgStats[opts.tag] = (state.dmgStats[opts.tag] || 0) + dmg;
       }
     }
 
-    // 回响头盔：受击后短时间加速（不再回血）
-    if (dmg > 0 && tgt === state.player) {
-      tgt.hurtT = 3;   // 蓄能甲：脱战计时重置
-      if (tgt.agg && tgt.agg.haste > 0) tgt.hasteT = tgt.agg.hasteDur;
-    }
-
-    // 余震甲：受击时对周围敌人造成范围伤害
-    if (!opts.noShock && tgt === state.player && dmg > 0 && tgt.agg && tgt.agg.shock > 0) {
-      const R = tgt.agg.shockR;
-      for (const f of state.foes) {
-        if (f.dead || G.dist(f.x, f.y, tgt.x, tgt.y) > R) continue;
-        dealDamage(tgt, f, tgt.agg.shock, { flat: true, noThorn: true, noShock: true });
-      }
-    }
-
-    // 反伤（尖刺词缀 / 荆棘甲）：反弹固定值，不受防御，不再连锁
+    // 反伤（尖刺词缀）：反弹固定值，不受防御，不再连锁
     if (!opts.noThorn && src && !src.dead && dmg > 0) {
       const aThorn = affixDataOf(tgt);
       const affixThorn = aThorn && aThorn.thorn ? aThorn.thorn : 0;
-      const thorn = Math.max(tgt.agg ? Math.round(tgt.agg.thorn) : 0, affixThorn);
-      if (thorn > 0) dealDamage(tgt, src, thorn, { flat: true, noThorn: true, ignoreIframes: false });
+      if (affixThorn > 0) dealDamage(tgt, src, affixThorn, { flat: true, noThorn: true, ignoreIframes: false });
     }
 
     // 受击音效
     if (tgt === state.player) G.sfxHurt();
-    else G.sfxHit(!!opts.crit);
+    else G.sfxHit(critHit);
 
     // 任务增伤期（水晶任务失败惩罚）：敌人造成的伤害 ×1.15
     if (src && src.isMon && state.enemyRageT > 0) dmg *= 1.15;
@@ -162,21 +137,12 @@
       tgt.hp = 0;
       tgt.dead = true;
       if (tgt.noKill) return dmg;   // 任务 NPC（使者/同伴等）：不计击杀/经验/掉落
-      // 回响刃：击杀时向周围溅射（不连锁，避免递归爆炸）
-      if (!opts.noSplash && tgt !== state.player && src === state.player && src.agg && src.agg.splash > 0) {
-        const R = src.agg.splashR;
-        for (const f of state.foes) {
-          if (f.dead || f === tgt || G.dist(f.x, f.y, tgt.x, tgt.y) > R) continue;
-          dealDamage(src, f, Math.max(1, Math.round(src.atk * src.agg.splash / 100)),
-            { noThorn: true, noShock: true, noSplash: true });
-        }
-      }
       if (tgt !== state.player) {
         state.kills++;
         floatText(tgt, '✦', '#fbbf24', true);
         gainXp(tgt.xp);
-        if (tgt.mimic && G.dropMimicLoot) G.dropMimicLoot(tgt);       // 宝箱怪掉真宝箱
-        else if (tgt.elite && G.dropEliteLoot) G.dropEliteLoot(tgt);  // 精英原地掉宝箱
+        if (tgt.mimic && G.dropMimicLoot) G.dropMimicLoot(tgt);  // 宝箱怪掉真宝箱
+        else if (tgt.elite && G.dropEliteLoot) G.dropEliteLoot(tgt);    // 精英原地掉宝箱
       }
     }
 
@@ -228,8 +194,7 @@
   function gainXp(amount) {
     const p = state.player;
     if (!p || !amount) return;
-    const clarity = (p.agg && p.agg.clarity) || 0;   // 清醒盔：经验加成
-    const gain = Math.max(1, Math.round(amount * (p.xpMul || 1) * (1 + clarity / 100)));
+    const gain = Math.max(1, Math.round(amount * (p.xpMul || 1)));
     p.xp += gain;
     floatText(p, '+' + gain + ' XP', '#c4b5fd');
     while (p.xp >= xpNeed(p.level)) {
@@ -243,11 +208,6 @@
   function levelUp(p) {
     G.refresh(p);
     G.healUnit(p, p.maxHp);   // 升级血量回满
-    // 壁垒甲：升级时刷新护盾（开局已由 startShield 施加）
-    if (p.agg && p.agg.guard > 0 && p.shield < p.agg.guard) {
-      p.shield = Math.round(p.agg.guard);
-      floatText(p, '盾+' + Math.round(p.agg.guard), '#7dd3fc');
-    }
     floatText(p, 'Lv.' + p.level + ' ↑', '#fbbf24', true);
     state.pendingLevelUps++;
 

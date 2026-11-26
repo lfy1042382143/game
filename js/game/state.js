@@ -6,7 +6,7 @@
 (function (G) {
   'use strict';
 
-  const { aggregate, recalc, CFG, pick, polyBounds } = G;
+  const { recalc, CFG, pick, polyBounds } = G;
 
   /* =========================================================
      状态
@@ -31,6 +31,11 @@
     zones: [],             // 持久陷阱区域（泥潭/引力裂隙）
     hazT: 0,               // 周期灾害生成计时
 
+    mines: [],             // 感应地雷
+    fireballs: [],         // 火球（武器线）
+    boomerangs: [],        // 回旋镖（武器线）
+    skillFx: [],           // 技能特效
+
     loots: [],
     lootSlots: [],
     kills: 0,
@@ -39,18 +44,16 @@
     chests: [],            // 精英掉落的宝箱（走近开启 → 装备战利品）
     sites: [],             // 事件地点（走近触发，一次性）
     siteT: 0,              // 地点刷新计时
-    siteSeq: 0,            // 地点事件种类轮换序号
+    lastEventKey: null,    // 上次刷出的事件（加权随机时避免立刻重复）
     activeSite: null,      // 正在交互的事件地点
+    eventPick: false,      // 商人定向强化弹窗进行中
 
     spawnT: 0,             // 普通敌人刷怪计时
     eliteT: 0,             // 精英怪计时（每分钟整点一只）
 
-    pendingRage: false,    // 泉水事件副作用：下一只精英攻击 +30%
-
-    // 陷阱（事件选择后概率触发）：影响陷阱期间刷新的敌人
-    trapFoeHpMul: 1,       // 敌人生命倍率
-    trapFoeAtkMul: 1,      // 敌人攻击倍率
-    trapUntil: 0,          // 陷阱失效时间（state.time，秒）
+    // 事件代价（明码标价）：期间刷新的敌人攻击倍率与失效时间
+    eventFoeAtkMul: 1,
+    eventFoeUntil: 0,
 
     banner: null,
 
@@ -69,9 +72,9 @@
   function makeUnit(base) {
     const u = {
       baseHp: base.hp, baseAtk: base.atk, baseDef: base.def,
-      items: [], shield: 0, bleed: null,
+      shield: 0, bleed: null,
       strikes: 0,
-      maxHp: 0, hp: 0, atk: 0, def: 0, agg: null, isMon: !!base.isMon,
+      maxHp: 0, hp: 0, atk: 0, def: 0, agg: {}, isMon: !!base.isMon,
       x: base.x || 0, y: base.y || 0,
       r: base.r || 13,
       speed: base.speed || 0,
@@ -88,12 +91,11 @@
       orbitCd: 0,           // 被环绕飞刃命中的冷却
       dead: false
     };
-    u.agg = aggregate(u.items);
     recalc(u);
     return u;
   }
 
-  function makePlayer() {
+  function makePlayer(startLine) {
     const C = CFG.player;
     const p = makeUnit({
       hp: C.hp, atk: C.atk, def: C.def,
@@ -111,11 +113,12 @@
     p.shotDmgMul = 1;      // 多箭时的单箭伤害系数（散射箭：0.7）
     p.pierce = 0;          // 箭矢贯穿数（贯穿箭）
     p.orbits = 0;          // 环绕飞刃数量
-    p.orbitDmgMul = 0.6;   // 环绕飞刃单次伤害系数（随卡数递减）
+    p.orbitDmgMul = 1.1;   // 环绕飞刃单次伤害系数（applySkillBuild 会重算；不易命中故数值偏高）
     p.luck = 0;            // 幸运值（幸运卡：提升升级选项高稀有度权重）
     p.xpMul = 1;           // 经验获取倍率（升级效率卡）
     p.rangeMul = 1;        // 射程乘算系数（射程提升卡）
     p.range = C.range;     // 当前射程（nearestFoe 与箭矢寿命都用它）
+    p.arrowRangeMul = 1;   // 箭矢专属射程乘数（终极·贯穿诸天 ×1.55），applySkillBuild 覆盖
     p.critEvery = 0;       // 暴击节拍（0 = 无；每 N 发必暴）
     p.critMult = 1;        // 暴击倍率
     p.bulletSpeedMul = 1;  // 弹速乘算系数（弹速提升卡）
@@ -123,7 +126,9 @@
     p.hasteT = 0;          // 回响头盔：受击后加速剩余时间
     p.hurtT = 0;           // 蓄能甲：脱战计时
     p.cardSlow = 0;        // 减速箭：命中减速层数
-    if (G.initSkills) G.initSkills(p);   // 六条攻击方式升级线
+    // 构筑系统：武器8级+被动+进化（内部会初始化 p.skills/p.sd 并调用 applySkillBuild）
+    if (G.initBuild) G.initBuild(p, startLine);
+    else if (G.initSkills) G.initSkills(p, startLine);   // 兼容回退
     p.shieldEvery = 0;     // 护盾生成节拍（0 = 无；每 N 秒）
     p.shieldVal = 0;       // 护盾生成量
     p.shieldT = 0;         // 护盾生成计时

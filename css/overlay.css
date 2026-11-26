@@ -410,6 +410,12 @@
   0%, 100% { box-shadow: 0 14px 40px -18px #fbbf24, inset 0 0 34px -14px #fbbf24; }
   50% { box-shadow: 0 22px 60px -12px #fbbf24, inset 0 0 52px -8px #fbbf24; }
 }
+.up-card.ultimate { border: 2px solid #fbbf24 !important; animation: cardIn .5s cubic-bezier(.16,1,.3,1.05) backwards, ultGlow 1.8s ease-in-out infinite .6s; }
+.up-card.ultimate .card-rar { color: #fbbf24; font-weight: 800; }
+@keyframes ultGlow {
+  0%, 100% { box-shadow: 0 16px 46px -14px #fbbf24, inset 0 0 44px -10px rgba(251,191,36,.5); }
+  50% { box-shadow: 0 26px 70px -10px #fbbf24, inset 0 0 64px -6px rgba(251,191,36,.75); }
+}
 
 /* 当前属性条 */
 .cur-stats {
@@ -670,3 +676,145 @@
   color: #8b85a3;
   line-height: 1.5;
 }
+.event-opt-risk {
+  font-size: clamp(10px, .9vw, 11.5px);
+  color: #fca5a5;
+  line-height: 1.4;
+  letter-spacing: .02em;
+}
+
+/* ============================================================
+   开局选武器弹窗
+   ============================================================ */
+.start-panel { width: min(1040px, 100%); }
+/* 列数随容器宽度自动变化，武器数量增减也无需改样式 */
+.start-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: clamp(10px, 1.4vw, 18px);
+}
+
+/* ============================================================
+   构筑总览面板（移动端侧栏替代入口）
+   ============================================================ */
+.build-panel { width: min(480px, 100%); }
+.build-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: clamp(14px, 2vh, 22px);
+}
+.build-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .1);
+}
+.build-row .b-ic { font-size: 18px; }
+.build-row .b-nm { flex: 1; font-weight: 700; color: #ded9ee; font-size: clamp(13px, 1.1vw, 15px); }
+.build-row .b-lv { font-weight: 800; color: #f5c451; font-size: clamp(12px, 1vw, 14px); }
+.build-row.build-ult {
+  border-color: rgba(245, 196, 81, .55);
+  background: linear-gradient(135deg, rgba(245, 196, 81, .12), rgba(30, 27, 48, .05));
+}
+.build-row.build-ult .b-nm { color: #fbbf24; }
+
+/* ============================================================
+   移动端小屏适配（触控热区、卡片单列、面板可滚动）
+   ============================================================ */
+@media (max-width: 720px) {
+  .panel {
+    max-height: 92dvh;
+    overflow-y: auto;
+    touch-action: pan-y;             /* 面板内允许滚动，页面本身不滚 */
+    padding: 16px 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .cards { grid-template-columns: 1fr; }
+  .up-card { min-height: 44px; }
+  .event-opt { padding: 12px 14px; }
+  .event-opt-label { font-size: 15px; }
+  .btn { min-height: 46px; font-size: 15px; }
+  .cur-stats { flex-wrap: wrap; gap: 8px; }
+  .loot { max-height: 34dvh; overflow-y: auto; touch-action: pan-y; }
+}
+.start-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  border: 1px solid rgba(126, 138, 180, .28);
+  border-radius: 14px;
+  background: linear-gradient(160deg, rgba(30, 27, 48, .96), rgba(16, 14, 28, .98));
+  padding: clamp(12px, 1.3vw, 18px);
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  animation: cardIn .45s cubic-bezier(.16,1,.3,1.05) backwards;
+  transition: transform .2s, border-color .2s, box-shadow .2s;
+}
+.start-card::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 2px;
+  background: var(--c, #fbbf24);
+  opacity: .75;
+}
+.start-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--c, #fbbf24);
+  box-shadow: 0 16px 40px -14px var(--c, #fbbf24), inset 0 0 30px -12px var(--c, #fbbf24);
+}
+.start-card.picked {
+  border-color: var(--c, #fbbf24);
+  box-shadow: 0 0 0 2px var(--c, #fbbf24), 0 12px 36px -12px var(--c, #fbbf24);
+  transform: translateY(-3px) scale(1.02);
+  transition: transform .1s, box-shadow .1s;
+}
+.start-card:active { transform: translateY(-2px) scale(.985); }
+.start-card .sc-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.start-card .sc-icon {
+  flex: none;
+  width: clamp(38px, 4vw, 50px);
+  height: clamp(38px, 4vw, 50px);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(20px, 2.2vw, 28px);
+  background: rgba(245, 196, 81, .12);
+  background: color-mix(in srgb, var(--c, #fbbf24) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c, #fbbf24) 45%, transparent);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--c, #fbbf24) 40%, transparent));
+}
+.start-card .sc-name {
+  font-size: clamp(15px, 1.4vw, 18px);
+  font-weight: 900;
+  color: var(--c, #f5c451);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.start-card .sc-role { font-size: clamp(11px, 1vw, 12px); color: #b6c0dc; line-height: 1.4; }
+.start-card .sc-stats { display: flex; flex-wrap: wrap; gap: 5px; }
+.start-card .sc-stat {
+  font-size: 10px; font-weight: 700; color: #dbe4ff;
+  background: rgba(148, 163, 184, .12);
+  border: 1px solid rgba(148, 163, 184, .18);
+  border-radius: 6px; padding: 3px 7px; white-space: nowrap;
+}
+.start-card .sc-evo {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
+  margin-top: auto; padding-top: 7px;
+  border-top: 1px solid rgba(126, 138, 180, .18);
+  font-size: 10px; color: #93a0c4; line-height: 1.4;
+}
+.start-card .sc-evo b { color: var(--c, #fbbf24); font-size: 12px; }
+
+/* VS构筑升级卡配色 */
+.up-card.weapon-card { border-color: rgba(96,165,250,.5) !important; }
+.up-card.passive-card { border-color: rgba(192,132,252,.5) !important; }

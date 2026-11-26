@@ -1,6 +1,6 @@
 /* ============================================================
    配置层 · config.js（实时版）
-   数值、稀有度、槽位、装备定义、怪物词库 —— 调平衡只改这里
+   数值、稀有度、怪物词库 —— 调平衡只改这里
    ============================================================ */
 (function (G) {
   'use strict';
@@ -13,7 +13,7 @@
     world: { w: 100000, h: 100000 },
     viewport: { w: 960, h: 600 },
 
-    // 玩家：WASD 移动，自动向最近的敌人射击（初始属性克制，成长全靠升级选卡与装备）
+    // 玩家：WASD 移动，自动向最近的敌人射击（初始属性克制，成长全靠升级选卡）
     player: {
       hp: 100, atk: 10, def: 3,
       r: 13,
@@ -35,17 +35,32 @@
     },
     maps: { milestoneEvery: 3 },                        // 每 N 级解锁一张新地图（4 级即解锁第二张）
 
-    // 源源不断刷怪（无波次）：开局稍缓给发育窗口，后期密度持续上升
+    // 移动端性能降级（触屏设备自动开启，见 main.js / touch.js）
+    perf: {
+      lowFx: false,        // 关闭 shadowBlur 发光、飘字减半
+      floaterCap: 60,      // 飘字上限（lowFx 时取一半）
+      capMaxMobile: 120    // 手机端敌人存活上限软降（200 → 120）
+    },
+
+    // 源源不断刷怪（对标 VS 四阶段节奏）：一次刷一小群，密度随时间爬升
     spawn: {
-      interval0: 2.0,     // 第 1 分钟的刷怪间隔（秒）
-      intervalMin: 0.32,  // 间隔下限
-      intervalK: 0.1,     // 每分钟缩短量
-      capBase: 5,         // 第 1 分钟的场上存活上限
-      capMax: 48,         // 存活上限（后期怪海）
-      capK: 2.0,          // 每分钟上限增量
+      interval0: 2.2,     // 第 1 分钟的刷怪间隔（秒）
+      intervalMin: 0.18,  // 间隔下限
+      intervalK: 0.14,    // 每分钟缩短量
+      capBase: 8,         // 第 1 分钟的场上存活上限
+      capMax: 200,        // 存活上限（对标 VS 怪海规模）
+      capK: 7.5,          // 每分钟上限增量（约 26 分钟逼近 200）
       offscreen: 90,      // 出生点超出视口对角线的额外距离（确保屏幕外刷新）
       offscreenSpan: 300, // 屏幕外环带厚度
-      mageCap: 2          // 场上法师数量上限（不占存活名额，但防止无限堆积）
+      mageCap: 4,         // 场上法师数量上限
+      // 四阶段节奏（对标 VS：0-5 稀疏 / 5-15 爬升 / 15-25 高压 / 25+ 满负荷）
+      // batch = 每次刷新数量区间；capMul = 存活上限倍率；rateMul = 刷新间隔倍率（<1 更快）
+      phases: [
+        { until: 5,  batch: [1, 2], capMul: 0.55, rateMul: 1.45, name: '试探' },
+        { until: 15, batch: [2, 4], capMul: 0.75, rateMul: 1.0,  name: '爬升' },
+        { until: 25, batch: [3, 6], capMul: 0.92, rateMul: 0.72, name: '高压' },
+        { until: 999, batch: [5, 9], capMul: 1.0,  rateMul: 0.55, name: '满负荷' }
+      ]
     },
 
     // 无边界地形：按地块确定性生成陷阱/锚点，随玩家移动换入换出（位置在世界中固定）
@@ -69,31 +84,28 @@
       auraAtkMul: 1.15    // 精英光环攻击倍率（温和版 +15%）
     },
 
-    // 宝箱：精英击杀后原地掉落（装备唯一来源），开局送一个引导宝箱
+    // 宝箱：精英击杀后原地掉落（开启=一次免费升级），开局送一个引导宝箱
     chests: {
       minDist: 260, maxDist: 640,   // 开局宝箱相对玩家的刷新环带
-      pickupR: 34,       // 拾取半径
-      itemsMin: 1, itemsMax: 2,     // 每个宝箱的装备件数
-      rarBonus: 1,       // 精英宝箱稀有度加成
-      mimicChance: 0.22, // 宝箱怪概率（伪装成宝箱，走近后现形）
-      rarCapK: 0.34      // 稀有度按分钟封顶系数（wave×0.34 → 3分钟精良/6稀有/9史诗/12传说）
+      pickupR: 34,                  // 拾取半径
+      mimicChance: 0.22             // 宝箱怪概率（伪装成宝箱，走近后现形）
     },
 
     // 场景事件：地图上的特定地点，走近触发（一次性）
+    // 收益全部接入武器/被动构筑；风险写进选项文案，不再随机背刺。
     events: {
       cap: 2,            // 场上最多同时存在的地点数
       spawnEvery: 40,    // 刷新间隔（秒）
       minDist: 300, maxDist: 700,
       triggerR: 44,      // 触发半径
-      trapChance: 0.35   // 选择事件选项后触发陷阱的概率
-    },
-
-    // 陷阱：事件选择后概率触发（持续 effectDur 秒，影响之后刷新的敌人）
-    traps: {
-      effectDur: 45,       // 效果持续时间（秒）
-      foeHpMul: 2.0,       // 血肉盛宴：敌人生命倍率
-      foeAtkMul: 1.25,     // 狂怒低语：敌人攻击倍率
-      ambushCount: 3       // 伏击：立即召唤的敌人数
+      weights: { shrine: 3, spring: 3, fork: 2, merchant: 1 },  // 加权随机：祭坛/泉水常见，商人稀有
+      nearHazardChance: 0.6,   // 有地形时，事件地点优先刷在灾害锚点附近
+      riskDur: 45,             // 事件代价持续时间（秒）
+      shrineAtkMul: 1.2,       // 血契：期间新敌人攻击 +20%
+      springAtkMul: 1.3,       // 泉水：期间新敌人攻击 +30%
+      merchantHpCost: 0.15,    // 商人：付出当前生命的 15%
+      sacrificeHpCost: 0.2,    // 祭坛血契：献祭 20% 生命上限
+      searchHealPct: 0.4       // 歧路搜寻物资：回复 40% 生命
     },
 
     // 动态障碍物：随主角移动随机生成/移除；部分伪装成普通掩体的尖刺陷阱
@@ -118,13 +130,12 @@
 
     // 怪物成长曲线：两分钟一档，档内恒定；血量/攻击按档位指数增长（后期与玩家同步变强）
     // hp = hp0 × hpGrowth^tier；atk = atk0 × atkGrowth^tier；减伤率 = dr0 + tier×drStep（上限 60%）
+    // v9.32：生命与防御整体上调 +20%（只抬基数，增长率不变 → 每档恰好 ×1.2）；攻击/移速不变
     mon: {
       tier: 2,
-      hp0: 28, hpGrowth: 1.55,
-      atk0: 9.2, atkGrowth: 1.41,
-      dr0: 5, drStep: 4,
-      eqLvEvery: 6,
-      rarK: 0.2,
+      hp0: 33.6, hpGrowth: 1.55,     // 原 28 → 33.6（×1.2），growth 不变保证每档精确 +20%
+      atk0: 9.2, atkGrowth: 1.41,     // 攻击不变
+      dr0: 6, drStep: 4.8,            // 原 5/4 → 6/4.8（×1.2），上限仍 60%
       mapBoost: 0.12       // 每张新地图敌人 hp/atk +12%
     },
 
@@ -134,17 +145,16 @@
     // 重甲蛮兵：极慢极肉、伤害高——弹幕（箭矢/浮游炮）难打穿，弱近身爆炸（地雷/震荡波/飞刃）
     brute: { r: 17, speed: 58, atkCd: 2.0, reach: 4, atkMul: 1.35, hpMul: 1.9, defMul: 1.9 },
 
-    // 飞行掠袭者：快速飞行近战——无视障碍物俯冲缠斗，悬空免疫震荡波/地雷，箭矢是弱点
-    flyer: { r: 11, speed: 150, atkCd: 1.4, reach: 3, atkMul: 1.0, hpMul: 0.7, defMul: 0.6 },
-
-    // 飞行轰炸者：飞行远程——悬空免疫震荡波/地雷，闪电是弱点，每次射出双弹
-    bomber: {
-      r: 12, speed: 128, shootCd: 2.8, bulletSpeed: 140,
-      keepMin: 220, keepMax: 360,
-      atkMul: 0.8, hpMul: 0.8, defMul: 0.9
+    // 飞行掠袭者：俯冲骚扰型——打一下就撤，飞远后再次俯冲；悬空免疫地雷、震荡波半伤，箭矢是弱点
+    flyer: {
+      r: 11, speed: 150, atkCd: 1.4, reach: 3, atkMul: 1.0, hpMul: 0.7, defMul: 0.6,
+      retreatDist: 300,   // 命中后撤到的安全距离
+      retreatSpd: 1.6     // 脱离时的加速倍率（飞得更快更有"擦身而过"感）
     },
 
-    // 远程敌人：游击射手——移速快、伤害低、血薄（风筝型骚扰）
+    // （飞行轰炸者 bomber 已删除：后期敌方弹幕太密，投弹骚扰型整体移出刷怪池）
+
+    // 远程敌人：游击射手——移速快、伤害低、血薄（风筝型骚扰；刷怪占比已降至 1%）
     ranged: {
       r: 13, speed: 124,
       shootCd: 2.6, bulletSpeed: 150,
@@ -183,9 +193,7 @@
     size: { refShots: 3, k: 0.4, min: 0.85, max: 2.3 },  // 体型 = 击杀所需箭数（血量/玩家攻击）相对基准的幂
 
     // 敌人词缀出现节奏（普通敌人按分钟）
-    affixes: { firstAt: 3, every: 2 },
-
-    forge: { maxLevel: 5 }
+    affixes: { firstAt: 3, every: 2 }
   };
 
   /* ---------- 地图主题：按等级里程碑解锁（hazard = 特色陷阱，初始地图无） ---------- */
@@ -212,180 +220,6 @@
     { key: 'purple', name: '史诗', c: '#a78bfa', w: w => 6 + 0.4 * w },
     { key: 'gold',   name: '传说', c: '#fbbf24', w: w => Math.min(10, 1 + 0.2 * w) }
   ];
-
-  const SLOTS = [
-    { key: 'weapon',  name: '武器', icon: '⚔',  statK: 'atk' },
-    { key: 'armor',   name: '护甲', icon: '🛡',  statK: 'def' },
-    { key: 'helm',    name: '头盔', icon: '⛑',  statK: 'hp' },
-    { key: 'trinket', name: '饰品', icon: '💠',  statK: null }
-  ];
-
-  /* ---------- 装备定义 ----------
-     stat：各稀有度的基础属性加成；step：每级追加
-     mk(r, L0)：按稀有度索引与等级偏移算出具体效果数值
-     流血语义：turns = 持续秒数（每秒跳一次伤害）
-  ------------------------------------- */
-  const ITEM_DEFS = {
-    weapon: [
-      {
-        k: 'bleed', name: '血刃', icon: '🗡️', stat: [2, 3, 5, 8, 12], step: 2,
-        mk: (r, L0) => ({
-          dmg: Math.round([2, 3, 5, 7, 10][r] + 2 * L0),
-          turns: [3, 3, 4, 4, 5][r] + Math.floor(L0 / 2)
-        }),
-        desc: v => '命中后附加流血：每秒 <em>' + v.dmg + '</em> 点，持续 <em>' + v.turns + '</em> 秒',
-        tag: v => '流血 ' + v.dmg + ' × ' + v.turns + 's'
-      },
-      {
-        k: 'crit', name: '裂风刃', icon: '🌪️', stat: [2, 3, 5, 7, 10], step: 2,
-        // 暴击为固定节拍：每第 N 发必定触发，不再掷骰
-        mk: (r, L0) => ({
-          every: Math.max(2, [5, 4, 4, 3, 3][r] - Math.floor(L0 / 2)),
-          mult: Number(([1.6, 1.7, 1.8, 1.9, 2.0][r] + 0.05 * L0).toFixed(2))
-        }),
-        desc: v => '每第 <em>' + v.every + '</em> 发箭矢必定造成 <em>' + v.mult + '</em> 倍伤害',
-        tag: v => '每 ' + v.every + ' 击 ×' + v.mult
-      },
-      {
-        k: 'frost', name: '霜刃', icon: '❄️', stat: [2, 3, 5, 8, 12], step: 2,
-        mk: (r, L0) => ({ slow: Math.min(65, [12, 16, 21, 27, 34][r] + 2 * L0) }),
-        desc: v => '命中使敌人减速 <em>' + v.slow + '%</em>，持续 1.6 秒',
-        tag: v => '减速 ' + v.slow + '%'
-      },
-      {
-        k: 'execute', name: '碎骨刃', icon: '🦴', stat: [2, 3, 5, 8, 12], step: 2,
-        mk: (r, L0) => ({ pct: [15, 22, 30, 40, 52][r] + 4 * L0 }),
-        desc: v => '对生命低于 <em>35%</em> 的敌人伤害提高 <em>' + v.pct + '%</em>',
-        tag: v => '处决 +' + v.pct + '%'
-      },
-      {
-        k: 'splash', name: '回响刃', icon: '🔊', stat: [2, 3, 5, 8, 12], step: 2,
-        mk: (r, L0) => ({ pct: [10, 14, 19, 25, 32][r] + 2 * L0, radius: 90 }),
-        desc: v => '击杀敌人时向周围溅射 <em>' + v.pct + '%</em> 攻击力伤害',
-        tag: v => '溅射 ' + v.pct + '%'
-      },
-      {
-        k: 'rend', name: '裂甲刃', icon: '🔪', stat: [2, 3, 5, 8, 12], step: 2,
-        mk: (r, L0) => ({ pct: Math.min(80, [12, 18, 25, 33, 42][r] + 3 * L0) }),
-        desc: v => '攻击时额外无视目标 <em>' + v.pct + '%</em> 减伤率',
-        tag: v => '裂甲 ' + v.pct + '%'
-      }
-    ],
-    armor: [
-      {
-        k: 'thorn', name: '荆棘甲', icon: '🌵', stat: [1, 2, 3, 4, 6], step: 1,
-        mk: (r, L0) => ({ dmg: Math.round([2, 3, 4, 6, 8][r] + 1.5 * L0) }),
-        desc: v => '每次被命中时反弹 <em>' + v.dmg + '</em> 点伤害',
-        tag: v => '反伤 ' + v.dmg
-      },
-      {
-        k: 'guard', name: '壁垒甲', icon: '🛡️', stat: [1, 2, 3, 4, 6], step: 1,
-        mk: (r, L0) => ({ shield: Math.round([8, 12, 18, 25, 34][r] + 4 * L0) }),
-        desc: v => '开局与每次升级时获得 <em>' + v.shield + '</em> 点护盾',
-        tag: v => '护盾 +' + v.shield
-      },
-      {
-        k: 'bulwark', name: '龙鳞甲', icon: '🐉', stat: [1, 2, 3, 4, 6], step: 1,
-        mk: (r, L0) => ({ pct: Math.min(60, [6, 9, 13, 18, 24][r] + 3 * L0) }),
-        desc: v => '受到的伤害降低 <em>' + v.pct + '%</em>',
-        tag: v => '减伤 ' + v.pct + '%'
-      },
-      {
-        k: 'dodge', name: '影遁甲', icon: '🌑', stat: [1, 2, 3, 4, 6], step: 1,
-        mk: (r, L0) => ({ pct: Math.min(45, [8, 12, 17, 23, 30][r] + 2 * L0) }),
-        desc: v => '<em>' + v.pct + '%</em> 概率完全闪避一次伤害',
-        tag: v => '闪避 ' + v.pct + '%'
-      },
-      {
-        k: 'shock', name: '余震甲', icon: '⚡', stat: [1, 2, 3, 4, 6], step: 1,
-        mk: (r, L0) => ({ dmg: Math.round([3, 5, 7, 10, 14][r] + 2 * L0), radius: 100 }),
-        desc: v => '受击时对周围敌人造成 <em>' + v.dmg + '</em> 点范围伤害',
-        tag: v => '余震 ' + v.dmg
-      },
-      {
-        k: 'charger', name: '蓄能甲', icon: '🔋', stat: [1, 2, 3, 4, 6], step: 1,
-        mk: (r, L0) => ({ val: Math.round([3, 5, 7, 10, 14][r] + 2 * L0) }),
-        desc: v => '脱战 3 秒后每秒回复 <em>' + v.val + '</em> 点护盾（上限 60）',
-        tag: v => '回盾 ' + v.val + '/s'
-      }
-    ],
-    helm: [
-      {
-        k: 'haste', name: '回响头盔', icon: '💨', stat: [10, 16, 24, 36, 52], step: 8,
-        mk: (r, L0) => ({ pct: [18, 24, 30, 38, 48][r] + 3 * L0, dur: 3 }),
-        desc: v => '受击后 <em>' + v.dur + '</em> 秒内移速提高 <em>' + v.pct + '%</em>',
-        tag: v => '受击加速 ' + v.pct + '%'
-      },
-      {
-        k: 'regen', name: '再生头环', icon: '🌿', stat: [10, 16, 24, 36, 52], step: 8,
-        mk: (r, L0) => ({ val: Math.round([2, 3, 5, 7, 10][r] + 2 * L0) }),
-        desc: v => '每秒回复 <em>' + v.val + '</em> 点生命',
-        tag: v => '回复 ' + v.val + '/s'
-      },
-      {
-        k: 'swiftstep', name: '疾步之靴', icon: '👟', stat: [10, 16, 24, 36, 52], step: 8,
-        mk: (r, L0) => ({ pct: [6, 9, 12, 16, 20][r] + 2 * L0 }),
-        desc: v => '移动速度提高 <em>' + v.pct + '%</em>',
-        tag: v => '移速 +' + v.pct + '%'
-      },
-      {
-        k: 'eagle', name: '鹰眼盔', icon: '🦅', stat: [10, 16, 24, 36, 52], step: 8,
-        mk: (r, L0) => ({ pct: [20, 30, 42, 56, 72][r] + 5 * L0 }),
-        desc: v => '暴击伤害提高 <em>' + v.pct + '%</em>',
-        tag: v => '暴伤 +' + v.pct + '%'
-      },
-      {
-        k: 'tough', name: '坚韧盔', icon: '🧱', stat: [10, 16, 24, 36, 52], step: 8,
-        mk: (r, L0) => ({ pct: Math.min(60, [10, 15, 21, 28, 36][r] + 3 * L0) }),
-        desc: v => '生命低于 35% 时受到的伤害降低 <em>' + v.pct + '%</em>',
-        tag: v => '濒死减伤 ' + v.pct + '%'
-      },
-      {
-        k: 'clarity', name: '清醒盔', icon: '🧠', stat: [10, 16, 24, 36, 52], step: 8,
-        mk: (r, L0) => ({ pct: [6, 9, 13, 18, 24][r] + 2 * L0 }),
-        desc: v => '获得的经验提高 <em>' + v.pct + '%</em>',
-        tag: v => '经验 +' + v.pct + '%'
-      }
-    ],
-    trinket: [
-      {
-        k: 'pierce', name: '破魔坠', icon: '🔮', stat: null,
-        mk: (r, L0) => ({ pct: [10, 15, 20, 28, 36][r] + 4 * L0 }),
-        desc: v => '攻击时无视目标 <em>' + v.pct + '%</em> 的防御',
-        tag: v => '破甲 ' + v.pct + '%'
-      },
-      {
-        k: 'might', name: '巨力符', icon: '💪', statK: 'atk', stat: [3, 5, 8, 12, 18], step: 3,
-        mk: () => ({}),
-        desc: (v, it) => '攻击力提高 <em>+' + it.statV + '</em>',
-        tag: (v, it) => '攻击 +' + it.statV
-      },
-      {
-        k: 'ward', name: '磐石符', icon: '🪨', statK: 'def', stat: [2, 3, 5, 8, 11], step: 2,
-        mk: () => ({}),
-        desc: (v, it) => '防御力提高 <em>+' + it.statV + '</em>',
-        tag: (v, it) => '防御 +' + it.statV
-      },
-      {
-        k: 'hastestone', name: '迅捷符', icon: '⏩', stat: null,
-        mk: (r, L0) => ({ pct: Math.min(50, [8, 12, 17, 23, 30][r] + 2 * L0) }),
-        desc: v => '射击间隔缩短 <em>' + v.pct + '%</em>',
-        tag: v => '攻速 +' + v.pct + '%'
-      },
-      {
-        k: 'resonance', name: '共鸣符', icon: '🎼', stat: null,
-        mk: (r, L0) => ({ pct: [12, 18, 25, 34, 45][r] + 3 * L0 }),
-        desc: v => '技能伤害（震荡波/闪电/浮游炮/地雷）提高 <em>' + v.pct + '%</em>',
-        tag: v => '技能 +' + v.pct + '%'
-      },
-      {
-        k: 'greed', name: '贪婪符', icon: '💎', stat: null,
-        mk: (r, L0) => ({ rar: Math.min(2, 1 + Math.floor(L0 / 2)) }),
-        desc: v => '宝箱掉落稀有度 <em>+' + v.rar + '</em>',
-        tag: v => '稀有度 +' + v.rar
-      }
-    ]
-  };
 
   const MONSTER_POOL = [
     { names: ['哥布林', '地精', '小恶魔'], emoji: '👺' },
@@ -443,5 +277,5 @@
     }
   ];
 
-  Object.assign(G, { CFG, MAPS, HAZ_INFO, RARITY, SLOTS, ITEM_DEFS, MONSTER_POOL, BOSS_POOL, PREFIX, AFFIXES });
+  Object.assign(G, { CFG, MAPS, HAZ_INFO, RARITY, MONSTER_POOL, BOSS_POOL, PREFIX, AFFIXES });
 })(window.ABYSS = window.ABYSS || {});

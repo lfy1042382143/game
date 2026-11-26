@@ -41,10 +41,22 @@
     osc.stop(t0 + dur + 0.03);
   }
 
+  /* 命中音效节流：多个敌人同帧命中时只响一次，避免声音叠加刺耳 */
+  const HIT_SFX_GAP = 0.07;        // 最小间隔（秒）
+  let lastHitSfxT = -Infinity;
+  let hitSfxPlays = 0;             // 实际播放次数（供调试/测试）
+
   function sfxHit(crit) {
+    const now = Date.now() / 1000;
+    if (now - lastHitSfxT < HIT_SFX_GAP) return;   // 时间窗口内跳过，防止叠加
+    lastHitSfxT = now;
+    hitSfxPlays++;
     tone({ freq: crit ? 380 : 460, type: 'triangle', dur: 0.12, vol: 0.13, slide: 140 });
     tone({ freq: 110, type: 'sawtooth', dur: 0.16, vol: 0.08, slide: 55, delay: 0.01 });
   }
+
+  function getHitSfxPlays() { return hitSfxPlays; }
+  function resetHitSfx() { lastHitSfxT = -Infinity; hitSfxPlays = 0; }
   function sfxHurt() {
     tone({ freq: 150, type: 'sawtooth', dur: 0.2, vol: 0.09, slide: 60 });
     tone({ freq: 70, type: 'sine', dur: 0.24, vol: 0.12, slide: 40 });
@@ -83,5 +95,14 @@
 
   function isMuted() { return muted; }
 
-  Object.assign(G, { tone, sfxHit, sfxHurt, sfxGuard, sfxWin, sfxUpgrade, sfxLose, sfxBoss, sfxTick, toggleMute, isMuted });
+  // iOS/移动端：切后台或锁屏后 AudioContext 会挂起，回到前台时自动恢复
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && audioCtx && audioCtx.state === 'suspended') {
+        try { audioCtx.resume(); } catch (e) { /* 忽略 */ }
+      }
+    });
+  }
+
+  Object.assign(G, { tone, sfxHit, sfxHurt, sfxGuard, sfxWin, sfxUpgrade, sfxLose, sfxBoss, sfxTick, toggleMute, isMuted, getHitSfxPlays, resetHitSfx });
 })(window.ABYSS = window.ABYSS || {});
