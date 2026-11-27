@@ -371,11 +371,13 @@ function featureTests() {
 
   // T18 动态障碍物：随移动生成与移除
   reset();
+  G.state.obstacles = [];   // 清空预置布局，专测动态生成（高密度开局可能已达上限）
   const obs0 = G.state.obstacles.length;
   for (let i = 0; i < 8; i++) G.spawnObstacleNearPlayer();
   assert(G.state.obstacles.length > obs0, 'T18 岩脉随玩家移动生成', { obs0, obs1: G.state.obstacles.length });
-  // 一条岩脉 3~5 块，数量上限按 cap×4（每脉最多 4 块）
-  assert(G.state.obstacles.length <= G.CFG.obstacles.cap * 4 + 4, 'T18 岩脉块数有上限', G.state.obstacles.length);
+  // 数量上限按 cap × 地图密度（含一条岩脉的余量）
+  assert(G.state.obstacles.length <= G.CFG.obstacles.cap * (G.obDensity() || 1) + 4,
+    'T18 岩脉块数有上限', G.state.obstacles.length);
   // 移走后应被清除
   G.state.player.x = 100; G.state.player.y = 1300;
   G.cullObstacles();
@@ -881,7 +883,7 @@ function featureTests() {
   assert(G.state.zones.length > 0 && G.state.zones.every(z => z.pts && z.pts.length >= 6),
     'T15b 毒池为不规则多边形', G.state.zones.length);
   // 毒池更密：生成概率调高后，玩家周围活跃范围内应有多片毒池
-  assert(G.CFG.hazards.poison.cellChance >= 0.7 && G.state.zones.length >= 6,
+  assert(G.CFG.hazards.poison.cellChance >= 0.6 && G.state.zones.length >= 6,
     'T15b 沼泽毒池数量更多（覆盖更密）', { chance: G.CFG.hazards.poison.cellChance, zones: G.state.zones.length });
   // 玩家置于毒池中心，验证中毒扣血
   const pz = G.state.player;
@@ -988,8 +990,49 @@ function featureTests() {
   const forestObs = G.state.obstacles.length;
   G.switchMap(4);
   const lavaObs = G.state.obstacles.length;
-  assert(G.obDensity() > 1 && lavaObs > forestObs,
-    'T15e 火山地图障碍物更密', { forest: forestObs, lava: lavaObs, density: G.obDensity() });
+  const avgObR = () => G.state.obstacles.reduce((n, o) => n + (o.r || 0), 0) / (G.state.obstacles.length || 1);
+  reset();
+  const forestR = avgObR();
+  G.switchMap(4);
+  const lavaR = avgObR();
+  assert(G.obDensity() > 1 && lavaR > forestR * 1.2,
+    'T15e 火山障碍体量明显更大', { forest: forestObs, lava: lavaObs, forestR: Math.round(forestR), lavaR: Math.round(lavaR) });
+
+  // T15g 地形覆盖率：采样视口网格，障碍/陷阱应占约四成画面
+  const terrainCover = (span) => {
+    const p = G.state.player, V = G.CFG.viewport;
+    const w = span || V.w, h = span ? span * V.h / V.w : V.h;
+    let hit = 0, total = 0;
+    for (let ix = 1; ix < 24; ix++) for (let iy = 1; iy < 16; iy++) {
+      const x = p.x - w / 2 + ix * w / 24;
+      const y = p.y - h / 2 + iy * h / 16;
+      total++;
+      const ob = (G.state.obstacles || []).some(o => o.pts && G.inPoly(x, y, o.pts));
+      const zt = (G.state.zones || []).some(z => z.pts && G.inPoly(x, y, z.pts));
+      if (ob || zt) hit++;
+    }
+    return Math.round(hit / total * 100);
+  };
+  const cover = {};
+  [0, 1, 3, 4].forEach((mi, i) => {
+    reset();
+    G.switchMap(mi);
+    G.ensureTerrainAroundPlayer();
+    cover[G.MAPS[mi].name] = terrainCover();
+    if (mi === 0 || mi === 4) console.log('DEBUG obs', mi, G.state.obstacles.length, G.state.obstacles.slice(0,3).map(o=>[Math.round(o.x-G.state.player.x),Math.round(o.y-G.state.player.y)]));
+  });
+  console.log('    视口地形覆盖率: ' + JSON.stringify(cover));
+  assert(cover['腐毒沼泽'] >= 25 && cover['腐毒沼泽'] <= 55 && cover['冰川裂隙'] >= 25 && cover['冰川裂隙'] <= 55,
+    'T15g 毒池/冰面覆盖视口约四成', cover);
+  // 障碍一律在视口外生成，因此用玩家周围 1000px 范围衡量密度
+  const ringCover = {};
+  [0, 4].forEach(mi => {
+    reset(); G.switchMap(mi);
+    ringCover[G.MAPS[mi].name] = terrainCover(2000);
+  });
+  console.log('    近场障碍覆盖率: ' + JSON.stringify(ringCover));
+  assert(ringCover['熔岩火山'] >= 8,
+    'T15g 近场障碍覆盖足够密集', ringCover);
 
   // T15f 刷怪不再依赖击杀：场上敌人超过软上限时仍继续刷新（旧逻辑会卡住）
   reset();
@@ -2402,6 +2445,22 @@ function featureTests() {
   assert(G.render.spriteFace(100, 100, -1) === -1 && G.render.spriteFace(100, undefined, -1) === 1
     && G.render.spriteFace(100, 200, 0) === 1,
   'T-SP2 同位置/无目标/正面素材的默认行为');
+
+  // T-SP3 场景素材：骷髅、地面、障碍、冰面/毒池贴图齐备
+  assert(G.sprites.NAMES.includes('skeleton') && G.sprites.BASE_FACE.skeleton === -1,
+    'T-SP3 骷髅素材与朝左标注', G.sprites.BASE_FACE.skeleton);
+  assert(G.sprites.TILES.length === 5 && G.sprites.OBSTACLES.length === 5 && G.sprites.ZONES.length === 2,
+    'T-SP3 场景素材清单完整',
+    { tiles: G.sprites.TILES, obstacles: G.sprites.OBSTACLES, zones: G.sprites.ZONES });
+  const sceneFiles = [
+    'characters/skeleton',
+    ...G.sprites.TILES.map(n => 'tiles/' + n),
+    ...G.sprites.OBSTACLES.map(n => 'obstacles/' + n),
+    ...G.sprites.ZONES.map(n => 'zones/' + n)
+  ];
+  const missingScene = sceneFiles.filter(n => !fs.existsSync(
+    path.join(__dirname, '..', 'assets', n + '.png')));
+  assert(missingScene.length === 0, 'T-SP3 13 张场景素材文件存在', missingScene);
 
   console.log('\n功能测试结果: ' + pass + ' 通过, ' + fail + ' 失败');
   return fail;

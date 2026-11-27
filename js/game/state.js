@@ -175,7 +175,7 @@
     const type = types[Math.floor(Math.random() * types.length)];
     const isRoot = type === 'root';
     const count = isRoot ? (2 + Math.floor(Math.random() * 2)) : (1 + Math.floor(Math.random() * 2));
-    const baseR = C.sizeMin * 0.55 + Math.random() * (C.sizeMax - C.sizeMin) * 0.3;
+    const baseR = (C.sizeMin * 0.55 + Math.random() * (C.sizeMax - C.sizeMin) * 0.3) * Math.sqrt(obDensity());
     const dir = Math.random() * Math.PI * 2;
     const curve = (Math.random() - 0.5) * (isRoot ? 1.6 : 0.6);
     const veinId = 'v' + (state.veinSeq = (state.veinSeq || 0) + 1);
@@ -240,7 +240,7 @@
     const C = CFG.obstacles;
     let made = 0, tries = 0;
     if (!currentObTypes()) return 0;   // 沼泽等无障碍物地图
-    while (made < n && tries++ < 240) {
+    while (made < n && tries++ < 1200) {
       const a = Math.random() * Math.PI * 2;
       const dMin = screenOutsideDist(a);
       const d = dMin + Math.random() * Math.max(60, C.maxDist - dMin);
@@ -250,7 +250,7 @@
       if (G.dist(cx, cy, vx, vy) < dMin - 1) continue;
       const vein = makeVein(vx, vy);
       if (!vein.length) continue;
-      if (polyConflict(vein[0], 40)) continue;
+      if (polyConflict(vein[0], 24)) continue;
       vein.forEach(poly => state.obstacles.push(poly));
       made++;
     }
@@ -262,7 +262,7 @@
     const W = CFG.world;
     const C = CFG.obstacles;
     const p = state.player;
-    if (!p || state.obstacles.length >= C.cap * 4 * obDensity()) return false;
+    if (!p || state.obstacles.length >= C.cap * obDensity()) return false;
     if (!currentObTypes()) return false;   // 无障碍物地图
 
     for (let tries = 0; tries < 16; tries++) {
@@ -276,7 +276,7 @@
       const vein = makeVein(vx, vy);
       if (!vein.length) continue;
       if (state.foes.some(f => !f.dead && G.circlePoly(f.x, f.y, f.r + 50, vein[0]))) continue;
-      if (polyConflict(vein[0], 40)) continue;
+      if (polyConflict(vein[0], 24)) continue;
       vein.forEach(poly => state.obstacles.push(poly));
       return true;
     }

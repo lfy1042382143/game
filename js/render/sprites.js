@@ -8,7 +8,10 @@
   'use strict';
 
   const NAMES = ['player', 'melee', 'brute', 'flyer', 'ranged',
-    'mage', 'elite', 'boss', 'mimic', 'companion', 'crystal'];
+    'mage', 'elite', 'boss', 'mimic', 'companion', 'crystal', 'skeleton'];
+  const TILES = ['forest', 'swamp', 'bone', 'ice', 'lava'];
+  const OBSTACLES = ['root', 'stone', 'bone', 'ice', 'lava'];
+  const ZONES = ['ice', 'poison'];
   const cache = Object.create(null);
   let version = '';
 
@@ -22,12 +25,16 @@
     const s = document.querySelector && document.querySelector('script[src*="sprites.js"]');
     const m = s && String(s.src).match(/[?&]v=([^&]+)/);
     version = m ? m[1] : '';
-    NAMES.forEach(name => {
+    const loadOne = (key, path) => {
       const img = new Image();
-      img.onload = () => { cache[name] = img; };
-      img.onerror = () => { cache[name] = null; };
-      img.src = 'assets/characters/' + name + '.png' + (version ? '?v=' + version : '');
-    });
+      img.onload = () => { cache[key] = img; };
+      img.onerror = () => { cache[key] = null; };
+      img.src = path + (version ? '?v=' + version : '');
+    };
+    NAMES.forEach(name => loadOne(name, 'assets/characters/' + name + '.png'));
+    TILES.forEach(name => loadOne('tile/' + name, 'assets/tiles/' + name + '.png'));
+    OBSTACLES.forEach(name => loadOne('ob/' + name, 'assets/obstacles/' + name + '.png'));
+    ZONES.forEach(name => loadOne('zone/' + name, 'assets/zones/' + name + '.png'));
   }
 
   /** 取图片；未加载完成返回 null。精英统一使用 elite 骑士图。 */
@@ -43,7 +50,8 @@
    */
   const BASE_FACE = {
     player: -1, melee: -1, brute: -1, flyer: 0, ranged: 1,
-    mage: -1, elite: -1, boss: 0, mimic: 0, companion: 0, crystal: 0
+    mage: -1, elite: -1, boss: 0, mimic: 0, companion: 0, crystal: 0,
+    skeleton: -1
   };
 
   function baseFace(u, isPlayer) {
@@ -52,5 +60,13 @@
     return BASE_FACE[key] !== undefined ? BASE_FACE[key] : -1;
   }
 
-  Object.assign(G, { sprites: { load, getSprite, baseFace, BASE_FACE, NAMES, ready: () => NAMES.filter(n => !!cache[n]).length } });
+  /** 通用取图：tile/xxx、ob/xxx、zone/xxx 以及角色名 */
+  function get(key) { return cache[key] || null; }
+
+  Object.assign(G, {
+    sprites: {
+      load, get, getSprite, baseFace, BASE_FACE, NAMES, TILES, OBSTACLES, ZONES,
+      ready: () => NAMES.filter(n => !!cache[n]).length
+    }
+  });
 })(window.ABYSS = window.ABYSS || {});

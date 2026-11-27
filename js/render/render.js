@@ -116,9 +116,18 @@
     const V = CFG.viewport, W = CFG.world;
     const map = G.MAPS[state.mapIdx % G.MAPS.length];
 
-    // 地面（铺满视口，世界坐标）
-    ctx.fillStyle = map.floor;
-    ctx.fillRect(cam.x, cam.y, V.w, V.h);
+    // 地面（贴图平铺，世界坐标对齐；未加载时回退纯色）
+    const floorPat = tilePattern('tile/' + map.theme);
+    if (floorPat) {
+      ctx.save();
+      ctx.translate(cam.x, cam.y);
+      ctx.fillStyle = floorPat;
+      ctx.fillRect(0, 0, V.w, V.h);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = map.floor;
+      ctx.fillRect(cam.x, cam.y, V.w, V.h);
+    }
 
     // 网格（对齐世界坐标）
     ctx.strokeStyle = map.grid;
@@ -130,22 +139,24 @@
     for (let y = gy0; y <= cam.y + V.h + 48; y += 48) { ctx.moveTo(cam.x, y); ctx.lineTo(cam.x + V.w, y); }
     ctx.stroke();
 
-    // 随机地形斑块：按世界坐标哈希确定性生成，随相机移动自然换入换出（无边界地图）
+    // 程序斑块：仅在地面贴图未加载时作为兜底（贴图自带斑块，避免叠出脏点）
     const TC = 320;
-    const tcx0 = Math.floor(cam.x / TC) - 1, tcx1 = Math.floor((cam.x + V.w) / TC) + 1;
-    const tcy0 = Math.floor(cam.y / TC) - 1, tcy1 = Math.floor((cam.y + V.h) / TC) + 1;
-    for (let gx = tcx0; gx <= tcx1; gx++) {
-      for (let gy = tcy0; gy <= tcy1; gy++) {
-        if (!G.cellHash) break;
-        const h = G.cellHash(gx, gy, 777);
-        if (h < 0.45) continue;
-        const x = gx * TC + G.cellHash(gx, gy, 778) * TC;
-        const y = gy * TC + G.cellHash(gx, gy, 779) * TC;
-        const r = 40 + G.cellHash(gx, gy, 780) * 100;
-        ctx.beginPath();
-        ctx.ellipse(x, y, r, r * (0.5 + G.cellHash(gx, gy, 781) * 0.5), 0, 0, Math.PI * 2);
-        ctx.fillStyle = map.obInner;
-        ctx.fill();
+    if (!floorPat) {
+      const tcx0 = Math.floor(cam.x / TC) - 1, tcx1 = Math.floor((cam.x + V.w) / TC) + 1;
+      const tcy0 = Math.floor(cam.y / TC) - 1, tcy1 = Math.floor((cam.y + V.h) / TC) + 1;
+      for (let gx = tcx0; gx <= tcx1; gx++) {
+        for (let gy = tcy0; gy <= tcy1; gy++) {
+          if (!G.cellHash) break;
+          const h = G.cellHash(gx, gy, 777);
+          if (h < 0.45) continue;
+          const x = gx * TC + G.cellHash(gx, gy, 778) * TC;
+          const y = gy * TC + G.cellHash(gx, gy, 779) * TC;
+          const r = 40 + G.cellHash(gx, gy, 780) * 100;
+          ctx.beginPath();
+          ctx.ellipse(x, y, r, r * (0.5 + G.cellHash(gx, gy, 781) * 0.5), 0, 0, Math.PI * 2);
+          ctx.fillStyle = map.obInner;
+          ctx.fill();
+        }
       }
     }
 
@@ -164,10 +175,18 @@
       ctx.lineWidth = st.lw || 2;
       ctx.stroke();
 
-      // 统一内部纹理：按表里的 pattern 选择
+      // 内部纹理：优先贴形象图（按多边形外接框绘制并裁剪），未加载时回退程序纹理
       ctx.save();
       ctx.clip();
-      drawObstaclePattern(o, st);
+      const oimg = G.sprites && G.sprites.get ? G.sprites.get('ob/' + o.obType) : null;
+      if (oimg) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const pt of o.pts) {
+          minX = Math.min(minX, pt.x); maxX = Math.max(maxX, pt.x);
+          minY = Math.min(minY, pt.y); maxY = Math.max(maxY, pt.y);
+        }
+        ctx.drawImage(oimg, minX, minY, maxX - minX, maxY - minY);
+      } else drawObstaclePattern(o, st);
       ctx.restore();
 
       // 功能状态叠加（不改变骨架）：熔岩靠近发红、冰柱受损裂纹、骨堆召唤脉冲
@@ -202,6 +221,16 @@
      ========================================================= */
   const PI2 = Math.PI * 2;
 
+  /** 地面贴图 pattern 缓存（createPattern 依赖 ctx，延迟到首帧创建） */
+  const patternCache = Object.create(null);
+  function tilePattern(key) {
+    if (patternCache[key]) return patternCache[key];
+    const img = G.sprites && G.sprites.get ? G.sprites.get(key) : null;
+    if (!img) return null;   // 图片还没加载完：不缓存 null，下一帧再试
+    patternCache[key] = ctx.createPattern(img, 'repeat');
+    return patternCache[key];
+  }
+
   function drawZones() {
     for (const z of state.zones) {
       if (!z.pts) continue;
@@ -211,33 +240,36 @@
       ctx.closePath();
 
       if (z.kind === 'ice') {
-        // 冰面：不规则多边形 + 淡蓝半透明填充 + 内部裂纹高光 + 边缘微光
-        ctx.fillStyle = 'rgba(186,230,253,0.14)';
-        ctx.fill();
+        // 冰面：不规则多边形 + 贴图（未加载时回退淡蓝填充）+ 内部裂纹高光 + 边缘微光
+        const zimg = G.sprites && G.sprites.get ? G.sprites.get('zone/ice') : null;
+        if (zimg) ctx.drawImage(zimg, z.x - z.r, z.y - z.r, z.r * 2, z.r * 2);
+        else { ctx.fillStyle = 'rgba(186,230,253,0.14)'; ctx.fill(); }
         ctx.strokeStyle = 'rgba(224,242,254,0.42)';
         ctx.lineWidth = 2;
         ctx.stroke();
-        ctx.save();
-        ctx.clip();
-        // 冰裂纹：按种子固定几条折线，模拟真实冰面的裂纹
-        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-        ctx.lineWidth = 1.2;
-        for (let k = 0; k < 5; k++) {
-          const a = k * 1.27 + z.seed * 6;
-          const r0 = z.r * (0.15 + 0.12 * k);
-          ctx.beginPath();
-          ctx.moveTo(z.x, z.y);
-          ctx.lineTo(z.x + Math.cos(a) * r0, z.y + Math.sin(a) * r0);
-          ctx.lineTo(z.x + Math.cos(a + 0.35) * r0 * 1.7, z.y + Math.sin(a + 0.35) * r0 * 1.7);
-          ctx.stroke();
+        if (!zimg) {
+          ctx.save();
+          ctx.clip();
+          ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+          ctx.lineWidth = 1.2;
+          for (let k = 0; k < 5; k++) {
+            const a = k * 1.27 + z.seed * 6;
+            const r0 = z.r * (0.15 + 0.12 * k);
+            ctx.beginPath();
+            ctx.moveTo(z.x, z.y);
+            ctx.lineTo(z.x + Math.cos(a) * r0, z.y + Math.sin(a) * r0);
+            ctx.lineTo(z.x + Math.cos(a + 0.35) * r0 * 1.7, z.y + Math.sin(a + 0.35) * r0 * 1.7);
+            ctx.stroke();
+          }
+          ctx.restore();
         }
-        ctx.restore();
         continue;
       }
 
-      // 毒池：不规则多边形 + 毒绿填充 + 边缘冒泡
-      ctx.fillStyle = 'rgba(132,204,22,0.13)';
-      ctx.fill();
+      // 毒池：不规则多边形 + 贴图（未加载时回退毒绿填充）+ 边缘冒泡
+      const zimg = G.sprites && G.sprites.get ? G.sprites.get('zone/poison') : null;
+      if (zimg) ctx.drawImage(zimg, z.x - z.r, z.y - z.r, z.r * 2, z.r * 2);
+      else { ctx.fillStyle = 'rgba(132,204,22,0.13)'; ctx.fill(); }
       ctx.strokeStyle = 'rgba(163,230,53,0.5)';
       ctx.lineWidth = 2;
       ctx.setLineDash([9, 7]);

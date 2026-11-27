@@ -15,10 +15,12 @@ cp "$ROOT/index.html" "$DIST/"
 cp -r "$ROOT/css" "$DIST/css"
 cp -r "$ROOT/js"  "$DIST/js"
 # 角色图片素材（源图不上传，只传切好的透明 PNG）
-if [ -d "$ROOT/assets/characters" ]; then
-  mkdir -p "$DIST/assets/characters"
-  cp "$ROOT/assets/characters/"*.png "$DIST/assets/characters/"
-fi
+for folder in characters tiles obstacles zones; do
+  if [ -d "$ROOT/assets/$folder" ]; then
+    mkdir -p "$DIST/assets/$folder"
+    cp "$ROOT/assets/$folder/"*.png "$DIST/assets/$folder/"
+  fi
+done
 
 # 静态资源文件名不带 hash，浏览器可能缓存旧代码。
 # 这里给引用加内容指纹破缓存（每次部署都会变）。

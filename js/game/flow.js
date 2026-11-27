@@ -50,7 +50,7 @@
     state.player = G.makePlayer(startLine);
     state.obstacles = [];
     state.foes = [];
-    G.spawnObstaclesRandom(Math.round(4 * (G.obDensity ? G.obDensity() : 1)));     // 初始障碍布局（火山更密）
+    G.spawnObstaclesRandom(Math.round(60 * (G.obDensity ? G.obDensity() : 1)));     // 初始障碍布局（火山更密）
     G.setupHazards();              // 初始地图无陷阱（布置空陷阱）
     G.spawnChest();                // 开局引导宝箱
     G.spawnSite();                 // 开局一个事件地点
@@ -73,7 +73,7 @@
     const map = G.MAPS[idx];
     // 重新随机障碍布局（按地图密度，火山更密）
     state.obstacles = [];
-    G.spawnObstaclesRandom(Math.round(5 * (G.obDensity ? G.obDensity() : 1)));
+    G.spawnObstaclesRandom(Math.round(65 * (G.obDensity ? G.obDensity() : 1)));
     // 布置该地图的特色陷阱
     G.setupHazards();
     const hz = map.hazard && G.HAZ_INFO[map.hazard];

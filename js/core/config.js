@@ -66,9 +66,9 @@
 
     // 无边界地形：按地块确定性生成陷阱/锚点，随玩家移动换入换出（位置在世界中固定）
     terrain: {
-      cell: 900,          // 地块边长
-      activeRadius: 1800, // 玩家周围生成半径
-      cullRadius: 3000,   // 超出此距离回收区域/锚点
+      cell: 360,          // 地块边长（更密：约 40% 地图被障碍/陷阱覆盖）
+      activeRadius: 900,  // 玩家周围生成半径
+      cullRadius: 1600,   // 超出此距离回收区域/锚点
       cullFoeDist: 2200   // 远离玩家的普通敌人回收（防止旧怪堆积）
     },
 
@@ -111,10 +111,10 @@
 
     // 动态障碍物：随主角移动随机生成/移除；形状按地图主题（forest/root/stone/bone/ice/lava）
     obstacles: {
-      cap: 8, spawnEvery: 4,
-      minDist: 350, maxDist: 720, cullDist: 1150,
+      cap: 180, spawnEvery: 0.4,
+      minDist: 300, maxDist: 800, cullDist: 1800,
       screenMargin: 60,     // 新障碍物至少生成在视口对角线之外（+余量），避免屏幕内凭空出现
-      sizeMin: 46, sizeMax: 88,
+      sizeMin: 70, sizeMax: 120,
       iceHp: 6,             // 冰柱：被攻击 6 次后碎裂
       iceShatterR: 96,      // 冰柱碎裂：对周围敌人的范围半径
       iceShatterDmg0: 22, iceShatterDmgK: 8,  // 碎裂伤害 = dmg0 + dmgK×(分钟-1)
@@ -128,7 +128,7 @@
     hazards: {
       // 沼泽：不规则毒池，进入获得中毒 debuff（每秒扣血）
       poison: {
-        cellChance: 0.8, r0: 95, r1: 175,       // 毒池生成概率与半径（更密更大片）
+        cellChance: 0.65, r0: 130, r1: 200,      // 毒池生成概率与半径（高密度大片）
         dps: 4, dpsK: 0.8,                      // 每秒伤害 = dps + dpsK×(分钟-1)
         tick: 0.5,                              // 扣血结算间隔
         slowMul: 0.82                           // 毒池内轻微减速
@@ -142,7 +142,7 @@
       },
       // 冰川：不规则冰面区域内惯性滑行（加速度+摩擦模型，模拟真实冰面）
       ice: {
-        cellChance: 0.6, r0: 140, r1: 230,     // 冰面区域生成概率与半径范围（不规则多边形）
+        cellChance: 0.45, r0: 160, r1: 230,     // 冰面区域生成概率与半径范围（高密度不规则多边形）
         accel: 1050,                            // 冰面加速度（px/s²）：转弯/反向都要先抵消原速度，故有"刹不住"感
         friction: 300,                          // 冰面摩擦减速（px/s²）：松开按键后仍会向前滑一段
         maxMul: 1.15,                           // 冰面最高速度倍率（略快于地面）
@@ -245,7 +245,7 @@
       ob: '#1a2a3a', obEdge: 'rgba(150,210,255,0.45)', obInner: 'rgba(190,230,255,0.14)' },
     { name: '熔岩火山', theme: 'lava', obType: ['lava'], hazard: 'lava', obDensity: 2.2,
       floor: '#1b0e0b', grid: 'rgba(255,150,100,0.045)', wall: 'rgba(240,120,90,0.5)',
-      ob: '#2d1610', obEdge: 'rgba(240,120,90,0.45)', obInner: 'rgba(255,140,60,0.16)' }
+      ob: '#2d1610', obEdge: 'rgba(240,120,90,0.45)', obInner: 'rgba(255,140,60,0.16)', obDensity: 1.8 }
   ];
 
   /* ---------- 地图机制说明（横幅提示用） ---------- */
